@@ -11,14 +11,14 @@ OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 
 # libraryes to link against
-LIBS := -lglog -lgflags
+LIBS := -lstdc++ -lglog -lgflags -llua
 
 # directories to search for includes
-INC_DIRS := $(shell find $(SRC_DIRS) -type d)
+INC_DIRS := $(shell find $(SRC_DIRS) -type d) libs/json/src
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 # flags for the C and C++ compiler
-CPPFLAGS ?= -g $(INC_FLAGS) -MMD -MP
+CPPFLAGS ?= -g $(INC_FLAGS) -MMD -MP -std=c++14
 CFLAGS ?= -g
 
 # flags for the linker
@@ -42,12 +42,12 @@ $(BUILD_DIR)/%.s.o: %.s
 # c source
 $(BUILD_DIR)/%.c.o: %.c
 	$(MKDIR_P) $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(VERSION_FLAGS) -c $< -o $@
 
 # c++ source
 $(BUILD_DIR)/%.cpp.o: %.cpp
 	$(MKDIR_P) $(dir $@)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(VERSION_FLAGS) -c $< -o $@
 
 
 .PHONY: clean
