@@ -21,6 +21,12 @@ using json = nlohmann::json;
  * Main server entry point
  */
 void CommandServerEntry(void *ctx) {
+#ifdef __APPLE__
+	pthread_setname_np("Command Server");
+#else
+	pthread_setname_np(pthread_self(), "Command Server");
+#endif
+
 	CommandServer *srv = static_cast<CommandServer *>(ctx);
 	srv->threadEntry();
 }
@@ -29,6 +35,12 @@ void CommandServerEntry(void *ctx) {
  * Client thread entry point
  */
 void CommandClientEntry(void *ctx) {
+#ifdef __APPLE__
+	pthread_setname_np("Command Server Client Thread");
+#else
+	pthread_setname_np(pthread_self(), "Command Server Client Thread");
+#endif
+
 	CommandServer::ClientThreadCtx *info = static_cast<CommandServer::ClientThreadCtx *>(ctx);
 	info->srv->clientThreadEntry(info->fd);
 }
@@ -47,7 +59,7 @@ CommandServer::CommandServer(string socket, DataStore *store) {
  * Closes the listening socket.
  */
 CommandServer::~CommandServer() {
-
+	delete this->worker;
 }
 
 /**
@@ -72,7 +84,7 @@ void CommandServer::stop() {
 
 	// close the socket; this'll terminate the accept() call
 	err = close(this->sock);
-	LOG_IF(ERROR, err != 0) << "Couldn't close command socket: " << strerror(errno);
+	PLOG_IF(ERROR, err != 0) << "Couldn't close command socket: ";
 
 	// wait for the thread to terminate
 	this->worker->join();
@@ -89,7 +101,7 @@ void CommandServer::stop() {
 		   	if(fcntl(fd, F_GETFD) != -1) {
 				// if not, close it
 		   		err = close(fd);
-		   		LOG_IF(ERROR, err != 0) << "Couldn't close client socket: " << strerror(errno);
+		   		PLOG_IF(ERROR, err != 0) << "Couldn't close client socket: ";
 		   	}
 
 			// now, wait for the thread to terminate
@@ -120,7 +132,7 @@ void CommandServer::threadEntry() {
 		if(msgsock == -1) {
 			// ignore ECONNABORTED messages if we're shutting down
 			if(errno != ECONNABORTED && this->run == true) {
-				LOG(WARNING) << "Couldn't accept command connection: " << strerror(errno);
+				PLOG(WARNING) << "Couldn't accept command connection: ";
 			}
 
 			// continue the loop
@@ -135,7 +147,7 @@ void CommandServer::threadEntry() {
 	LOG(INFO) << "Closing command connection";
 
 	err = unlink(this->socketPath.c_str());
-	LOG_IF(ERROR, err != 0) << "Couldn't unlink command socket: " << strerror(errno);
+	PLOG_IF(ERROR, err != 0) << "Couldn't unlink command socket: ";
 }
 
 /**
@@ -198,11 +210,16 @@ void CommandServer::clientThreadEntry(int fd) {
 #ifdef SO_PEERCRED
 	err = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &ucred, &len);
 
-	LOG_IF(ERROR, err != 0) << "Couldn't get peer info on " << fd << ": " << strerror(errno);
+	PLOG_IF(ERROR, err != 0) << "Couldn't get peer info on " << fd << ": ";
 
 	if(err == 0) {
 		LOG(INFO) << "Received connection from pid " << ucred.pid << " on fd " << fd;
 	}
+
+	// set thread name
+	char name[64];
+	snprintf(name, 64, "Command Server Client - pid %u", ucred.pid);
+	pthread_setname_np(pthread_self(), name);
 #endif
 
 	// allocate a read buffer
@@ -226,7 +243,7 @@ void CommandServer::clientThreadEntry(int fd) {
 		else if(rsz == -1) {
 			// ignore ECONNABORTED messages if we're shutting down
 			if(this->run == true) {
-				LOG(WARNING) << "Couldn't read from client: " << strerror(errno);
+				PLOG(WARNING) << "Couldn't read from client: ";
 				break;
 			}
 		}
@@ -269,7 +286,7 @@ void CommandServer::clientThreadEntry(int fd) {
  	 */
 	if(fcntl(fd, F_GETFD) != -1) {
 		err = close(fd);
-		LOG_IF(ERROR, err != 0) << "Couldn't close client socket: " << strerror(errno);
+		PLOG_IF(ERROR, err != 0) << "Couldn't close client socket: ";
 	}
 
 	// de-allocate the buffer
@@ -311,7 +328,7 @@ void CommandServer::processClientRequest(json &j, int fd) {
 	err = write(fd, responseBuf, length);
 
 	// check for error
-	LOG_IF(ERROR, err == -1) << "Couldn't write to client: " << strerror(errno);
+	PLOG_IF(ERROR, err == -1) << "Couldn't write to client: ";
 
 	if(err != length) {
 		LOG(WARNING) << "Wrote " << err << " bytes, buffer was " << length << "!";
@@ -336,7 +353,7 @@ void CommandServer::clientRequestStatus(json &response) {
 	err = getrusage(RUSAGE_SELF, &usage);
 
 	if(err != 0) {
-		LOG(ERROR) << "Couldn't get resource usage: " << strerror(errno);
+		PLOG(ERROR) << "Couldn't get resource usage: ";
 		response["status"] = errno;
 	} else {
 		response["status"] = 0;

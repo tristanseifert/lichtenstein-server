@@ -11,6 +11,7 @@
 #include <signal.h>
 
 #include "CommandServer.h"
+#include "NodeDiscovery.h"
 #include "DataStore.h"
 
 using namespace std;
@@ -23,6 +24,7 @@ static DataStore *store = nullptr;
 
 // various components of the server
 static CommandServer *cs = nullptr;
+static NodeDiscovery *nd = nullptr;
 
 /**
  * Signal handler. This handler is invoked for the following signals to enable
@@ -66,6 +68,10 @@ int main(int argc, char *argv[]) {
 	cs = new CommandServer("./lichtenstein.sock", store);
 	cs->start();
 
+	// star the node discovery
+	nd = new NodeDiscovery(store);
+	nd->start();
+
 	// start the protocol parser (binary lichtenstein protocol)
 
 	// start the effect evaluator
@@ -77,9 +83,11 @@ int main(int argc, char *argv[]) {
 
 	// stop the servers
 	cs->stop();
+	nd->stop();
 
 	// clean up
 	delete cs;
+	delete nd;
 
 	// ensure the database is commited to disk
 	store->commit();
