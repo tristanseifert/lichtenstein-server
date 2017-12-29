@@ -114,6 +114,11 @@ The server may periodically poll the node as to its current status via a node st
 | 28     | uint16_t | Output state (see table below)
 | 30     | uint16_t | CPU usage (on a scale of 1 to 100, how much the CPU has been utilized over the past 15 seconds)
 | 32     | int32_t  | Average conversion time, in microseconds, of framebuffer data to output format (averaged over the past 15 seconds); -1 if not applicable
+| 36     | uint32_t | Bytes the node received since the last reset [^byteCntrs]
+| 40     | uint32_t | Bytes the node sent since the last reset [^byteCntrs]
+| 44     | uint32_t | Number of symbols with an error received on the wire.
+| 48     | uint32_t | Speed of the underlying network medium, in bits per second
+| 52     | uint32_t | Duplex state of the underlying network medium; 0 if half-duplex, 1 for full duplex.
 
 Output state may be one of the following:
 
@@ -192,3 +197,5 @@ This data is written to nonvolatile memory in the node. Acknowledgement is provi
 [^txn]: Each packet must contain a random 32-bit transaction number. When responding to a request, the transaction number must be the same as that of the request that caused the response to be generated. This allows for client/server code to be simpler.
 
 [^length]: Even though this field technically allows for a packet payload length of \\( 2^{32}-1 \\) bytes, it's not recommended to create packets that exceed the MTU of the underlying medium, usually 1500. Thus, conservatively, you should not send packets with a payload of more than 1400 bytes. There is no guarantee that clients can process packets larger than this, even if they are fragmented. Instead, use the sequence number facility to split the data.
+
+[^byteCntrs]: Byte counters for received/transmitted bytes are divided by 64 before they are sent. This allows the counters to represent roughly 250GB of traffic, after which they will roll over. The node itself may store this data with a higher granularity, but the burden falls on the server to determine if the counter rolled over and update its accounting, if needed.
