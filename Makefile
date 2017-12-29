@@ -11,7 +11,7 @@ OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 
 # libraryes to link against
-LIBS := -lstdc++ -lglog -lgflags -llua
+LIBS := -lstdc++ -lglog -lgflags -llua -lsqlite3
 
 # directories to search for includes
 INC_DIRS := $(shell find $(SRC_DIRS) -type d) libs/json/src
@@ -28,7 +28,7 @@ LDFLAGS ?= $(LIBS)
 GIT_HASH=`git rev-parse HEAD`
 COMPILE_TIME=`date -u +'%Y-%m-%d %H:%M:%S UTC'`
 GIT_BRANCH=`git branch | grep "^\*" | sed 's/^..//'`
-export VERSION_FLAGS=-DGIT_HASH="\"$(GIT_HASH)\"" -DCOMPILE_TIME="\"$(COMPILE_TIME)\"" -DGIT_BRANCH="\"$(GIT_BRANCH)\""
+export VERSION_FLAGS=-DGIT_HASH="\"$(GIT_HASH)\"" -DCOMPILE_TIME="\"$(COMPILE_TIME)\"" -DGIT_BRANCH="\"$(GIT_BRANCH)\"" -DVERSION="\"0.1.0\""
 
 # build the main executable
 $(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)

@@ -11,11 +11,15 @@
 #include <signal.h>
 
 #include "CommandServer.h"
+#include "DataStore.h"
 
 using namespace std;
 
 // when set to false, the server terminates
 atomic_bool keepRunning;
+
+// data store
+static DataStore *store = nullptr;
 
 // various components of the server
 static CommandServer *cs = nullptr;
@@ -24,7 +28,7 @@ static CommandServer *cs = nullptr;
  * Signal handler. This handler is invoked for the following signals to enable
  * us to do a clean shut-down:
  *
- * -
+ * - SIGINT
  */
 void signalHandler(int sig) {
 	LOG(WARNING) << "Caught signal " << sig << "; shutting down!";
@@ -55,8 +59,11 @@ int main(int argc, char *argv[]) {
 
 	sigaction(SIGINT, &sigIntHandler, nullptr);
 
+	// load the datastore from disk
+	store = new DataStore("db/lichtenstein.sqlite3");
+
 	// start the external command interpreter (JSON socket)
-	CommandServer *cs = new CommandServer("./lichtenstein.sock");
+	cs = new CommandServer("./lichtenstein.sock", store);
 	cs->start();
 
 	// start the protocol parser (binary lichtenstein protocol)
@@ -73,4 +80,8 @@ int main(int argc, char *argv[]) {
 
 	// clean up
 	delete cs;
+
+	// ensure the database is commited to disk
+	store->commit();
+	delete store;
 }

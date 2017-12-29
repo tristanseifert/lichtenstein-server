@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/ucred.h>
+#include <sys/resource.h>
 
 using namespace std;
 using json = nlohmann::json;
@@ -37,8 +38,9 @@ void CommandClientEntry(void *ctx) {
  * Initializes the command server. This creates some internal structures and
  * prepares for the thread to start.
  */
-CommandServer::CommandServer(string socket) {
+CommandServer::CommandServer(string socket, DataStore *store) {
 	this->socketPath = socket;
+	this->store = store;
 }
 
 /**
@@ -77,7 +79,7 @@ void CommandServer::stop() {
 
 	// now, terminate any remaining clients
 	if(!this->clients.empty()) {
-		LOG(INFO) << "Closing " << this->clients.size() << " active client connections";
+		LOG(INFO) << "Closing " << this->clients.size() << " client connections";
 
 		for(auto value : this->clients) {
 			int fd = get<0>(value);
@@ -205,16 +207,56 @@ void CommandServer::clientThreadEntry(int fd) {
 
 	// allocate a read buffer
 	char *buffer = new char[kClientBufferSz];
-	std::fill(buffer, buffer + kClientBufferSz, 0);
+	// std::fill(buffer, buffer + kClientBufferSz, 0);
 
 	// keep reading from the socket while we are running
 	while(this->run) {
+		// clear the buffer, then read from the socket
+		std::fill(buffer, buffer + kClientBufferSz, 0);
 		rsz = read(fd, buffer, kClientBufferSz);
+
+		// LOG(INFO) << "Read " << rsz << " bytes";
 
 		// if the read size was zero, the connection was closed
 		if(rsz == 0) {
 			LOG(WARNING) << "Connection " << fd << " closed by host";
 			break;
+		}
+		// handle error conditions
+		else if(rsz == -1) {
+			// ignore ECONNABORTED messages if we're shutting down
+			if(this->run == true) {
+				LOG(WARNING) << "Couldn't read from client: " << strerror(errno);
+				break;
+			}
+		}
+		// otherwise, try to parse the JSON
+		else {
+			// zero-terminate the string for good measure
+			int zeroByte = rsz;
+
+			if(zeroByte >= kClientBufferSz) {
+				zeroByte = kClientBufferSz - 1;
+			}
+
+			buffer[zeroByte] = 0;
+
+			// create a string from it
+			string jsonStr = std::string(buffer);
+			// LOG(INFO) << jsonStr;
+
+			try {
+				json j = json::parse(jsonStr);
+
+				// process the message
+				this->processClientRequest(j, fd);
+			} catch(json::parse_error e) {
+				LOG(WARNING) << "Parse error in client message: " << e.what();
+
+				// close the connection to tell the client to sod off
+				close(fd);
+				break;
+			}
 		}
 	}
 
@@ -232,4 +274,79 @@ void CommandServer::clientThreadEntry(int fd) {
 
 	// de-allocate the buffer
 	delete[] buffer;
+}
+
+/**
+ * Processes a client request by unwrapping the JSON.
+ */
+void CommandServer::processClientRequest(json &j, int fd) {
+	int err = 0;
+
+	// extract the message type
+	MessageType msgType = static_cast<MessageType>(j["type"]);
+	LOG(INFO) << "Received request type " << msgType;
+
+	// invoke the correct handler
+	json response;
+
+	switch(msgType) {
+		case kMessageStatus:
+			clientRequestStatus(response);
+			break;
+	}
+
+	// add the txn field if it exists
+	try {
+		if(j.at("txn")) {
+			response["txn"] = j["txn"];
+		}
+	} catch(exception e) {}
+
+	// serialize it to a string and send it
+	string responseStr = response.dump();
+
+	const char *responseBuf = responseStr.c_str();
+	size_t length = strlen(responseBuf);
+
+	err = write(fd, responseBuf, length);
+
+	// check for error
+	LOG_IF(ERROR, err == -1) << "Couldn't write to client: " << strerror(errno);
+
+	if(err != length) {
+		LOG(WARNING) << "Wrote " << err << " bytes, buffer was " << length << "!";
+	}
+}
+
+/**
+ * Processes the status request. This simply builds the response, and sends it
+ * over the wire.
+ */
+void CommandServer::clientRequestStatus(json &response) {
+	int err = 0;
+
+	// get loadavg
+	double load[3];
+	getloadavg(load, 3);
+
+	// get memory usage
+	struct rusage usage;
+	memset(&usage, 0, sizeof(struct rusage));
+
+	err = getrusage(RUSAGE_SELF, &usage);
+
+	if(err != 0) {
+		LOG(ERROR) << "Couldn't get resource usage: " << strerror(errno);
+		response["status"] = errno;
+	} else {
+		response["status"] = 0;
+	}
+
+	// build response
+	response["version"] = string(VERSION);
+	response["build"] = string(GIT_HASH) + "/" + string(GIT_BRANCH);
+
+	response["load"] = {load[0], load[1], load[2]};
+
+	response["mem"] = usage.ru_maxrss;
 }

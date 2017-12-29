@@ -1,3 +1,9 @@
+/**
+ * Implements the command server, a server that listens for JSON-formatted
+ * requests on an UNIX socket and responds to them. This is the primary
+ * interface through which the server is controlled and can be configured, for
+ * example, from a web application.
+ */
 #ifndef COMMANDSERVER_H
 #define COMMANDSERVER_H
 
@@ -6,9 +12,13 @@
 #include <atomic>
 #include <vector>
 
+#include "json.hpp"
+
+#include "DataStore.h"
+
 class CommandServer {
 	public:
-		CommandServer(std::string socket);
+		CommandServer(std::string socket, DataStore *store);
 		~CommandServer();
 
 		void start();
@@ -21,6 +31,15 @@ class CommandServer {
 
 		void acceptClient(int fd);
 		void clientThreadEntry(int fd);
+
+		void processClientRequest(nlohmann::json &j, int fd);
+
+		void clientRequestStatus(nlohmann::json &response);
+
+	private:
+		enum MessageType {
+			kMessageStatus = 0,
+		};
 
 	private:
 		friend void CommandServerEntry(void *ctx);
@@ -35,6 +54,8 @@ class CommandServer {
 		};
 
 	private:
+		DataStore *store;
+
 		std::string socketPath;
 		std::thread *worker = nullptr;
 
