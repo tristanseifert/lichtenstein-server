@@ -13,7 +13,7 @@
 #pragma pack(push, 1)
 
 /// current protocol version
-const uint32_t kLichtensteinVersion		= 0x00010000;
+const uint32_t kLichtensteinVersion10	= 0x00010000;
 /// magic value in packet header
 const uint32_t kLichtensteinMagic		= 0x4c494348;
 
@@ -158,7 +158,7 @@ typedef enum {
 typedef enum {
 	kDuplexHalf					= 0,
 	kDuplexFull					= 1
-} lichtenstein_node_status_duplex_t
+} lichtenstein_node_status_duplex_t;
 
 /**
  * Node status request: the server may periodically poll the nodes on their
@@ -219,7 +219,7 @@ typedef struct {
 	uint32_t dataFormat;
 	uint32_t dataElements;
 
-	char[] data;
+	char data[];
 } lichtenstein_framebuffer_data_t;
 
 
