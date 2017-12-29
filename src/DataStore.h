@@ -17,8 +17,18 @@ class DataStore {
 
 		void commit();
 
+		void optimize();
+
+		void setInfoValue(std::string key, std::string value);
+		std::string getInfoValue(std::string key);
+
 	private:
 		void open();
+		void openConfigDb();
+		void checkDbVersion();
+		void provisonBlankDb();
+		void updateStoredServerVersion();
+
 		void close();
 
 	private:
