@@ -10,6 +10,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include "lichtenstein_proto.h"
+#include "LichtensteinUtils.h"
+
 using namespace std;
 
 const char *kLichtensteinMulticastAddress = "239.42.0.69";
@@ -114,6 +117,7 @@ void NodeDiscovery::threadEntry() {
 		// otherwise, try to parse the packet
 		else {
 			LOG(INFO) << "Received " << rsz << " bytes via multicast";
+			this->handleMulticastPacket(buffer, rsz);
 		}
 	}
 
@@ -157,4 +161,75 @@ void NodeDiscovery::createSocket() {
 
 	err = setsockopt(this->sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
 	PLOG_IF(FATAL, err < 0) << "Couldn't join multicast group";
+}
+
+/**
+ * Handles a multicast packet received over the wire. This first checks it for
+ * validity before processing it.
+ */
+void NodeDiscovery::handleMulticastPacket(void *data, size_t length) {
+	LichtensteinUtils::PacketErrors err;
+
+	// check validity
+	err = LichtensteinUtils::validatePacket(data, length);
+
+	if(err != LichtensteinUtils::kNoError) {
+		LOG(ERROR) << "Couldn't verify multicast packet: " << err;
+		return;
+	}
+
+	// check to see what type of packet it is
+	LichtensteinUtils::convertToHostByteOrder(data, length);
+	lichtenstein_header_t *header = static_cast<lichtenstein_header_t *>(data);
+
+	// handle node announcements
+	if(header->opcode == kOpcodeNodeAnnouncement) {
+		this->processNodeAnnouncement(data, length);
+	}
+}
+
+/**
+ * Processes a multicasted node announcement. This checks in the database if
+ * this node (nodes are identified by their MAC address) has been seen before;
+ * if so, and the node was previously adopted, attempt to adopt the node again.
+ * Otherwise, store the information about the node in the database so that the
+ * node could be adopted at a later time.
+ *
+ * Either way, information such as IP and hostname are updated in the database.
+ */
+void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
+	DataStore::Node *node;
+
+	// get the packet
+	lichtenstein_node_announcement_t *packet = static_cast<lichtenstein_node_announcement_t *>(data);
+
+	// see if we've found a node with this MAC address before
+	node = this->store->findNodeWithMac(packet->macAddr);
+
+	if(node == nullptr) {
+		// convert the mac into a string real quick
+		char mac[24];
+		snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", packet->macAddr[0],
+				 packet->macAddr[1], packet->macAddr[2], packet->macAddr[3],
+			 	 packet->macAddr[4], packet->macAddr[5]);
+
+		LOG(INFO) << "Found new node with MAC " << mac << ", adding it to database";
+
+		node = new DataStore::Node();
+	}
+
+	// fill the node's info with what we found in the packet
+	memcpy(node->macAddr, packet->macAddr, 6);
+	node->ip = packet->ip;
+
+	node->hwVersion = packet->hwVersion;
+	node->swVersion = packet->swVersion;
+
+	node->lastSeen = time(nullptr);
+
+	// if we get the node solicitation, then it's not been adopted
+	node->adopted = 0;
+
+	// update it in the db
+	this->store->updateNode(node);
 }

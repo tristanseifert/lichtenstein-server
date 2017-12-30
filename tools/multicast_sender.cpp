@@ -1,7 +1,7 @@
 /**
  * Simulates a lichtenstein node by sending the correct multicast packets.
  *
- * Build using `clang multicast_sender.cpp -lstdc++ -o multicast_sender`
+ * Build using `clang multicast_sender.cpp -g -lstdc++ -o multicast_sender`
  */
 #include <stdint.h>
 #include <stdlib.h>
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 
 	// send the multicast node announcement every 10 seconds
 	while(1) {
-		lichtenstein_node_announcement_t *announce = static_cast<lichtenstein_node_announcement_t *>(malloc(totalPacketLen));
+		lichtenstein_node_announcement_t *announce = static_cast<lichtenstein_node_announcement_t *>(malloc(totalPacketLen + 16));
 		memset(announce, 0, totalPacketLen);
 
 		// configure the header
@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 		announce->channels = htons(2);
 
 		announce->hostnameLen = htons(nameLen);
-		strncpy((char *) announce->hostname, name, announce->hostnameLen);
+		strncpy((char *) announce->hostname, name, announce->hostnameLen - 1);
 
 		// calculate CRC
 		size_t offset = offsetof(lichtenstein_node_announcement_t, header.opcode);
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 		size_t len = sizeof(lichtenstein_header_t) - offset + payloadLen;
 
 		printf("Calculating CRC starting at byte %lu\n", offset);
-		uint32_t crc = crc32_fast(ptr, len, 0);
+		uint32_t crc = crc32_fast(ptr, len);
 
 		printf("Total packet length %lu, CRC32 = 0x%08x\n", totalPacketLen, crc);
 

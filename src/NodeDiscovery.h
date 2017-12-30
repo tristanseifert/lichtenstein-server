@@ -5,6 +5,8 @@
 #include <string>
 #include <atomic>
 
+#include <cstddef>
+
 #include "DataStore.h"
 
 class NodeDiscovery {
@@ -19,6 +21,9 @@ class NodeDiscovery {
 		void threadEntry();
 
 		void createSocket();
+
+		void handleMulticastPacket(void *data, size_t length);
+		void processNodeAnnouncement(void *data, size_t length);
 
 	private:
 		friend void NodeDiscoveryEntry(void *ctx);

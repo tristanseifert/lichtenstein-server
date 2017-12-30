@@ -271,3 +271,323 @@ string DataStore::getInfoValue(string key) {
 	// return a C++ string
 	return returnValue;
 }
+
+#pragma mark - Nodes
+/**
+ * Finds a node with the given MAC address. Returns a pointer to a Node object
+ * if it exists, or nullptr if not.
+ *
+ * @note The caller is responsible for deleting the returned object when it is
+ * no longer needed.
+ */
+DataStore::Node *DataStore::findNodeWithMac(uint8_t macIn[6]) {
+	int err = 0, result, count;
+	sqlite3_stmt *statement = nullptr;
+
+	// check whether the node exists
+	if(this->_nodeWithMacExists(macIn) == false) {
+		return nullptr;
+	}
+
+	// allocate the object for later
+	DataStore::Node *node = new DataStore::Node();
+
+	// it exists, so we must now get it from the db
+	err = sqlite3_prepare_v2(this->db, "SELECT * FROM nodes WHERE mac = ?1;", -1, &statement, 0);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
+
+	// bind the integer mac address
+	uint64_t mac = this->_macAddrToInteger(macIn);
+
+	err = sqlite3_bind_int64(statement, 1, mac);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind MAC: " << sqlite3_errstr(err);
+
+	// execute the query
+	result = sqlite3_step(statement);
+
+	if(result == SQLITE_ROW) {
+		// populate the node object
+		this->_nodeFromRow(statement, node);
+	}
+
+	// free our statement
+	sqlite3_finalize(statement);
+
+	// return the populated node object
+	return node;
+}
+
+/**
+ * Copies the fields from a statement (which is currently returning a row) into
+ * an existing node object.
+ */
+void DataStore::_nodeFromRow(sqlite3_stmt *statement, DataStore::Node *node) {
+	int numColumns = sqlite3_column_count(statement);
+
+	// iterate over all returned columns
+	for(int i = 0; i < numColumns; i++) {
+		// get the column name and see to which property it matches up
+		const char *colName = sqlite3_column_name(statement, i);
+
+		// is it the id column?
+		if(strcmp(colName, "id") == 0) {
+			node->id = sqlite3_column_int(statement, i);
+		}
+		// is it the ip column?
+		else if(strcmp(colName, "ip") == 0) {
+			node->ip = sqlite3_column_int(statement, i);
+		}
+		// is it the MAC address column?
+		else if(strcmp(colName, "ip") == 0) {
+			uint64_t rawMac = sqlite3_column_int64(statement, i);
+			this->_integerToMacAddr(rawMac, static_cast<uint8_t *>(node->macAddr));
+		}
+		// is it the hostname column?
+		else if(strcmp(colName, "hostname") == 0) {
+			node->hostname = this->_stringFromColumn(statement, i);
+		}
+		// is it the adopted column?
+		else if(strcmp(colName, "adopted") == 0) {
+			node->adopted = (sqlite3_column_int(statement, i) != 0);
+		}
+		// is it the hardware version column?
+		else if(strcmp(colName, "hwversion") == 0) {
+			node->hwVersion = sqlite3_column_int(statement, i);
+		}
+		// is it the software version column?
+		else if(strcmp(colName, "swversion") == 0) {
+			node->swVersion = sqlite3_column_int(statement, i);
+		}
+		// is it the last seen timestamp column?
+		else if(strcmp(colName, "lastSeen") == 0) {
+			node->lastSeen = sqlite3_column_int(statement, i);
+		}
+	}
+}
+
+/**
+ * Binds the fields of a node object to a prepared query. The prepared query
+ * is expected to have named parameters corresponding to all of the fields
+ * in the node object; the "id" field is the only field that may be missing.
+ */
+void DataStore::_bindNodeToStatement(sqlite3_stmt *statement, DataStore::Node *node) {
+	int err, idx;
+
+	// bind the ip address
+	idx = sqlite3_bind_parameter_index(statement, ":ip");
+	LOG_IF(FATAL, idx == 0) << "Couldn't resolve parameter ip";
+
+	err = sqlite3_bind_int(statement, idx, node->ip);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node IP address: " << sqlite3_errstr(err);
+
+	// bind the MAC address
+	uint64_t mac = this->_macAddrToInteger(node->macAddr);
+
+	idx = sqlite3_bind_parameter_index(statement, ":mac");
+	LOG_IF(FATAL, idx == 0) << "Couldn't resolve parameter mac";
+
+	err = sqlite3_bind_int64(statement, idx, mac);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node MAC: " << sqlite3_errstr(err);
+
+	// bind the hostname
+	idx = sqlite3_bind_parameter_index(statement, ":hostname");
+	LOG_IF(FATAL, idx == 0) << "Couldn't resolve parameter hostname";
+
+	err = sqlite3_bind_text(statement, idx, node->hostname.c_str(), -1, SQLITE_TRANSIENT);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node hostname: " << sqlite3_errstr(err);
+
+	// bind the adopted status
+	idx = sqlite3_bind_parameter_index(statement, ":adopted");
+	LOG_IF(FATAL, idx == 0) << "Couldn't resolve parameter adopted";
+
+	err = sqlite3_bind_int(statement, idx, node->adopted ? 1 : 0);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node adopted status: " << sqlite3_errstr(err);
+
+	// bind the HW version
+	idx = sqlite3_bind_parameter_index(statement, ":hwversion");
+	LOG_IF(FATAL, idx == 0) << "Couldn't resolve parameter hwversion";
+
+	err = sqlite3_bind_int(statement, idx, node->hwVersion);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node hardware version: " << sqlite3_errstr(err);
+
+	// bind the SW version
+	idx = sqlite3_bind_parameter_index(statement, ":swversion");
+	LOG_IF(FATAL, idx == 0) << "Couldn't resolve parameter swversion";
+
+	err = sqlite3_bind_int(statement, idx, node->swVersion);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node software version: " << sqlite3_errstr(err);
+
+	// bind the last seen timestamp
+	idx = sqlite3_bind_parameter_index(statement, ":lastseen");
+	LOG_IF(FATAL, idx == 0) << "Couldn't resolve parameter lastseen";
+
+	err = sqlite3_bind_int(statement, idx, node->lastSeen);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node last seen timestamp: " << sqlite3_errstr(err);
+
+	// optionally, also bind the id field
+	idx = sqlite3_bind_parameter_index(statement, ":id");
+
+	if(idx != 0) {
+		err = sqlite3_bind_int(statement, idx, node->id);
+		LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node id: " << sqlite3_errstr(err);
+	}
+}
+
+/**
+ * Updates a node in the database based off the data in the passed object. If
+ * the node doesn't exist, it's created.
+ */
+void DataStore::updateNode(DataStore::Node *node) {
+	// does the node exist?
+	if(this->_nodeWithMacExists(node->macAddr)) {
+		// it does, so we can just update it
+		this->_updateNode(node);
+	} else {
+		// it doesn't, so we need to create it
+		this->_createNode(node);
+	}
+}
+
+/**
+ * Updates an existing node in the database. Nodes are searched for based on
+ * their MAC address.
+ */
+void DataStore::_updateNode(DataStore::Node *node) {
+	int err = 0, result;
+	sqlite3_stmt *statement = nullptr;
+
+	// logging
+	char mac[24];
+	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", node->macAddr[0],
+			 node->macAddr[1], node->macAddr[2], node->macAddr[3],
+			 node->macAddr[4], node->macAddr[5]);
+	LOG(INFO) << "Updating existing node with MAC " << mac;
+
+	// prepare an update query
+	// TODO: match on id instead
+	err = sqlite3_prepare_v2(this->db, "UPDATE nodes SET ip = :ip, mac = :mac, hostname = :hostname, adopted = :adopted, hwversion = :hwversion, swversion = :swversion, lastSeen = :lastseen WHERE mac = :mac;", -1, &statement, 0);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
+
+	// bind the properties
+	this->_bindNodeToStatement(statement, node);
+
+	// then execute it
+	result = sqlite3_step(statement);
+	LOG_IF(FATAL, result != SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
+
+	// free the statement
+	sqlite3_finalize(statement);
+}
+
+/**
+ * Creates a node in the database. This doesn't check whether one with the same
+ * MAC already exists -- if it does, the query will fail.
+ */
+void DataStore::_createNode(DataStore::Node *node) {
+	int err = 0, result;
+	sqlite3_stmt *statement = nullptr;
+
+	// logging
+	char mac[24];
+	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", node->macAddr[0],
+			 node->macAddr[1], node->macAddr[2], node->macAddr[3],
+			 node->macAddr[4], node->macAddr[5]);
+	LOG(INFO) << "Creating new node with MAC " << mac;
+
+	// prepare an update query
+	err = sqlite3_prepare_v2(this->db, "INSERT INTO nodes (ip, mac, hostname, adopted, hwversion, swversion, lastSeen) VALUES (:ip, :mac, :hostname, :adopted, :hwversion, :swversion, :lastseen);", -1, &statement, 0);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
+
+	// bind the properties
+	this->_bindNodeToStatement(statement, node);
+
+	// then execute it
+	result = sqlite3_step(statement);
+	LOG_IF(FATAL, result != SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
+
+	// free the statement
+	sqlite3_finalize(statement);
+}
+
+/**
+ * Checks if a node with the specified MAC address exists.
+ */
+bool DataStore::_nodeWithMacExists(uint8_t macIn[6]) {
+	int err = 0, result, count;
+	sqlite3_stmt *statement = nullptr;
+
+	// prepare a count statement
+	err = sqlite3_prepare_v2(this->db, "SELECT count(*) FROM nodes WHERE mac = ?1;", -1, &statement, 0);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
+
+	// bind the integer mac address
+	uint64_t mac = this->_macAddrToInteger(macIn);
+
+	err = sqlite3_bind_int64(statement, 1, mac);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind MAC: " << sqlite3_errstr(err);
+
+	// execute the query
+	result = sqlite3_step(statement);
+
+	if(result == SQLITE_ROW) {
+		// retrieve the value of the first column (0-based)
+		count = sqlite3_column_int(statement, 0);
+	}
+
+	// free our statement
+	sqlite3_finalize(statement);
+
+	// if count is nonzero, the node exists
+	CHECK(count < 2) << "Duplicate node records for MAC 0x" << std::hex << mac;
+
+	return (count != 0);
+}
+
+#pragma mark - Conversion Routines
+/**
+ * Converts the string value in column `col` to an UTF-8 string, then creates a
+ * standard C++ string from it.
+ */
+string DataStore::_stringFromColumn(sqlite3_stmt *statement, int col) {
+	// get the UTF-8 string and its length from sqlite, then allocate a buffer
+	const unsigned char *name = sqlite3_column_text(statement, col);
+	int nameLen = sqlite3_column_bytes(statement, col);
+
+	char *nameStr = new char[nameLen + 1];
+	std::fill(nameStr, nameStr + nameLen + 1, 0);
+
+	// copy the string, but only the number of bytes sqlite returned
+	memcpy(nameStr, name, nameLen);
+
+	// create a C++ string and then deallocate the buffer
+	string retVal = string(nameStr);
+	delete[] nameStr;
+
+	return retVal;
+}
+
+/**
+ * Converts a hexadecimal representation of a MAC address into an integer.
+ */
+uint64_t DataStore::_macAddrToInteger(uint8_t macIn[6]) {
+	uint64_t mac = 0;
+
+	for(int i = 0; i < 6; i++) {
+		mac += (macIn[i] << ((i - 5) * 8));
+	}
+
+	return mac;
+}
+
+/**
+ * Converts the given integer to a MAC address. This is done by copying the low
+ * six bytes of the integer.
+ */
+void DataStore::_integerToMacAddr(uint64_t macIn, uint8_t *macOut) {
+	macOut[0] = (macIn & 0xFF0000000000) >> 0x28;
+	macOut[1] = (macIn & 0x00FF00000000) >> 0x20;
+	macOut[2] = (macIn & 0x0000FF000000) >> 0x18;
+	macOut[3] = (macIn & 0x000000FF0000) >> 0x10;
+	macOut[4] = (macIn & 0x00000000FF00) >> 0x08;
+	macOut[5] = (macIn & 0x0000000000FF) >> 0x00;
+}
