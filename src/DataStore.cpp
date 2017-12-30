@@ -1,8 +1,11 @@
 #include "DataStore.h"
 
+#include "json.hpp"
+
 #include <glog/logging.h>
 
 using namespace std;
+using json = nlohmann::json;
 
 // include the v1 schema
 const char *schema_v1 =
@@ -274,6 +277,34 @@ string DataStore::getInfoValue(string key) {
 
 #pragma mark - Nodes
 /**
+ * Returns all nodes in the datastore in a vector.
+ */
+vector<DataStore::Node *> DataStore::getAllNodes() {
+	int err = 0, result, count;
+	sqlite3_stmt *statement = nullptr;
+
+	vector<DataStore::Node *> nodes;
+
+	// execute the query
+	err = sqlite3_prepare_v2(this->db, "SELECT * FROM nodes;", -1, &statement, 0);
+	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
+
+	// execute the query
+	while((result = sqlite3_step(statement)) == SQLITE_ROW) {
+		// create the node, populate it, and add it to the vector
+		DataStore::Node *node = new DataStore::Node();
+		this->_nodeFromRow(statement, node);
+
+		nodes.push_back(node);
+	}
+
+	// free our statement
+	sqlite3_finalize(statement);
+
+	return nodes;
+}
+
+/**
  * Finds a node with the given MAC address. Returns a pointer to a Node object
  * if it exists, or nullptr if not.
  *
@@ -296,10 +327,8 @@ DataStore::Node *DataStore::findNodeWithMac(uint8_t macIn[6]) {
 	err = sqlite3_prepare_v2(this->db, "SELECT * FROM nodes WHERE mac = ?1;", -1, &statement, 0);
 	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
-	// bind the integer mac address
-	uint64_t mac = this->_macAddrToInteger(macIn);
-
-	err = sqlite3_bind_int64(statement, 1, mac);
+	// bind the mac address
+	err = sqlite3_bind_blob(statement, 1, macIn, 6, SQLITE_STATIC);
 	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind MAC: " << sqlite3_errstr(err);
 
 	// execute the query
@@ -338,9 +367,16 @@ void DataStore::_nodeFromRow(sqlite3_stmt *statement, DataStore::Node *node) {
 			node->ip = sqlite3_column_int(statement, i);
 		}
 		// is it the MAC address column?
-		else if(strcmp(colName, "ip") == 0) {
-			uint64_t rawMac = sqlite3_column_int64(statement, i);
-			this->_integerToMacAddr(rawMac, static_cast<uint8_t *>(node->macAddr));
+		else if(strcmp(colName, "mac") == 0) {
+			const void *rawMac = sqlite3_column_blob(statement, i);
+			int length = sqlite3_column_bytes(statement, i);
+
+			// copy only the first six bytes… that's all we have space for
+			if(length > 6) {
+				length = 6;
+			}
+
+			memcpy(node->macAddr, rawMac, length);
 		}
 		// is it the hostname column?
 		else if(strcmp(colName, "hostname") == 0) {
@@ -381,12 +417,10 @@ void DataStore::_bindNodeToStatement(sqlite3_stmt *statement, DataStore::Node *n
 	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node IP address: " << sqlite3_errstr(err);
 
 	// bind the MAC address
-	uint64_t mac = this->_macAddrToInteger(node->macAddr);
-
 	idx = sqlite3_bind_parameter_index(statement, ":mac");
 	LOG_IF(FATAL, idx == 0) << "Couldn't resolve parameter mac";
 
-	err = sqlite3_bind_int64(statement, idx, mac);
+	err = sqlite3_bind_blob(statement, idx, node->macAddr, 6, SQLITE_STATIC);
 	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind node MAC: " << sqlite3_errstr(err);
 
 	// bind the hostname
@@ -520,10 +554,8 @@ bool DataStore::_nodeWithMacExists(uint8_t macIn[6]) {
 	err = sqlite3_prepare_v2(this->db, "SELECT count(*) FROM nodes WHERE mac = ?1;", -1, &statement, 0);
 	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
-	// bind the integer mac address
-	uint64_t mac = this->_macAddrToInteger(macIn);
-
-	err = sqlite3_bind_int64(statement, 1, mac);
+	// bind the mac address
+	err = sqlite3_bind_blob(statement, 1, macIn, 6, SQLITE_STATIC);
 	LOG_IF(FATAL, err != SQLITE_OK) << "Couldn't bind MAC: " << sqlite3_errstr(err);
 
 	// execute the query
@@ -538,6 +570,10 @@ bool DataStore::_nodeWithMacExists(uint8_t macIn[6]) {
 	sqlite3_finalize(statement);
 
 	// if count is nonzero, the node exists
+	char mac[24];
+	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", macIn[0], macIn[1],
+	 		 macIn[2], macIn[3], macIn[4], macIn[5]);
+
 	CHECK(count < 2) << "Duplicate node records for MAC 0x" << std::hex << mac;
 
 	return (count != 0);
@@ -564,30 +600,4 @@ string DataStore::_stringFromColumn(sqlite3_stmt *statement, int col) {
 	delete[] nameStr;
 
 	return retVal;
-}
-
-/**
- * Converts a hexadecimal representation of a MAC address into an integer.
- */
-uint64_t DataStore::_macAddrToInteger(uint8_t macIn[6]) {
-	uint64_t mac = 0;
-
-	for(int i = 0; i < 6; i++) {
-		mac += (macIn[i] << ((i - 5) * 8));
-	}
-
-	return mac;
-}
-
-/**
- * Converts the given integer to a MAC address. This is done by copying the low
- * six bytes of the integer.
- */
-void DataStore::_integerToMacAddr(uint64_t macIn, uint8_t *macOut) {
-	macOut[0] = (macIn & 0xFF0000000000) >> 0x28;
-	macOut[1] = (macIn & 0x00FF00000000) >> 0x20;
-	macOut[2] = (macIn & 0x0000FF000000) >> 0x18;
-	macOut[3] = (macIn & 0x000000FF0000) >> 0x10;
-	macOut[4] = (macIn & 0x00000000FF00) >> 0x08;
-	macOut[5] = (macIn & 0x0000000000FF) >> 0x00;
 }

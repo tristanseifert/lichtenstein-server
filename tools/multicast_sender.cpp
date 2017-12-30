@@ -76,7 +76,8 @@ int main(int argc, char *argv[]) {
 		memcpy(announce->macAddr, testMac, 6);
 
 		announce->port = htons(7420);
-		announce->ip = htonl(0xFFFFFFFF);
+
+		inet_pton(AF_INET, "172.16.20.69", &announce->ip);
 
 		announce->fbSize = htonl((300 * 4 * 2));
 		announce->channels = htons(2);

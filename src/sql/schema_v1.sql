@@ -14,7 +14,7 @@ CREATE TABLE info (
 CREATE TABLE nodes (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	ip integer,
-	mac integer,
+	mac blob,
 	hostname text,
 	adopted integer,
 	hwversion integer,

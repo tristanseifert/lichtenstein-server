@@ -35,10 +35,12 @@ class CommandServer {
 		void processClientRequest(nlohmann::json &j, int fd);
 
 		void clientRequestStatus(nlohmann::json &response);
+		void clientRequestListNodes(nlohmann::json &response);
 
 	private:
 		enum MessageType {
 			kMessageStatus = 0,
+			kMessageGetNodes = 1,
 		};
 
 	private:

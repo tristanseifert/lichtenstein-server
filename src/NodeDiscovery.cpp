@@ -230,6 +230,18 @@ void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
 	// if we get the node solicitation, then it's not been adopted
 	node->adopted = 0;
 
+	// process the hostname
+	int hostnameLen = packet->hostnameLen;
+	char *hostnameBuf = new char[hostnameLen + 1];
+
+	std::fill(hostnameBuf, hostnameBuf + hostnameLen + 1, 0);
+	memcpy(hostnameBuf, packet->hostname, hostnameLen);
+
+	node->hostname = string(hostnameBuf);
+
 	// update it in the db
 	this->store->updateNode(node);
+
+	// clean up
+	delete[] hostnameBuf;
 }

@@ -13,6 +13,7 @@
 #include <sys/un.h>
 #include <sys/ucred.h>
 #include <sys/resource.h>
+#include <arpa/inet.h>
 
 using namespace std;
 using json = nlohmann::json;
@@ -308,7 +309,11 @@ void CommandServer::processClientRequest(json &j, int fd) {
 
 	switch(msgType) {
 		case kMessageStatus:
-			clientRequestStatus(response);
+			this->clientRequestStatus(response);
+			break;
+
+		case kMessageGetNodes:
+			this->clientRequestListNodes(response);
 			break;
 	}
 
@@ -366,4 +371,51 @@ void CommandServer::clientRequestStatus(json &response) {
 	response["load"] = {load[0], load[1], load[2]};
 
 	response["mem"] = usage.ru_maxrss;
+}
+
+/**
+ * Returns a listing of all nodes that are known to the server.
+ */
+void CommandServer::clientRequestListNodes(json &response) {
+	response["status"] = 0;
+
+	// iterate over all nodes and insert them
+	response["nodes"] = vector<DataStore::Node>();
+
+	vector<DataStore::Node *> nodes = this->store->getAllNodes();
+	for(auto node : nodes) {
+		response["nodes"].push_back(*node);
+	}
+}
+
+#pragma mark - JSON Conversion Routines
+/**
+ * Converts a node object to a json representation.
+ */
+void to_json(json& j, const DataStore::Node& n) {
+	// convert the MAC address to a string
+	char mac[24];
+	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", n.macAddr[0],
+			 n.macAddr[1], n.macAddr[2], n.macAddr[3], n.macAddr[4],
+			 n.macAddr[5]);
+
+	// convert IP to a string
+	char ipAddr[16];
+	inet_ntop(AF_INET, &n.ip, ipAddr, 16);
+
+	// build the JSON representation
+	j = json{
+		{"id", n.id},
+
+		{"mac", string(mac)},
+		{"ip", string(ipAddr)},
+		{"hostname", n.hostname},
+
+		{"adopted", n.adopted},
+
+		{"hwVersion", n.hwVersion},
+		{"swVersion", n.swVersion},
+
+		{"lastSeen", n.lastSeen}
+	};
 }

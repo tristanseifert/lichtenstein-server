@@ -7,6 +7,7 @@
 #define DATASTORE_H
 
 #include <string>
+#include <vector>
 
 #include <time.h>
 
@@ -31,9 +32,10 @@ class DataStore {
 			friend class DataStore;
 
 			private:
-				int id;
 
 			public:
+				int id;
+
 				uint32_t ip;
 				uint8_t macAddr[6];
 
@@ -49,6 +51,8 @@ class DataStore {
 	public:
 		DataStore::Node *findNodeWithMac(uint8_t mac[6]);
 		void updateNode(DataStore::Node *node);
+
+		std::vector<DataStore::Node *> getAllNodes();
 	private:
 		bool _nodeWithMacExists(uint8_t mac[6]);
 		void _nodeFromRow(sqlite3_stmt *statement, DataStore::Node *node);
@@ -68,9 +72,6 @@ class DataStore {
 
 	private:
 		std::string _stringFromColumn(sqlite3_stmt *statement, int col);
-
-		uint64_t _macAddrToInteger(uint8_t mac[6]);
-		void _integerToMacAddr(uint64_t macIn, uint8_t *macOut);
 
 	private:
 		std::string path;

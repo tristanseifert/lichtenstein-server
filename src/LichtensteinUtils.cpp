@@ -103,7 +103,12 @@ void LichtensteinUtils::_convertToHostNodeAnnouncement(void *data, size_t length
 	packet->hwVersion = ntohl(packet->hwVersion);
 
 	packet->port = ntohs(packet->port);
-	packet->ip = ntohl(packet->ip);
+	/*
+	 * don't byte-swap the IP address. this is because we'll probably use a
+	 * function like inet_ntop() on it, which requires it to be in network byte
+	 * order already.
+ 	 */
+	// packet->ip = ntohl(packet->ip);
 
 	packet->fbSize = ntohl(packet->fbSize);
 	packet->channels = ntohs(packet->channels);
