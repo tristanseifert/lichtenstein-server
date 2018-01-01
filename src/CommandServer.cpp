@@ -385,6 +385,9 @@ void CommandServer::clientRequestListNodes(json &response) {
 	vector<DataStore::Node *> nodes = this->store->getAllNodes();
 	for(auto node : nodes) {
 		response["nodes"].push_back(*node);
+
+		// delete the nodes in the vector; they're temporary
+		delete node;
 	}
 }
 

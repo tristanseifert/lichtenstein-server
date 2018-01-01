@@ -14,6 +14,7 @@
 #include "CommandServer.h"
 #include "NodeDiscovery.h"
 #include "DataStore.h"
+#include "Framebuffer.h"
 
 using namespace std;
 
@@ -26,6 +27,8 @@ static DataStore *store = nullptr;
 // various components of the server
 static CommandServer *cs = nullptr;
 static NodeDiscovery *nd = nullptr;
+
+static Framebuffer *fb = nullptr;
 
 // define flags
 DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
@@ -88,6 +91,10 @@ int main(int argc, char *argv[]) {
 	// star the node discovery
 	nd = new NodeDiscovery(store);
 	nd->start();
+
+	// allocate the framebuffer
+	fb = new Framebuffer(store);
+	fb->recalculateMinSize();
 
 	// start the protocol parser (binary lichtenstein protocol)
 
