@@ -1,9 +1,10 @@
 /**
  * Main entrypoint for Lichtenstein server
  */
-
 #include <glog/logging.h>
 #include <gflags/gflags.h>
+
+#include "INIReader.h"
 
 #include <iostream>
 #include <atomic>
@@ -25,6 +26,16 @@ static DataStore *store = nullptr;
 // various components of the server
 static CommandServer *cs = nullptr;
 static NodeDiscovery *nd = nullptr;
+
+// define flags
+DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
+
+// parameters read from the config file
+string dbPath;
+string commandSocketPath;
+
+INIReader *configReader = nullptr;
+void parseConfigFile(string path);
 
 /**
  * Signal handler. This handler is invoked for the following signals to enable
@@ -50,6 +61,12 @@ int main(int argc, char *argv[]) {
 	LOG(INFO) << "lichtenstein server " << GIT_HASH << "/" << GIT_BRANCH
 			  << " compiled on " << COMPILE_TIME;
 
+	// interpret command-line flags
+	gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+	// first, parse the config file
+	parseConfigFile(FLAGS_config_path);
+
 	// set up a signal handler for termination so we can close down cleanly
 	keepRunning = true;
 
@@ -62,10 +79,10 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGINT, &sigIntHandler, nullptr);
 
 	// load the datastore from disk
-	store = new DataStore("db/lichtenstein.sqlite3");
+	store = new DataStore(dbPath);
 
 	// start the external command interpreter (JSON socket)
-	cs = new CommandServer("./lichtenstein.sock", store);
+	cs = new CommandServer(commandSocketPath, store);
 	cs->start();
 
 	// star the node discovery
@@ -92,4 +109,26 @@ int main(int argc, char *argv[]) {
 	// ensure the database is commited to disk
 	store->commit();
 	delete store;
+}
+
+/**
+ * Opens the config file for reading and parses it.
+ */
+void parseConfigFile(string path) {
+	int err;
+
+	// attempt to open the config file
+	configReader = new INIReader(path);
+
+	err = configReader->ParseError();
+
+	if(err == -1) {
+		LOG(FATAL) << "Couldn't open config file at " << path;
+	} else if(err > 0) {
+		LOG(FATAL) << "Parse error on line " << err << " of config file " << path;
+	}
+
+	// otherwise, get the properties we need to start up
+	dbPath = configReader->Get("db", "path", "");
+	commandSocketPath = configReader->Get("command", "socket", "");
 }

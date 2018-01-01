@@ -68,6 +68,8 @@ class DataStore {
 		void provisonBlankDb();
 		void updateStoredServerVersion();
 
+		void upgradeSchema();
+
 		void close();
 
 	private:

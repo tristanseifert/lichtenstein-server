@@ -7,7 +7,7 @@ CREATE TABLE routines (
 );
 
 CREATE TABLE info (
-	key text,
+	key text PRIMARY KEY,
 	value text
 );
 
@@ -39,25 +39,25 @@ CREATE TABLE channels (
 );
 
 -- create indices
-CREATE INDEX idx_info_key ON info (key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_info_key ON info (key);
 
-CREATE UNIQUE INDEX idx_node_id ON nodes (id);
-CREATE UNIQUE INDEX idx_node_mac ON nodes (mac);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_node_id ON nodes (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_node_mac ON nodes (mac);
 
-CREATE UNIQUE INDEX idx_routines_id ON routines (id);
-CREATE INDEX idx_routines_name ON routines (name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_routines_id ON routines (id);
+CREATE INDEX IF NOT EXISTS idx_routines_name ON routines (name);
 
-CREATE UNIQUE INDEX idx_groups_id ON groups (id);
-CREATE UNIQUE INDEX idx_groups_name ON groups (name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_id ON groups (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_name ON groups (name);
 
-CREATE UNIQUE INDEX idx_channels_id ON channels (id);
-CREATE UNIQUE INDEX idx_channels_node ON channels (node);
-CREATE UNIQUE INDEX idx_channels_node_data ON channels (node, id, numPixels, fbOffset);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channels_id ON channels (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channels_node ON channels (node);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channels_node_data ON channels (node, id, numPixels, fbOffset);
 
 -- insert default info values
-INSERT INTO info (key, value) VALUES ("schema_version", "1");
+# INSERT INTO info (key, value) VALUES ("schema_version", "1");
 
-INSERT INTO info (key, value) VALUES ("server_build", "unknown");
-INSERT INTO info (key, value) VALUES ("server_version", "unknown");
+# INSERT INTO info (key, value) VALUES ("server_build", "unknown");
+# INSERT INTO info (key, value) VALUES ("server_version", "unknown");
 
 -- )====="

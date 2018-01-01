@@ -14,7 +14,7 @@ DEPS := $(OBJS:.o=.d)
 LIBS := -lstdc++ -lglog -lgflags -llua -lsqlite3
 
 # directories to search for includes
-INC_DIRS := $(shell find $(SRC_DIRS) -type d) libs/json/src
+INC_DIRS := $(shell find $(SRC_DIRS) -type d) libs/json/src libs/inih
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 # flags for the C and C++ compiler
@@ -22,7 +22,7 @@ CPPFLAGS ?= -g $(INC_FLAGS) -MMD -MP -std=c++14
 CFLAGS ?= -g
 
 # flags for the linker
-LDFLAGS ?= $(LIBS)
+LDFLAGS ?= -g $(LIBS)
 
 # git version
 GIT_HASH=`git rev-parse HEAD`
@@ -42,7 +42,7 @@ $(BUILD_DIR)/%.s.o: %.s
 # c source
 $(BUILD_DIR)/%.c.o: %.c
 	$(MKDIR_P) $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(VERSION_FLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(VERSION_FLAGS) -c $< -o $@
 
 # c++ source
 $(BUILD_DIR)/%.cpp.o: %.cpp

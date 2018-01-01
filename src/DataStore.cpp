@@ -14,6 +14,13 @@ const char *schema_v1 =
 
 // lastest schema
 const char *schema_latest = schema_v1;
+const string latestSchemaVersion = "1";
+
+// default properties to insert into the info table after schema provisioning
+const char *schema_info_default =
+	"INSERT INTO info (key, value) VALUES (\"server_build\", \"unknown\");"
+	"INSERT INTO info (key, value) VALUES (\"server_version\", \"unknown\");"
+;
 
 /**
  * Initializes the datastore with the persistent database located at the given
@@ -42,6 +49,7 @@ DataStore::~DataStore() {
 	this->close();
 }
 
+#pragma mark - Database I/O
 /**
  * Explicitly requests that the underlying storage engine commits all writes to
  * disk. This call blocks until the writes have been completed by the OS.
@@ -114,6 +122,53 @@ void DataStore::openConfigDb() {
 }
 
 /**
+ * Optimizes the database: this is typically called before the database is
+ * closed. This has the effect of running the following operations:
+ *
+ * - Vacuums the database to remove any unneeded pages.
+ * - Analyzes indices and optimizes them.
+ *
+ * This function may be called periodically, but it can take a significant
+ * amount of time to execute.
+ */
+void DataStore::optimize() {
+	int status = 0;
+	char *errStr;
+
+	LOG(INFO) << "Database optimization requested";
+
+	// vacuums the database
+	status = sqlite3_exec(this->db, "VACUUM;", nullptr, nullptr, &errStr);
+	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't vacuum: " << errStr;
+
+	// run analyze pragma
+	status = sqlite3_exec(this->db, "PRAGMA optimize;", nullptr, nullptr, &errStr);
+	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't run optimize: " << errStr;
+}
+
+/**
+ * Closes the sqlite database.
+ *
+ * The database _should_ always close, unless there are any open statements. If
+ * you get a "couldn't close database" error, it is most likely a bug in the
+ * server code, since statements should always be closed.
+ */
+void DataStore::close() {
+	int status = 0;
+
+	LOG(INFO) << "Closing sqlite database";
+
+	// optimize the database before closing
+	this->optimize();
+
+	// attempt to close the db
+	status = sqlite3_close(this->db);
+	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't close database, data loss may result!";
+	LOG_IF(INFO, status == SQLITE_OK) << "Database has been closed, no further access is possible";
+}
+
+#pragma mark - Schema Version Management
+/**
  * Checks the version of the database schema, upgrading it if needed. If the
  * database is empty, this applies the most up-to-date version of the schema.
  */
@@ -146,6 +201,11 @@ void DataStore::checkDbVersion() {
 	string schemaVersion = this->getInfoValue("schema_version");
 	LOG(INFO) << "Schema version: " << schemaVersion;
 
+	// is the schema version the same as that of the latest schema?
+	if(schemaVersion != latestSchemaVersion) {
+		this->upgradeSchema();
+	}
+
 	// log info about what server version last accessed the db
 	LOG(INFO) << "Last accessed with version " << this->getInfoValue("server_version") << ", build " << this->getInfoValue("server_build");
 
@@ -164,7 +224,23 @@ void DataStore::provisonBlankDb() {
 	// execute the entire schema string in one go. if this fails we're fucked
 	status = sqlite3_exec(this->db, schema_latest, nullptr, nullptr, &errStr);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't run schema: " << errStr;
+
+	// set the default values in the info table
+	status = sqlite3_exec(this->db, schema_info_default, nullptr, nullptr, &errStr);
+	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't set info default values: " << errStr;
 }
+
+/**
+ * Performs incremental upgrades from the current schema version to the next
+ * highest version until we reach the latest version.
+ */
+void DataStore::upgradeSchema() {
+	string schemaVersion = this->getInfoValue("schema_version");
+	LOG(INFO) << "Latest schema version is " << latestSchemaVersion << ", db is"
+			  << " currently on version " << schemaVersion << "; upgrade required";
+}
+
+#pragma mark - Metadata
 
 /**
  * Updates the server version stored in the db.
@@ -172,48 +248,6 @@ void DataStore::provisonBlankDb() {
 void DataStore::updateStoredServerVersion() {
 	this->setInfoValue("server_build", string(GIT_HASH) + "/" + string(GIT_BRANCH));
 	this->setInfoValue("server_version", string(VERSION));
-}
-
-/**
- * Optimizes the database: this is typically called before the database is
- * closed. This has the effect of running the following operations:
- *
- * - Vacuums the database to remove any unneeded pages.
- * - Analyzes indices and optimizes them.
- *
- * This function may be called periodically, but it can take a significant
- * amount of time to execute.
- */
-void DataStore::optimize() {
-	int status = 0;
-	char *errStr;
-
-	LOG(INFO) << "Database optimization requested";
-
-	// vacuums the database
-	status = sqlite3_exec(this->db, "VACUUM;", nullptr, nullptr, &errStr);
-	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't vacuum: " << errStr;
-
-	// run analyze pragma
-	status = sqlite3_exec(this->db, "PRAGMA optimize;", nullptr, nullptr, &errStr);
-	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't run optimize: " << errStr;
-}
-
-/**
- * Closes the sqlite database.
- */
-void DataStore::close() {
-	int status = 0;
-
-	LOG(INFO) << "Closing sqlite database";
-
-	// optimize the database
-	this->optimize();
-
-	// attempt to close the db
-	status = sqlite3_close(this->db);
-	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't close database, data loss may result!";
-	LOG_IF(INFO, status == SQLITE_OK) << "Database has been closed, no further access is possible";
 }
 
 /**
