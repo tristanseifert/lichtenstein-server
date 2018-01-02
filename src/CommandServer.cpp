@@ -302,7 +302,7 @@ void CommandServer::processClientRequest(json &j, int fd) {
 
 	// extract the message type
 	MessageType msgType = static_cast<MessageType>(j["type"]);
-	LOG(INFO) << "Received request type " << msgType;
+	VLOG(2) << "Received request type " << msgType;
 
 	// invoke the correct handler
 	json response;
@@ -314,6 +314,10 @@ void CommandServer::processClientRequest(json &j, int fd) {
 
 		case kMessageGetNodes:
 			this->clientRequestListNodes(response);
+			break;
+
+		case kMessageGetGroups:
+			this->clientRequestListGroups(response);
 			break;
 	}
 
@@ -391,6 +395,24 @@ void CommandServer::clientRequestListNodes(json &response) {
 	}
 }
 
+/**
+ * Returns a listing of all groups known to the server.
+ */
+void CommandServer::clientRequestListGroups(nlohmann::json &response) {
+	response["status"] = 0;
+
+	// iterate over all groups and insert them
+	response["groups"] = vector<DataStore::Group>();
+
+	vector<DataStore::Group *> groups = this->store->getAllGroups();
+	for(auto group : groups) {
+		response["groups"].push_back(*group);
+
+		// delete the groups in the vector; they're temporary
+		delete group;
+	}
+}
+
 #pragma mark - JSON Conversion Routines
 /**
  * Converts a node object to a json representation.
@@ -420,5 +442,24 @@ void to_json(json& j, const DataStore::Node& n) {
 		{"swVersion", n.swVersion},
 
 		{"lastSeen", n.lastSeen}
+	};
+}
+
+/**
+ * Converts a group object to a json representation.
+ */
+void to_json(json& j, const DataStore::Group& group) {
+	// build the JSON representation
+	j = json{
+		{"id", group.id},
+
+		{"name", group.name},
+
+		{"enabled", group.enabled},
+
+		{"start", group.start},
+		{"end", group.end},
+
+		{"currentRoutine", group.currentRoutine}
 	};
 }

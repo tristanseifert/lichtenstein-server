@@ -79,7 +79,7 @@ class DataStore {
 				 * Returns the number of pixels this group encompasses.
 				 */
 				int numPixels() {
-					return (this->end - this->start);
+					return (this->end - this->start) + 1;
 				}
 		};
 	public:

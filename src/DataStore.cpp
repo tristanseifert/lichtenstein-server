@@ -83,7 +83,6 @@ void DataStore::open() {
 
 	// attempt to open the db
 	status = sqlite3_open_v2(path, &this->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, nullptr);
-
 	CHECK(status == SQLITE_OK) << "Couldn't open database: " << sqlite3_errmsg(this->db);
 
 	// apply some post-opening configurations
@@ -164,7 +163,7 @@ void DataStore::close() {
 	// attempt to close the db
 	status = sqlite3_close(this->db);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't close database, data loss may result!";
-	LOG_IF(INFO, status == SQLITE_OK) << "Database has been closed, no further access is possible";
+	VLOG_IF(1, status == SQLITE_OK) << "Database has been closed, no further access is possible";
 }
 
 #pragma mark - Schema Version Management
@@ -569,7 +568,7 @@ void DataStore::_updateNode(DataStore::Node *node) {
 	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", node->macAddr[0],
 			 node->macAddr[1], node->macAddr[2], node->macAddr[3],
 			 node->macAddr[4], node->macAddr[5]);
-	LOG(INFO) << "Updating existing node with MAC " << mac;
+	VLOG(1) << "Updating existing node with MAC " << mac;
 
 	// prepare an update query
 	err = sqlite3_prepare_v2(this->db, "UPDATE nodes SET ip = :ip, mac = :mac, hostname = :hostname, adopted = :adopted, hwversion = :hwversion, swversion = :swversion, lastSeen = :lastseen WHERE id = :id;", -1, &statement, 0);
@@ -599,7 +598,7 @@ void DataStore::_createNode(DataStore::Node *node) {
 	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", node->macAddr[0],
 			 node->macAddr[1], node->macAddr[2], node->macAddr[3],
 			 node->macAddr[4], node->macAddr[5]);
-	LOG(INFO) << "Creating new node with MAC " << mac;
+	VLOG(1) << "Creating new node with MAC " << mac;
 
 	// prepare an update query
 	err = sqlite3_prepare_v2(this->db, "INSERT INTO nodes (ip, mac, hostname, adopted, hwversion, swversion, lastSeen) VALUES (:ip, :mac, :hostname, :adopted, :hwversion, :swversion, :lastseen);", -1, &statement, 0);
@@ -750,7 +749,7 @@ void DataStore::_createGroup(DataStore::Group *group) {
 	sqlite3_stmt *statement = nullptr;
 
 	// logging
-	LOG(INFO) << "Creating new group named " << group->name;
+	VLOG(1) << "Creating new group named " << group->name;
 
 	// prepare an update query
 	err = sqlite3_prepare_v2(this->db, "INSERT INTO groups (name, enabled, start, end, currentRoutine) VALUES (:name, :enabled, :start, :end, :routine);", -1, &statement, 0);
@@ -782,7 +781,7 @@ void DataStore::_updateGroup(DataStore::Group *group) {
 	sqlite3_stmt *statement = nullptr;
 
 	// logging
-	LOG(INFO) << "Updating existing group with id " << group->id;
+	VLOG(1) << "Updating existing group with id " << group->id;
 
 	// prepare an update query
 	err = sqlite3_prepare_v2(this->db, "UPDATE groups SET name = :name, enabled = :enabled, start = :start, end = :end, currentRoutine = :routine WHERE id = :id;", -1, &statement, 0);

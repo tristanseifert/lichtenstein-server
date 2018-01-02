@@ -6,6 +6,8 @@ Each message will have at least the `type` field, which corresponds to an intege
 | Type | Note
 | ---: | ----
 | 0    | Status
+| 1    | List Nodes
+| 2    | List Groups
 
 All responses have a `status` field that is 0 if the request was successful, a non-zero error code otherwise.
 

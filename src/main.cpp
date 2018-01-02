@@ -32,6 +32,7 @@ static Framebuffer *fb = nullptr;
 
 // define flags
 DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
+DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 
 // parameters read from the config file
 string dbPath;
@@ -66,6 +67,8 @@ int main(int argc, char *argv[]) {
 
 	// interpret command-line flags
 	gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+	FLAGS_v = FLAGS_verbosity;
 
 	// first, parse the config file
 	parseConfigFile(FLAGS_config_path);
