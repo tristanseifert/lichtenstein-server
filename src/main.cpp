@@ -15,6 +15,7 @@
 #include "NodeDiscovery.h"
 #include "DataStore.h"
 #include "Framebuffer.h"
+#include "OutputMapper.h"
 
 using namespace std;
 
@@ -29,6 +30,7 @@ static CommandServer *cs = nullptr;
 static NodeDiscovery *nd = nullptr;
 
 static Framebuffer *fb = nullptr;
+static OutputMapper *mapper = nullptr;
 
 // define flags
 DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
@@ -99,6 +101,9 @@ int main(int argc, char *argv[]) {
 	fb = new Framebuffer(store);
 	fb->recalculateMinSize();
 
+	// create the output mapper
+	mapper = new OutputMapper(store, fb);
+
 	// start the protocol parser (binary lichtenstein protocol)
 
 	// start the effect evaluator
@@ -115,6 +120,9 @@ int main(int argc, char *argv[]) {
 	// clean up
 	delete cs;
 	delete nd;
+
+	delete mapper;
+	delete fb;
 
 	// ensure the database is commited to disk
 	store->commit();

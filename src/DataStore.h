@@ -17,6 +17,7 @@
 
 // forward declare some classes the objects are friends with
 class CommandServer;
+class OutputMapper;
 
 class DataStore {
 	public:
@@ -58,6 +59,7 @@ class DataStore {
 			// allow access to id field by command server for JSON serialization
 			friend class DataStore;
 			friend class CommandServer;
+			friend class OutputMapper;
 
 			friend void to_json(nlohmann::json& j, const Group& n);
 
@@ -81,6 +83,10 @@ class DataStore {
 				int numPixels() {
 					return (this->end - this->start) + 1;
 				}
+
+			// operators
+			friend bool operator==(const Group& lhs, const Group& rhs);
+			friend bool operator< (const Group& lhs, const Group& rhs);
 		};
 	public:
 		DataStore::Group *findGroupWithId(int id);
@@ -120,6 +126,10 @@ class DataStore {
 				uint32_t swVersion;
 
 				time_t lastSeen;
+
+			// operators
+			friend bool operator==(const Node& lhs, const Node& rhs);
+			friend bool operator< (const Node& lhs, const Node& rhs);
 		};
 	public:
 		DataStore::Node *findNodeWithMac(uint8_t mac[6]);

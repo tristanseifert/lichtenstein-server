@@ -921,6 +921,59 @@ void DataStore::_bindGroupToStatement(sqlite3_stmt *statement, DataStore::Group 
 	}
 }
 
+#pragma mark - Operators
+/**
+ * Compares whether two nodes are equal; they are equal if they have the same
+ * id; thus, this will not work if one of the nodes hasn't been inserted into
+ * the database yet.
+ */
+bool operator==(const DataStore::Node& lhs, const DataStore::Node& rhs) {
+	return (lhs.id == rhs.id);
+}
+
+bool operator!=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
+	return !(lhs == rhs);
+}
+
+bool operator< (const DataStore::Node& lhs, const DataStore::Node& rhs) {
+	return (lhs.id < rhs.id);
+}
+bool operator> (const DataStore::Node& lhs, const DataStore::Node& rhs) {
+	return rhs < lhs;
+}
+bool operator<=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
+	return !(lhs > rhs);
+}
+bool operator>=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
+	return !(lhs < rhs);
+}
+
+/**
+ * Compares whether two groups are equal; they are equal if they have the same
+ * id; thus, this will not work if one of the groups hasn't been inserted into
+ * the database yet.
+ */
+bool operator==(const DataStore::Group& lhs, const DataStore::Group& rhs) {
+	return (lhs.id == rhs.id);
+}
+
+bool operator!=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
+	return !(lhs == rhs);
+}
+
+bool operator< (const DataStore::Group& lhs, const DataStore::Group& rhs) {
+	return (lhs.id < rhs.id);
+}
+bool operator> (const DataStore::Group& lhs, const DataStore::Group& rhs) {
+	return rhs < lhs;
+}
+bool operator<=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
+	return !(lhs > rhs);
+}
+bool operator>=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
+	return !(lhs < rhs);
+}
+
 #pragma mark - Conversion Routines
 /**
  * Converts the string value in column `col` to an UTF-8 string, then creates a
