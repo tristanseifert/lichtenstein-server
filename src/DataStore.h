@@ -20,12 +20,33 @@ class CommandServer;
 
 class DataStore {
 	public:
+		typedef void (*CustomFunction)(DataStore *, void *);
+
+	public:
 		DataStore(std::string path);
 		~DataStore();
 
 		void commit();
 
 		void optimize();
+
+	public:
+		void registerCustomFunction(std::string name, CustomFunction callback, void *ctx);
+	private:
+		friend void sqlFunctionHandler(sqlite3_context *, int, sqlite3_value **);
+
+		class CustomFunctionCtx {
+			friend class DataStore;
+			friend void sqlFunctionHandler(sqlite3_context *, int, sqlite3_value **);
+
+			private:
+				std::string name;
+
+				CustomFunction function;
+				void *ctx;
+
+				DataStore *ds;
+		};
 
 	public:
 		void setInfoValue(std::string key, std::string value);
