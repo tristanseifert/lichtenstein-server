@@ -78,9 +78,24 @@ class DataStore {
 
 				std::map<std::string, double> defaultParams;
 
+			public:
+				// Routine() = delete;
+
 			private:
+				Routine(sqlite3_stmt *statement, DataStore *db) {
+					this->_fromRow(statement, db);
+				}
+
 				void _decodeJSON();
 				void _encodeJSON();
+
+				void _create(DataStore *db);
+				void _update(DataStore *db);
+
+				void _fromRow(sqlite3_stmt *statement, DataStore *db);
+				void _bindToStatement(sqlite3_stmt *statement, DataStore *db);
+
+				static bool _idExists(int id, DataStore *db);
 
 			// operators
 			friend bool operator==(const Routine& lhs, const Routine& rhs);
@@ -88,18 +103,10 @@ class DataStore {
 			friend std::ostream &operator<<(std::ostream& strm, const Routine& obj);
 		};
 	public:
-		DataStore::Routine *findRoutineWithId(int id);
-		void update(DataStore::Routine *routine);
-
 		std::vector<DataStore::Routine *> getAllRoutines();
-	private:
-		void _routineFromRow(sqlite3_stmt *statement, DataStore::Routine *routine);
-		void _bindRoutineToStatement(sqlite3_stmt *statement, DataStore::Routine *routine);
+		DataStore::Routine *findRoutineWithId(int id);
 
-		void _createRoutine(DataStore::Routine *routine);
-		void _updateRoutine(DataStore::Routine *routine);
-
-		bool _routineWithIdExists(int id);
+		void update(DataStore::Routine *routine);
 
 	// types and functions relating to groups
 	public:
@@ -128,9 +135,25 @@ class DataStore {
 				/**
 				 * Returns the number of pixels this group encompasses.
 				 */
-				int numPixels() {
+				inline int numPixels() {
 					return (this->end - this->start) + 1;
 				}
+
+			public:
+				// Routine() = delete;
+
+			private:
+				Group(sqlite3_stmt *statement, DataStore *db) {
+					this->_fromRow(statement, db);
+				}
+
+				void _create(DataStore *db);
+				void _update(DataStore *db);
+
+				void _fromRow(sqlite3_stmt *statement, DataStore *db);
+				void _bindToStatement(sqlite3_stmt *statement, DataStore *db);
+
+				static bool _idExists(int id, DataStore *db);
 
 			// operators
 			friend bool operator==(const Group& lhs, const Group& rhs);
@@ -138,18 +161,10 @@ class DataStore {
 			friend std::ostream &operator<<(std::ostream& strm, const Group& obj);
 		};
 	public:
-		DataStore::Group *findGroupWithId(int id);
-		void update(DataStore::Group *group);
-
 		std::vector<DataStore::Group *> getAllGroups();
-	private:
-		void _groupFromRow(sqlite3_stmt *statement, DataStore::Group *group);
-		void _bindGroupToStatement(sqlite3_stmt *statement, DataStore::Group *group);
+		DataStore::Group *findGroupWithId(int id);
 
-		void _createGroup(DataStore::Group *group);
-		void _updateGroup(DataStore::Group *group);
-
-		bool _groupWithIdExists(int id);
+		void update(DataStore::Group *group);
 
 	// types and functions relating to nodes
 	public:
@@ -164,17 +179,42 @@ class DataStore {
 				int id = 0;
 
 			public:
-				uint32_t ip;
+				uint32_t ip = 0;
 				uint8_t macAddr[6];
 
-				std::string hostname;
+				std::string hostname = "unknown";
 
-				bool adopted;
+				bool adopted = false;
 
-				uint32_t hwVersion;
-				uint32_t swVersion;
+				uint32_t hwVersion = 0;
+				uint32_t swVersion = 0;
 
-				time_t lastSeen;
+				time_t lastSeen = 0;
+
+			public:
+				// Node() = delete;
+				Node() {}
+
+				/// converts a MAC address to a string
+				static const std::string macToString(const uint8_t macIn[6]);
+
+				/// return a string rendition of this node's MAC address
+				inline const std::string macToString() const {
+					return Node::macToString(this->macAddr);
+				}
+
+			private:
+				Node(sqlite3_stmt *statement, DataStore *db) {
+					this->_fromRow(statement, db);
+				}
+
+				void _create(DataStore *db);
+				void _update(DataStore *db);
+
+				void _fromRow(sqlite3_stmt *statement, DataStore *db);
+				void _bindToStatement(sqlite3_stmt *statement, DataStore *db);
+
+				static bool _macExists(uint8_t mac[6], DataStore *db);
 
 			// operators
 			friend bool operator==(const Node& lhs, const Node& rhs);
@@ -182,17 +222,10 @@ class DataStore {
 			friend std::ostream &operator<<(std::ostream& strm, const Node& obj);
 		};
 	public:
-		DataStore::Node *findNodeWithMac(uint8_t mac[6]);
-		void update(DataStore::Node *node);
-
 		std::vector<DataStore::Node *> getAllNodes();
-	private:
-		bool _nodeWithMacExists(uint8_t mac[6]);
-		void _nodeFromRow(sqlite3_stmt *statement, DataStore::Node *node);
-		void _bindNodeToStatement(sqlite3_stmt *statement, DataStore::Node *node);
+		DataStore::Node *findNodeWithMac(uint8_t mac[6]);
 
-		void _createNode(DataStore::Node *node);
-		void _updateNode(DataStore::Node *node);
+		void update(DataStore::Node *node);
 
 	private:
 		void open();
@@ -215,6 +248,8 @@ class DataStore {
 
 		int sqlStep(sqlite3_stmt *stmt);
 		int sqlFinalize(sqlite3_stmt *stmt);
+
+		int sqlGetLastRowId();
 
 	private:
 		std::string _stringFromColumn(sqlite3_stmt *statement, int col);

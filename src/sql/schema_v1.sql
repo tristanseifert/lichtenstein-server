@@ -4,7 +4,7 @@ CREATE TABLE routines (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	name text,
 	code text,
-	defaultParams text
+	defaultParams text DEFAULT '{}'
 );
 
 CREATE TABLE info (

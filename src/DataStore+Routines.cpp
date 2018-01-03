@@ -11,6 +11,7 @@ using namespace std;
 using json = nlohmann::json;
 
 
+#pragma mark - Public Query Interface
 /**
  * Returns all routines in the datastore in a vector.
  */
@@ -27,8 +28,7 @@ vector<DataStore::Routine *> DataStore::getAllRoutines() {
 	// execute the query
 	while((result = this->sqlStep(statement)) == SQLITE_ROW) {
 		// create the routine, populate it, and add it to the vector
-		DataStore::Routine *routine = new DataStore::Routine();
-		this->_routineFromRow(statement, routine);
+		DataStore::Routine *routine = new DataStore::Routine(statement, this);
 
 		routines.push_back(routine);
 	}
@@ -48,7 +48,7 @@ DataStore::Routine *DataStore::findRoutineWithId(int id) {
 	sqlite3_stmt *statement = nullptr;
 
 	// check whether the routine exists
-	if(this->_routineWithIdExists(id) == false) {
+	if(DataStore::Routine::_idExists(id, this) == false) {
 		return nullptr;
 	}
 
@@ -67,9 +67,7 @@ DataStore::Routine *DataStore::findRoutineWithId(int id) {
 	result = this->sqlStep(statement);
 
 	if(result == SQLITE_ROW) {
-		// populate the routine object
-		routine = new DataStore::Routine();
-		this->_routineFromRow(statement, routine);
+		routine = new DataStore::Routine(statement, this);
 	}
 
 	// free our statement
@@ -91,88 +89,89 @@ void DataStore::update(DataStore::Routine *routine) {
 	// does the routine exist?
 	if(routine->id != 0) {
 		// it does, so we can just update it
-		this->_updateRoutine(routine);
+		routine->_update(this);
 	} else {
 		// it doesn't, so we need to create it
-		this->_createRoutine(routine);
+		routine->_create(this);
 	}
 }
 
+#pragma mark - Private Query Interface
 /**
  * Creates a new routine in the database, then assigns the id value of the
  * routine that was passed in.
  */
-void DataStore::_createRoutine(DataStore::Routine *routine) {
+void DataStore::Routine::_create(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
 	// logging
-	VLOG(1) << "Creating new routine named " << routine->name;
+	VLOG(1) << "Creating new routine named " << this->name;
 
 	// prepare an update query
-	err = this->sqlPrepare("INSERT INTO routines (name, code, defaultParams) VALUES (:name, :code, :defaultParams);", &statement);
+	err = db->sqlPrepare("INSERT INTO routines (name, code, defaultParams) VALUES (:name, :code, :defaultParams);", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
-	this->_bindRoutineToStatement(statement, routine);
+	this->_bindToStatement(statement, db);
 
 	// then execute it
-	result = this->sqlStep(statement);
+	result = db->sqlStep(statement);
 	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
 
 	// free the statement
-	this->sqlFinalize(statement);
+	db->sqlFinalize(statement);
 
 	// update the rowid
-	result = sqlite3_last_insert_rowid(this->db);
+	result = db->sqlGetLastRowId();
 	CHECK(result != 0) << "rowid for inserted routine is zero… this shouldn't happen.";
 
-	routine->id = result;
+	this->id = result;
 }
 
 /**
  * Updates an existing routine in the database. This replaces all fields except
  * for id.
  */
-void DataStore::_updateRoutine(DataStore::Routine *routine) {
+void DataStore::Routine::_update(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
 	// logging
-	VLOG(1) << "Updating existing routine with id " << routine->id;
+	VLOG(1) << "Updating existing routine with id " << this->id;
 
 	// prepare an update query
-	err = this->sqlPrepare("UPDATE routines SET name = :name, code = :code, defaultParams = :defaultParams WHERE id = :id;", &statement);
+	err = db->sqlPrepare("UPDATE routines SET name = :name, code = :code, defaultParams = :defaultParams WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
-	this->_bindRoutineToStatement(statement, routine);
+	this->_bindToStatement(statement, db);
 
 	// then execute it
-	result = this->sqlStep(statement);
+	result = db->sqlStep(statement);
 	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
 
 	// free the statement
-	this->sqlFinalize(statement);
+	db->sqlFinalize(statement);
 }
 
 /**
  * Determines whether a routine with the given id exists.
  */
-bool DataStore::_routineWithIdExists(int id) {
+bool DataStore::Routine::_idExists(int id, DataStore *db) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
 	// prepare a count statement
-	err = this->sqlPrepare("SELECT count(*) FROM routines WHERE id = :id;", &statement);
+	err = db->sqlPrepare("SELECT count(*) FROM routines WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the id
-	err = this->sqlBind(statement, ":id", id);
+	err = db->sqlBind(statement, ":id", id);
 	CHECK(err == SQLITE_OK) << "Couldn't bind routine id: " << sqlite3_errstr(err);
 
 	// execute the query
-	result = this->sqlStep(statement);
+	result = db->sqlStep(statement);
 
 	if(result == SQLITE_ROW) {
 		// retrieve the value of the first column (0-based)
@@ -180,7 +179,7 @@ bool DataStore::_routineWithIdExists(int id) {
 	}
 
 	// free our statement
-	this->sqlFinalize(statement);
+	db->sqlFinalize(statement);
 
 	// if count is nonzero, the routine exists
 	CHECK(count < 2) << "Found " << count << " routines with the same id, this should never happen";
@@ -191,7 +190,7 @@ bool DataStore::_routineWithIdExists(int id) {
  * Copies the fields from a statement (which is currently returning a row) into
  * an existing routine object.
  */
-void DataStore::_routineFromRow(sqlite3_stmt *statement, DataStore::Routine *routine) {
+void DataStore::Routine::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 	int numColumns = sqlite3_column_count(statement);
 
 	// iterate over all returned columns
@@ -201,20 +200,20 @@ void DataStore::_routineFromRow(sqlite3_stmt *statement, DataStore::Routine *rou
 
 		// is it the id column?
 		if(strcmp(colName, "id") == 0) {
-			routine->id = sqlite3_column_int(statement, i);
+			this->id = sqlite3_column_int(statement, i);
 		}
 		// is it the name column?
 		else if(strcmp(colName, "name") == 0) {
-			routine->name = this->_stringFromColumn(statement, i);
+			this->name = db->_stringFromColumn(statement, i);
 		}
 		// is it the code column?
 		else if(strcmp(colName, "code") == 0) {
-			routine->code = this->_stringFromColumn(statement, i);
+			this->code = db->_stringFromColumn(statement, i);
 		}
 		// is it the default params column?
 		else if(strcmp(colName, "defaultParams") == 0) {
-			routine->defaultParamsJSON = this->_stringFromColumn(statement, i);
-			routine->_decodeJSON();
+			this->defaultParamsJSON = db->_stringFromColumn(statement, i);
+			this->_decodeJSON();
 		}
 	}
 }
@@ -224,27 +223,28 @@ void DataStore::_routineFromRow(sqlite3_stmt *statement, DataStore::Routine *rou
  * is expected to have named parameters corresponding to all of the fields
  * in the routine object; the "id" field is the only field that may be missing.
  */
-void DataStore::_bindRoutineToStatement(sqlite3_stmt *statement, DataStore::Routine *routine) {
+void DataStore::Routine::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 	int err, idx;
 
 	// bind the name
-	err = this->sqlBind(statement, ":name", routine->name);
+	err = db->sqlBind(statement, ":name", this->name);
 	CHECK(err == SQLITE_OK) << "Couldn't bind routine name: " << sqlite3_errstr(err);
 
 	// bind the code
-	err = this->sqlBind(statement, ":code", routine->code);
+	err = db->sqlBind(statement, ":code", this->code);
 	CHECK(err == SQLITE_OK) << "Couldn't bind routine code: " << sqlite3_errstr(err);
 
 	// bind the default params JSON string
-	err = this->sqlBind(statement, ":defaultParams", routine->defaultParamsJSON);
+	err = db->sqlBind(statement, ":defaultParams", this->defaultParamsJSON);
 	CHECK(err == SQLITE_OK) << "Couldn't bind routine default params: " << sqlite3_errstr(err);
 
 
 	// optionally, also bind the id field
-	err = this->sqlBind(statement, ":id", routine->id, true);
+	err = db->sqlBind(statement, ":id", this->id, true);
 	CHECK(err == SQLITE_OK) << "Couldn't bind routine id: " << sqlite3_errstr(err);
 }
 
+#pragma mark - Property Handling
 /**
  * Decodes the JSON from the `defaultParamsJSON` field into a map accessible by
  * external code.

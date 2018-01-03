@@ -209,13 +209,9 @@ void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
 	node = this->store->findNodeWithMac(packet->macAddr);
 
 	if(node == nullptr) {
-		// convert the mac into a string real quick
-		char mac[24];
-		snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", packet->macAddr[0],
-				 packet->macAddr[1], packet->macAddr[2], packet->macAddr[3],
-			 	 packet->macAddr[4], packet->macAddr[5]);
-
-		LOG(INFO) << "Found new node with MAC " << mac << ", adding it to database";
+		LOG(INFO) << "Found new node with MAC "
+				  << DataStore::Node::macToString(packet->macAddr)
+				  << ", adding it to database";
 
 		node = new DataStore::Node();
 	}

@@ -185,6 +185,16 @@ int DataStore::sqlFinalize(sqlite3_stmt *stmt) {
 	return result;
 }
 
+/**
+ * Returns the rowid of the last INSERT/UPDATE operation.
+ */
+int DataStore::sqlGetLastRowId() {
+	int result = sqlite3_last_insert_rowid(this->db);
+	LOG_IF(ERROR, result == 0) << "ROWID is zero… potential misuse of sqlGetLastRowId()";
+
+	return result;
+}
+
 #pragma mark - Database I/O
 /**
  * Explicitly requests that the underlying storage engine commits all writes to

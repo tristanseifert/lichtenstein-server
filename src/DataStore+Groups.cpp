@@ -4,10 +4,12 @@
 #include <sqlite3.h>
 
 #include <vector>
+#include <iostream>
 
 using namespace std;
 
 
+#pragma mark - Public Query Interface
 /**
  * Returns all groups in the datastore in a vector.
  */
@@ -24,8 +26,7 @@ vector<DataStore::Group *> DataStore::getAllGroups() {
 	// execute the query
 	while((result = this->sqlStep(statement)) == SQLITE_ROW) {
 		// create the group, populate it, and add it to the vector
-		DataStore::Group *group = new DataStore::Group();
-		this->_groupFromRow(statement, group);
+		DataStore::Group *group = new DataStore::Group(statement, this);
 
 		groups.push_back(group);
 	}
@@ -44,7 +45,7 @@ DataStore::Group *DataStore::findGroupWithId(int id) {
 	sqlite3_stmt *statement = nullptr;
 
 	// check whether the group exists
-	if(this->_groupWithIdExists(id) == false) {
+	if(DataStore::Group::_idExists(id, this) == false) {
 		return nullptr;
 	}
 
@@ -64,8 +65,7 @@ DataStore::Group *DataStore::findGroupWithId(int id) {
 
 	if(result == SQLITE_ROW) {
 		// populate the group object
-		group = new DataStore::Group();
-		this->_groupFromRow(statement, group);
+		group = new DataStore::Group(statement, this);
 	}
 
 	// free our statement
@@ -84,88 +84,89 @@ void DataStore::update(DataStore::Group *group) {
 	// does the group exist?
 	if(group->id != 0) {
 		// it does, so we can just update it
-		this->_updateGroup(group);
+		group->_update(this);
 	} else {
 		// it doesn't, so we need to create it
-		this->_createGroup(group);
+		group->_create(this);
 	}
 }
 
+#pragma mark - Private Query Interface
 /**
  * Creates a new group in the database, then assigns the id value of the group
  * that was passed in.
  */
-void DataStore::_createGroup(DataStore::Group *group) {
+void DataStore::Group::_create(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
 	// logging
-	VLOG(1) << "Creating new group named " << group->name;
+	VLOG(1) << "Creating new group named " << this->name;
 
 	// prepare an update query
-	err = this->sqlPrepare("INSERT INTO groups (name, enabled, start, end, currentRoutine) VALUES (:name, :enabled, :start, :end, :routine);", &statement);
+	err = db->sqlPrepare("INSERT INTO groups (name, enabled, start, end, currentRoutine) VALUES (:name, :enabled, :start, :end, :routine);", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
-	this->_bindGroupToStatement(statement, group);
+	this->_bindToStatement(statement, db);
 
 	// then execute it
-	result = this->sqlStep(statement);
+	result = db->sqlStep(statement);
 	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
 
 	// free the statement
-	this->sqlFinalize(statement);
+	db->sqlFinalize(statement);
 
 	// update the rowid
-	result = sqlite3_last_insert_rowid(this->db);
+	result = db->sqlGetLastRowId();
 	CHECK(result != 0) << "rowid for inserted group is zero… this shouldn't happen.";
 
-	group->id = result;
+	this->id = result;
 }
 
 /**
  * Updates an existing group in the database. This replaces all fields except
  * for id.
  */
-void DataStore::_updateGroup(DataStore::Group *group) {
+void DataStore::Group::_update(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
 	// logging
-	VLOG(1) << "Updating existing group with id " << group->id;
+	VLOG(1) << "Updating existing group with id " << this->id;
 
 	// prepare an update query
-	err = this->sqlPrepare("UPDATE groups SET name = :name, enabled = :enabled, start = :start, end = :end, currentRoutine = :routine WHERE id = :id;", &statement);
+	err = db->sqlPrepare("UPDATE groups SET name = :name, enabled = :enabled, start = :start, end = :end, currentRoutine = :routine WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
-	this->_bindGroupToStatement(statement, group);
+	this->_bindToStatement(statement, db);
 
 	// then execute it
-	result = this->sqlStep(statement);
+	result = db->sqlStep(statement);
 	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
 
 	// free the statement
-	this->sqlFinalize(statement);
+	db->sqlFinalize(statement);
 }
 
 /**
  * Determines whether a group with the given id exists.
  */
-bool DataStore::_groupWithIdExists(int id) {
+bool DataStore::Group::_idExists(int id, DataStore *db) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
 	// prepare a count statement
-	err = this->sqlPrepare("SELECT count(*) FROM groups WHERE id = :id;", &statement);
+	err = db->sqlPrepare("SELECT count(*) FROM groups WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the id
-	err = this->sqlBind(statement, ":id", id);
+	err = db->sqlBind(statement, ":id", id);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
 
 	// execute the query
-	result = this->sqlStep(statement);
+	result = db->sqlStep(statement);
 
 	if(result == SQLITE_ROW) {
 		// retrieve the value of the first column (0-based)
@@ -173,7 +174,7 @@ bool DataStore::_groupWithIdExists(int id) {
 	}
 
 	// free our statement
-	this->sqlFinalize(statement);
+	db->sqlFinalize(statement);
 
 	// if count is nonzero, the group exists
 	CHECK(count < 2) << "Found " << count << " groups with the same id, this should never happen";
@@ -184,7 +185,7 @@ bool DataStore::_groupWithIdExists(int id) {
  * Copies the fields from a statement (which is currently returning a row) into
  * an existing group object.
  */
-void DataStore::_groupFromRow(sqlite3_stmt *statement, DataStore::Group *group) {
+void DataStore::Group::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 	int numColumns = sqlite3_column_count(statement);
 
 	// iterate over all returned columns
@@ -194,27 +195,27 @@ void DataStore::_groupFromRow(sqlite3_stmt *statement, DataStore::Group *group) 
 
 		// is it the id column?
 		if(strcmp(colName, "id") == 0) {
-			group->id = sqlite3_column_int(statement, i);
+			this->id = sqlite3_column_int(statement, i);
 		}
 		// is it the name column?
 		else if(strcmp(colName, "name") == 0) {
-			group->name = this->_stringFromColumn(statement, i);
+			this->name = db->_stringFromColumn(statement, i);
 		}
 		// is it the enabled column?
 		else if(strcmp(colName, "enabled") == 0) {
-			group->enabled = (sqlite3_column_int(statement, i) != 0);
+			this->enabled = (sqlite3_column_int(statement, i) != 0);
 		}
 		// is it the framebuffer starting offset column?
 		else if(strcmp(colName, "start") == 0) {
-			group->start = sqlite3_column_int(statement, i);
+			this->start = sqlite3_column_int(statement, i);
 		}
 		// is it the framebuffer ending offset column?
 		else if(strcmp(colName, "end") == 0) {
-			group->end = sqlite3_column_int(statement, i);
+			this->end = sqlite3_column_int(statement, i);
 		}
 		// is it the current routine column?
 		else if(strcmp(colName, "currentRoutine") == 0) {
-			group->currentRoutine = sqlite3_column_int(statement, i);
+			this->currentRoutine = sqlite3_column_int(statement, i);
 		}
 	}
 }
@@ -224,32 +225,32 @@ void DataStore::_groupFromRow(sqlite3_stmt *statement, DataStore::Group *group) 
  * is expected to have named parameters corresponding to all of the fields
  * in the group object; the "id" field is the only field that may be missing.
  */
-void DataStore::_bindGroupToStatement(sqlite3_stmt *statement, DataStore::Group *group) {
+void DataStore::Group::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 	int err, idx;
 
 	// bind the name
-	err = this->sqlBind(statement, ":name", group->name);
+	err = db->sqlBind(statement, ":name", this->name);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group name: " << sqlite3_errstr(err);
 
 	// bind the enabled flag
-	err = this->sqlBind(statement, ":enabled", (group->enabled ? 1 : 0));
+	err = db->sqlBind(statement, ":enabled", (this->enabled ? 1 : 0));
 	CHECK(err == SQLITE_OK) << "Couldn't bind group enabled status: " << sqlite3_errstr(err);
 
 	// bind the framebuffer starting offset
-	err = this->sqlBind(statement, ":start", group->start);
+	err = db->sqlBind(statement, ":start", this->start);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group start: " << sqlite3_errstr(err);
 
 	// bind the framebuffer ending offset
-	err = this->sqlBind(statement, ":end", group->end);
+	err = db->sqlBind(statement, ":end", this->end);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group end: " << sqlite3_errstr(err);
 
 	// bind the current routine
-	err = this->sqlBind(statement, ":routine", group->currentRoutine);
+	err = db->sqlBind(statement, ":routine", this->currentRoutine);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group routine: " << sqlite3_errstr(err);
 
 
 	// optionally, also bind the id field
-	err = this->sqlBind(statement, ":id", group->id, true);
+	err = db->sqlBind(statement, ":id", this->id, true);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
 }
 
