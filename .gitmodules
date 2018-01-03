@@ -4,3 +4,6 @@
 [submodule "libs/inih"]
 	path = libs/inih
 	url = git@github.com:jtilly/inih.git
+[submodule "libs/CTPL"]
+	path = libs/CTPL
+	url = git@github.com:vit-vit/CTPL.git

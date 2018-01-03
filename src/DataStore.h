@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <map>
 
 #include <time.h>
 
@@ -68,10 +69,18 @@ class DataStore {
 			private:
 				int id = 0;
 
+				std::string defaultParamsJSON;
+
 			public:
 				std::string name;
 
 				std::string code;
+
+				std::map<std::string, double> defaultParams;
+
+			private:
+				void _decodeJSON();
+				void _encodeJSON();
 
 			// operators
 			friend bool operator==(const Routine& lhs, const Routine& rhs);
@@ -80,15 +89,15 @@ class DataStore {
 		};
 	public:
 		DataStore::Routine *findRoutineWithId(int id);
-		void updateRoutine(DataStore::Routine *group);
+		void update(DataStore::Routine *routine);
 
 		std::vector<DataStore::Routine *> getAllRoutines();
 	private:
-		void _routineFromRow(sqlite3_stmt *statement, DataStore::Routine *group);
-		void _bindRoutineToStatement(sqlite3_stmt *statement, DataStore::Routine *group);
+		void _routineFromRow(sqlite3_stmt *statement, DataStore::Routine *routine);
+		void _bindRoutineToStatement(sqlite3_stmt *statement, DataStore::Routine *routine);
 
-		void _createRoutine(DataStore::Routine *group);
-		void _updateRoutine(DataStore::Routine *group);
+		void _createRoutine(DataStore::Routine *routine);
+		void _updateRoutine(DataStore::Routine *routine);
 
 		bool _routineWithIdExists(int id);
 
@@ -130,7 +139,7 @@ class DataStore {
 		};
 	public:
 		DataStore::Group *findGroupWithId(int id);
-		void updateGroup(DataStore::Group *group);
+		void update(DataStore::Group *group);
 
 		std::vector<DataStore::Group *> getAllGroups();
 	private:
@@ -174,7 +183,7 @@ class DataStore {
 		};
 	public:
 		DataStore::Node *findNodeWithMac(uint8_t mac[6]);
-		void updateNode(DataStore::Node *node);
+		void update(DataStore::Node *node);
 
 		std::vector<DataStore::Node *> getAllNodes();
 	private:

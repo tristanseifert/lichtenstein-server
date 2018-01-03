@@ -242,7 +242,7 @@ void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
 	node->hostname = string(hostnameBuf);
 
 	// update it in the db
-	this->store->updateNode(node);
+	this->store->update(node);
 
 	// clean up
 	delete[] hostnameBuf;

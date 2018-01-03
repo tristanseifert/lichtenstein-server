@@ -3,7 +3,8 @@ R"=====(
 CREATE TABLE routines (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	name text,
-	code text
+	code text,
+	defaultParams text
 );
 
 CREATE TABLE info (

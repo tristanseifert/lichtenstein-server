@@ -80,7 +80,7 @@ DataStore::Group *DataStore::findGroupWithId(int id) {
  * be expected if it was previously fetched from the database) the existing
  * group is updated. Otherwise, a new group is created.
  */
-void DataStore::updateGroup(DataStore::Group *group) {
+void DataStore::update(DataStore::Group *group) {
 	// does the group exist?
 	if(group->id != 0) {
 		// it does, so we can just update it

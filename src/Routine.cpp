@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <stdexcept>
+#include <chrono>
 
 #include <angelscript.h>
 #include <scriptstdstring/scriptstdstring.h>
@@ -16,29 +17,22 @@
 
 using namespace std;
 
+// turn on to profile how long it takes to copy the pixel buffers
+#define PROFILE_BUFCOPY 0
+
+// name of the module that's built
 const char *kEffectModuleName = "EffectRoutine";
 
+// shared debugger
 CDebugger dbg;
 
-HSIPixel testPixel = {
-	.h = 180,
-	.s = 0.5,
-	.i = 1
-};
-
+// simple test script
 const char *testScript = R"(/**
  * Test script: this fills the buffer with pixels of increasing intensity.
  */
 
 void effectStep() {
-	debug_print("hello world from test.as!");
-
-	debug_print("buffer size: " + formatInt(bufferSz));
-	debug_print("frame counter: " + formatInt(frameCounter));
-
-	debug_print("test pixel: " + formatFloat(testPixel.h, '', 0, 2) + ", " + formatFloat(testPixel.s, '', 0, 2) + ", " + formatFloat(testPixel.i, '', 0, 2));
-
-	debug_print("length of buffer array: " + formatInt(buffer.length()));
+	// debug_print("hello world from test.as!");
 
 	double intensityStep = 1.0 / double(buffer.length() - 1);
 
@@ -160,11 +154,11 @@ void Routine::_setUpAngelscriptState() {
 	}
 
 	// insert the code from the database
-	// size_t scriptSz = this->routine->code.size();
-	// const char *scriptCode = this->routine->code.c_str();
+	size_t scriptSz = this->routine->code.size();
+	const char *scriptCode = this->routine->code.c_str();
 
-	size_t scriptSz = strlen(testScript);
-	const char *scriptCode = testScript;
+	// size_t scriptSz = strlen(testScript);
+	// const char *scriptCode = testScript;
 
 	err = builder.AddSectionFromMemory(this->routine->name.c_str(), scriptCode,
 									   scriptSz, 0);
@@ -183,18 +177,21 @@ void Routine::_setUpAngelscriptState() {
 
 	// get the effect function out of the script
 	asIScriptModule *mod = this->engine->GetModule(kEffectModuleName);
-	asIScriptFunction *func = mod->GetFunctionByDecl("void effectStep()");
+	this->effectStepFxn = mod->GetFunctionByDecl("void effectStep()");
 
-	if(func == nullptr) {
+	if(this->effectStepFxn == nullptr) {
 		LOG(WARNING) << "Missing effectStep() function in " << this->routine->name;
 		throw LoadError(-1, LoadError::kErrorStagePrepareContext);
 	}
 
 	// create a script context to execute on
 	this->scriptCtx = this->engine->CreateContext();
-	this->scriptCtx->Prepare(func);
 
+#ifdef DEBUG
 	this->_attachDebugger();
+#endif
+
+	this->scriptCtx->Prepare(this->effectStepFxn);
 
 	if(this->scriptCtx->GetState() == asEXECUTION_PREPARED) {
 		VLOG(1) << "Compiled and prepared script context for " << this->routine->name;
@@ -234,18 +231,22 @@ void Routine::_updateASBufferArray() {
  * time of the script.
  */
 void Routine::_copyASBufferArrayData() {
+#if PROFILE_BUFCOPY
 	auto start = std::chrono::high_resolution_clock::now();
+#endif
 
 	for(int i = 0; i < this->bufferSz; i++) {
 		HSIPixel *pixel = static_cast<HSIPixel *>(this->asBuffer->At(i));
 		(*this->buffer)[i] = *pixel;
 	}
 
+#if PROFILE_BUFCOPY
 	auto elapsed = std::chrono::high_resolution_clock::now() - start;
 	std::chrono::duration<double, std::micro> micros = elapsed;
 	double copyTime = micros.count();
 
 	VLOG(3) << "Took " << copyTime << "µS to copy buffers";
+#endif
 }
 
 /**
@@ -297,16 +298,24 @@ void Routine::_setUpAngelscriptGlobals() {
 	err = this->engine->RegisterGlobalProperty("int bufferSz", &this->bufferSz);
 	CHECK(err >= 0) << "Couldn't register buffer size global: " << err;
 
-	// set up a data array
+	// set up the data array
 	err = this->engine->RegisterGlobalProperty("array<HSIPixel> @buffer", &this->asBuffer);
 	CHECK(err >= 0) << "Couldn't register buffer pointer global: " << err;
-
-	err = this->engine->RegisterGlobalProperty("HSIPixel testPixel", &testPixel);
-	CHECK(err >= 0) << "Couldn't register test pixel global: " << err;
 
 	// register frame counter
 	err = this->engine->RegisterGlobalProperty("int frameCounter", &this->frameCounter);
 	CHECK(err >= 0) << "Couldn't register frame counter global: " << err;
+
+	// set up a dictionary to hold properties
+	this->asParams = CScriptDictionary::Create(this->engine);
+
+	err = this->engine->RegisterGlobalProperty("dictionary @properties", &this->asBuffer);
+	CHECK(err >= 0) << "Couldn't register properties global: " << err;
+
+	// copy all the properties from the params map
+	for(auto const& [key, val] : this->params) {
+		this->asParams->Set(key, val);
+	}
 }
 
 /**
@@ -317,7 +326,10 @@ void Routine::execute(int frame) {
 	int err;
 
 	// start of execution
-	auto start = std::chrono::high_resolution_clock::now();
+	this->_scriptExecStart();
+
+	// prepare the context again… this is required before each invocation
+	this->scriptCtx->Prepare(this->effectStepFxn);
 
 	// copy the frame counter
 	this->frameCounter = frame;
@@ -339,12 +351,7 @@ void Routine::execute(int frame) {
 	}
 
 	// end of execution time
-	auto elapsed = std::chrono::high_resolution_clock::now() - start;
-	std::chrono::duration<double, std::micro> micros = elapsed;
-	double execTime = micros.count();
-
-	VLOG(3) << "Script for " << this->routine->name << " took " << execTime
-			<< "µS to execute";
+	this->_scriptExecEnd();
 
 	// copy the buffers
 	this->_copyASBufferArrayData();
@@ -398,6 +405,29 @@ void ASMessageCallback(const asSMessageInfo *msg, void *param) {
 	} else if(msg->type == asMSGTYPE_INFORMATION) {
 		LOG(INFO) << msgBuf;
 	}
+}
+
+#pragma mark - Performance Counters
+/**
+ * Called immediately after the script has executed. Calculates the difference
+ * between the start and end times, converts it to microseconds, and adds it to
+ * the moving average that's internally tracked.
+ */
+void Routine::_scriptExecEnd() {
+	// calculate the difference and get microseconds
+	auto elapsed = std::chrono::high_resolution_clock::now() - this->lastStart;
+	std::chrono::duration<double, std::micro> micros = elapsed;
+
+	double execTime = micros.count();
+
+	// add it to the moving average
+	double n = this->avgExecutionTimeSamples;
+	double oldAvg = this->avgExecutionTime;
+
+	double newAvg = ((oldAvg * n) + execTime) / (n + 1);
+
+	this->avgExecutionTime = newAvg;
+	this->avgExecutionTimeSamples++;
 }
 
 #pragma mark - Exceptions

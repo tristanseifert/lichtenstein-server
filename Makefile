@@ -29,12 +29,12 @@ LIBS_DIRS := $(ANGELSCRIPT_LIB_DIRS)
 LIBS_FLAGS := $(addprefix -L,$(LIBS_DIRS)) $(addprefix -l,$(LIBS)) $(ANGELSCRIPT_LIB_PATH)
 
 # directories to search for includes
-INC_DIRS := $(shell find $(SRC_DIRS) -type d) libs/json/src libs/inih $(ANGELSCRIPT_INC_DIRS)
+INC_DIRS := $(shell find $(SRC_DIRS) -type d) libs/ libs/json/src libs/inih $(ANGELSCRIPT_INC_DIRS)
 
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 # flags for the C and C++ compiler
-CPPFLAGS ?= -g $(INC_FLAGS) -MMD -MP -std=c++14 -fno-strict-aliasing
+CPPFLAGS ?= -g $(INC_FLAGS) -MMD -MP -std=c++1z -fno-strict-aliasing
 CFLAGS ?= -g -fno-strict-aliasing
 
 # flags for the linker
@@ -45,6 +45,14 @@ GIT_HASH=`git rev-parse HEAD`
 COMPILE_TIME=`date -u +'%Y-%m-%d %H:%M:%S UTC'`
 GIT_BRANCH=`git branch | grep "^\*" | sed 's/^..//'`
 export VERSION_FLAGS=-DGIT_HASH="\"$(GIT_HASH)\"" -DCOMPILE_TIME="\"$(COMPILE_TIME)\"" -DGIT_BRANCH="\"$(GIT_BRANCH)\"" -DVERSION="\"0.1.0\""
+
+ifeq ($(BUILD),RELEASE)
+	CFLAGS += -O2
+	CPPFLAGS += -O2
+else
+	CFLAGS += -Og -DDEBUG="1"
+	CPPFLAGS += -Og -DDEBUG="1"
+endif
 
 # all target
 all: $(BUILD_DIR)/$(TARGET_EXEC)

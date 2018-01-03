@@ -179,7 +179,7 @@ void DataStore::_bindNodeToStatement(sqlite3_stmt *statement, DataStore::Node *n
  * Updates a node in the database based off the data in the passed object. If
  * the node doesn't exist, it's created.
  */
-void DataStore::updateNode(DataStore::Node *node) {
+void DataStore::update(DataStore::Node *node) {
 	// does the node exist?
 	// if(this->_nodeWithMacExists(node->macAddr)) {
 	if(node->id != 0) {

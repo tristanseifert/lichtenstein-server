@@ -1,11 +1,14 @@
 #include "DataStore.h"
 
+#include "json.hpp"
+
 #include <glog/logging.h>
 #include <sqlite3.h>
 
 #include <vector>
 
 using namespace std;
+using json = nlohmann::json;
 
 
 /**
@@ -81,7 +84,10 @@ DataStore::Routine *DataStore::findRoutineWithId(int id) {
  * expected if it was previously fetched from the database) the existing routine
  * is updated. Otherwise, a new routine is created.
  */
-void DataStore::updateRoutine(DataStore::Routine *routine) {
+void DataStore::update(DataStore::Routine *routine) {
+	// convert the default properties back into a JSON object
+	routine->_encodeJSON();
+
 	// does the routine exist?
 	if(routine->id != 0) {
 		// it does, so we can just update it
@@ -104,7 +110,7 @@ void DataStore::_createRoutine(DataStore::Routine *routine) {
 	VLOG(1) << "Creating new routine named " << routine->name;
 
 	// prepare an update query
-	err = this->sqlPrepare("INSERT INTO routines (name, code) VALUES (:name, :code);", &statement);
+	err = this->sqlPrepare("INSERT INTO routines (name, code, defaultParams) VALUES (:name, :code, :defaultParams);", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -136,7 +142,7 @@ void DataStore::_updateRoutine(DataStore::Routine *routine) {
 	VLOG(1) << "Updating existing routine with id " << routine->id;
 
 	// prepare an update query
-	err = this->sqlPrepare("UPDATE routines SET name = :name, code = :code WHERE id = :id;", &statement);
+	err = this->sqlPrepare("UPDATE routines SET name = :name, code = :code, defaultParams = :defaultParams WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -205,6 +211,11 @@ void DataStore::_routineFromRow(sqlite3_stmt *statement, DataStore::Routine *rou
 		else if(strcmp(colName, "code") == 0) {
 			routine->code = this->_stringFromColumn(statement, i);
 		}
+		// is it the default params column?
+		else if(strcmp(colName, "defaultParams") == 0) {
+			routine->defaultParamsJSON = this->_stringFromColumn(statement, i);
+			routine->_decodeJSON();
+		}
 	}
 }
 
@@ -224,10 +235,47 @@ void DataStore::_bindRoutineToStatement(sqlite3_stmt *statement, DataStore::Rout
 	err = this->sqlBind(statement, ":code", routine->code);
 	CHECK(err == SQLITE_OK) << "Couldn't bind routine code: " << sqlite3_errstr(err);
 
+	// bind the default params JSON string
+	err = this->sqlBind(statement, ":defaultParams", routine->defaultParamsJSON);
+	CHECK(err == SQLITE_OK) << "Couldn't bind routine default params: " << sqlite3_errstr(err);
+
 
 	// optionally, also bind the id field
 	err = this->sqlBind(statement, ":id", routine->id, true);
 	CHECK(err == SQLITE_OK) << "Couldn't bind routine id: " << sqlite3_errstr(err);
+}
+
+/**
+ * Decodes the JSON from the `defaultParamsJSON` field into a map accessible by
+ * external code.
+ */
+void DataStore::Routine::_decodeJSON() {
+	// parse the JSON string
+	try {
+		json j = json::parse(this->defaultParamsJSON);
+
+		// hacky approach since we can't just cast the json object to a map
+		this->defaultParams.clear();
+
+		for(json::iterator it = j.begin(); it != j.end(); ++it) {
+			this->defaultParams[it.key()] = double(it.value());
+		}
+	} catch(json::parse_error e) {
+		LOG(ERROR) << "JSON error in routine " << this->name << " defaults: "
+		 		   << e.what();
+	}
+}
+
+/**
+ * Serializes the map of default parameters back into the `defaultParamsJSON`
+ * field to be stored in the database.
+ */
+void DataStore::Routine::_encodeJSON() {
+	// turn the map into a json object
+	json j = json(this->defaultParams);
+
+	// serialize it
+	this->defaultParamsJSON = j.dump();
 }
 
 #pragma mark - Operators

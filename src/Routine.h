@@ -11,10 +11,12 @@
 #include <map>
 #include <string>
 #include <stdexcept>
+#include <chrono>
 
 #include <angelscript.h>
 
 class CScriptArray;
+class CScriptDictionary;
 
 class Routine {
 	public:
@@ -61,6 +63,20 @@ class Routine {
 
 		void execute(int frame);
 
+		/**
+		 * Returns the average time taken to execute the script, in µS.
+		 */
+		double getAvgExecutionTime() const {
+			return this->avgExecutionTime;
+		}
+		/**
+		 * Returns the total number of data points that make up the average
+		 * execution time.
+		 */
+		double getAvgExecutionTimeSamples() const {
+			return this->avgExecutionTimeSamples;
+		}
+
 	private:
 		void _attachDebugger();
 
@@ -72,8 +88,19 @@ class Routine {
 
 		void _setUpAngelscriptGlobals();
 
+		/**
+		 * Called immediately before the script executes. This gets the current
+		 * time and stores it internally.
+		 */
+		inline void _scriptExecStart() {
+			this->lastStart = std::chrono::high_resolution_clock::now();
+		}
+		void _scriptExecEnd();
+
 		asIScriptEngine *engine = nullptr;
 		asIScriptContext *scriptCtx = nullptr;
+
+		asIScriptFunction *effectStepFxn = nullptr;
 
 	private:
 		DataStore::Routine *routine;
@@ -84,7 +111,15 @@ class Routine {
 		int bufferSz = 0;
 		CScriptArray *asBuffer = nullptr;
 
+		CScriptDictionary *asParams = nullptr;
+
 		int frameCounter = 0;
+
+	private:
+		double avgExecutionTime = 0;
+		double avgExecutionTimeSamples = 0;
+
+		std::chrono::time_point<std::chrono::high_resolution_clock> lastStart;
 };
 
 #endif
