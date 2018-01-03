@@ -261,7 +261,7 @@ bool operator>=(const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
  * Outputs the some info about the routine to the output stream.
  */
 ostream &operator<<(ostream& strm, const DataStore::Routine& obj) {
-	strm << "routine id " << obj.id << "{name = " << obj.name << ","
+	strm << "routine id " << obj.id << "{name = " << obj.name << ", "
 		 << obj.code.size() << " bytes of code}";
 
 	return strm;

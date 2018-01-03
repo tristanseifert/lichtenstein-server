@@ -13,11 +13,16 @@
 #define FRAMEBUFFER_H
 
 #include <vector>
-#include <tuple>
+#include <iostream>
 
 #include "DataStore.h"
 
-typedef std::tuple<double, double, double> HSIPixel;
+typedef struct {
+	double h;
+	double s;
+	double i;
+} HSIPixel;
+std::ostream &operator<<(std::ostream& strm, const HSIPixel& obj);
 
 class Framebuffer {
 	public:

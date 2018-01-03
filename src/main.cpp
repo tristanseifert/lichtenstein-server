@@ -16,6 +16,7 @@
 #include "DataStore.h"
 #include "Framebuffer.h"
 #include "OutputMapper.h"
+#include "Routine.h"
 
 using namespace std;
 

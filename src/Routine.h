@@ -14,14 +14,25 @@
 
 #include <angelscript.h>
 
+class CScriptArray;
+
 class Routine {
 	public:
 		// thrown if the script code can't be loaded
 		class LoadError : public std::runtime_error {
 			public:
+				enum ErrorStage {
+					kErrorStageNewModule = 1,
+					kErrorStageBuildModule,
+					kErrorStagePrepareContext
+				};
+
+			public:
 				LoadError() = delete;
-				LoadError(int code) : std::runtime_error("script loading error") {
+				LoadError(int code, ErrorStage stage) : std::runtime_error("script loading error") {
 					this->errCode = code;
+					this->stage = stage;
+
 					this->_createWhatString();
 				}
 
@@ -36,7 +47,8 @@ class Routine {
 				static const int whatBufSz = 4096;
 				char whatBuf[whatBufSz];
 
-				int errCode = 0;
+				int errCode;
+				ErrorStage stage;
 		};
 
 	public:
@@ -47,16 +59,32 @@ class Routine {
 
 		void attachBuffer(std::vector<HSIPixel> *buf);
 
+		void execute(int frame);
+
 	private:
+		void _attachDebugger();
+
+		void _cleanUpAngelscriptState();
 		void _setUpAngelscriptState();
 
-		asIScriptEngine *engine;
+		void _updateASBufferArray();
+		void _copyASBufferArrayData();
+
+		void _setUpAngelscriptGlobals();
+
+		asIScriptEngine *engine = nullptr;
+		asIScriptContext *scriptCtx = nullptr;
 
 	private:
 		DataStore::Routine *routine;
 		std::map<std::string, double> params;
 
 		std::vector<HSIPixel> *buffer;
+
+		int bufferSz = 0;
+		CScriptArray *asBuffer = nullptr;
+
+		int frameCounter = 0;
 };
 
 #endif

@@ -159,6 +159,9 @@ void CommandServer::createSocket() {
 	struct sockaddr_un server;
 	int err = 0;
 
+	// delete the existing socket if needed
+	unlink(this->socketPath.c_str());
+
 	// create the bare socket
 	this->sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	PCHECK(this->sock > 0) << "Creating command server socket failed";

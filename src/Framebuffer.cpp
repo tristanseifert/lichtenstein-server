@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <tuple>
+#include <iostream>
 
 using namespace std;
 
@@ -67,4 +68,14 @@ void Framebuffer::resize(int elements) {
 
 	// now, reserve that memory
 	this->data.reserve(elements);
+}
+
+#pragma mark Operators
+/**
+ * Output an HSIPixel struct.
+ */
+ostream &operator<<(ostream& strm, const HSIPixel& obj) {
+	strm << "{h = " << obj.h << ", s = " << obj.s << ", i = " << obj.i << "}";
+
+	return strm;
 }
