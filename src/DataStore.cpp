@@ -78,7 +78,7 @@ int DataStore::sqlPrepare(const char *sql, sqlite3_stmt **stmt) {
 	// prepare the query
 	err = sqlite3_prepare_v2(this->db, sql, -1, stmt, 0);
 
-	VLOG(2) << "Crated statement 0x" << hex << *stmt << dec << " with SQL `"
+	VLOG(2) << "Created statement 0x" << hex << *stmt << dec << " with SQL `"
 			<< sql << "`, err: " << sqlite3_errstr(err);
 
 	return err;
@@ -99,7 +99,7 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, string value, bool
 	if(idx == 0 && optional) {
 		VLOG(2) << "Couldn't resolve optional parameter `" << param
 				<< "`, ignoring error";
-		return 0;
+		return SQLITE_OK;
 	}
 
 	CHECK(idx != 0) << "Couldn't resolve parameter " << param;
@@ -125,7 +125,7 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, void *data, int le
 	if(idx == 0 && optional) {
 		VLOG(2) << "Couldn't resolve optional parameter `" << param
 				<< "`, ignoring error";
-		return 0;
+		return SQLITE_OK;
 	}
 
 	CHECK(idx != 0) << "Couldn't resolve parameter " << param;
@@ -150,7 +150,7 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, int value, bool op
 	if(idx == 0 && optional) {
 		VLOG(2) << "Couldn't resolve optional parameter `" << param
 				<< "`, ignoring error";
-		return 0;
+		return SQLITE_OK;
 	}
 
 	CHECK(idx != 0) << "Couldn't resolve parameter " << param;
@@ -168,7 +168,7 @@ int DataStore::sqlStep(sqlite3_stmt *stmt) {
 
 	result = sqlite3_step(stmt);
 	VLOG(2) << "Stepping through statement 0x" << hex << stmt << dec << ": "
-			<< sqlite3_errstr(result);
+			<< result;
 
 	return result;
 }

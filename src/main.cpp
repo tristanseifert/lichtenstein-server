@@ -60,6 +60,7 @@ void signalHandler(int sig) {
 int main(int argc, char *argv[]) {
 	// set up logging
 	FLAGS_logtostderr = 1;
+	FLAGS_colorlogtostderr = 1;
 
 	google::InitGoogleLogging(argv[0]);
 	google::InstallFailureSignalHandler();

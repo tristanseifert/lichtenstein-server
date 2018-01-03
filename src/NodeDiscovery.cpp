@@ -116,7 +116,7 @@ void NodeDiscovery::threadEntry() {
 		}
 		// otherwise, try to parse the packet
 		else {
-			LOG(INFO) << "Received " << rsz << " bytes via multicast";
+			VLOG(1) << "Received " << rsz << " bytes via multicast";
 			this->handleMulticastPacket(buffer, rsz);
 		}
 	}
@@ -181,6 +181,8 @@ void NodeDiscovery::handleMulticastPacket(void *data, size_t length) {
 	// check to see what type of packet it is
 	LichtensteinUtils::convertToHostByteOrder(data, length);
 	lichtenstein_header_t *header = static_cast<lichtenstein_header_t *>(data);
+
+	VLOG(2) << "Received multicast packet with opcode " << header->opcode;
 
 	// handle node announcements
 	if(header->opcode == kOpcodeNodeAnnouncement) {

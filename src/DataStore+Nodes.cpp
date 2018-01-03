@@ -4,6 +4,7 @@
 #include <sqlite3.h>
 
 #include <vector>
+#include <iostream>
 
 using namespace std;
 
@@ -171,6 +172,7 @@ void DataStore::_bindNodeToStatement(sqlite3_stmt *statement, DataStore::Node *n
 
 	// optionally, also bind the id field
 	err = this->sqlBind(statement, ":id", node->id, true);
+	CHECK(err == SQLITE_OK) << "Couldn't bind node id: " << sqlite3_errstr(err);
 }
 
 /**
@@ -250,7 +252,7 @@ void DataStore::_createNode(DataStore::Node *node) {
 
 	// update the rowid
 	result = sqlite3_last_insert_rowid(this->db);
-	CHECK(result == 0) << "rowid for inserted node is zero… this shouldn't happen.";
+	CHECK(result != 0) << "rowid for inserted node is zero… this shouldn't happen.";
 
 	node->id = result;
 }
@@ -316,4 +318,19 @@ bool operator<=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
 }
 bool operator>=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
 	return !(lhs < rhs);
+}
+
+/**
+ * Outputs the some info about the node to the output stream.
+ */
+ostream &operator<<(ostream& strm, const DataStore::Node& obj) {
+	char mac[24];
+	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", obj.macAddr[0],
+			 obj.macAddr[1], obj.macAddr[2], obj.macAddr[3], obj.macAddr[4],
+			 obj.macAddr[5]);
+
+	strm << "node id " << obj.id << "{hostname = " << obj.hostname << ", mac = "
+	 	 << mac << "}";
+
+	return strm;
 }

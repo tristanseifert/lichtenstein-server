@@ -43,7 +43,7 @@ DataStore::Group *DataStore::findGroupWithId(int id) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	// check whether the node exists
+	// check whether the group exists
 	if(this->_groupWithIdExists(id) == false) {
 		return nullptr;
 	}
@@ -52,11 +52,11 @@ DataStore::Group *DataStore::findGroupWithId(int id) {
 	DataStore::Group *group = nullptr;
 
 	// it exists, so we must now get it from the db
-	err = this->sqlPrepare("SELECT * FROM groups WHERE id = ?1;", &statement);
+	err = this->sqlPrepare("SELECT * FROM groups WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the id
-	err = sqlite3_bind_int(statement, 1, id);
+	err = this->sqlBind(statement, ":id", id);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
 
 	// execute the query
@@ -118,7 +118,7 @@ void DataStore::_createGroup(DataStore::Group *group) {
 
 	// update the rowid
 	result = sqlite3_last_insert_rowid(this->db);
-	CHECK(result == 0) << "rowid for inserted group is zero… this shouldn't happen.";
+	CHECK(result != 0) << "rowid for inserted group is zero… this shouldn't happen.";
 
 	group->id = result;
 }
@@ -157,11 +157,11 @@ bool DataStore::_groupWithIdExists(int id) {
 	sqlite3_stmt *statement = nullptr;
 
 	// prepare a count statement
-	err = this->sqlPrepare("SELECT count(*) FROM groups WHERE id = ?1;", &statement);
+	err = this->sqlPrepare("SELECT count(*) FROM groups WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the id
-	err = sqlite3_bind_int(statement, 1, id);
+	err = this->sqlBind(statement, ":id", id);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
 
 	// execute the query
@@ -228,43 +228,29 @@ void DataStore::_bindGroupToStatement(sqlite3_stmt *statement, DataStore::Group 
 	int err, idx;
 
 	// bind the name
-	idx = sqlite3_bind_parameter_index(statement, ":name");
-	CHECK(idx != 0) << "Couldn't resolve parameter name";
-
-	err = sqlite3_bind_text(statement, idx, group->name.c_str(), -1, SQLITE_TRANSIENT);
+	err = this->sqlBind(statement, ":name", group->name);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group name: " << sqlite3_errstr(err);
 
 	// bind the enabled flag
-	idx = sqlite3_bind_parameter_index(statement, ":enabled");
-	CHECK(idx != 0) << "Couldn't resolve parameter enabled";
-
-	err = sqlite3_bind_int(statement, idx, group->enabled ? 1 : 0);
+	err = this->sqlBind(statement, ":enabled", (group->enabled ? 1 : 0));
 	CHECK(err == SQLITE_OK) << "Couldn't bind group enabled status: " << sqlite3_errstr(err);
 
 	// bind the framebuffer starting offset
-	idx = sqlite3_bind_parameter_index(statement, ":start");
-	CHECK(idx != 0) << "Couldn't resolve parameter start";
-
-	err = sqlite3_bind_int(statement, idx, group->start);
+	err = this->sqlBind(statement, ":start", group->start);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group start: " << sqlite3_errstr(err);
 
 	// bind the framebuffer ending offset
-	idx = sqlite3_bind_parameter_index(statement, ":end");
-	CHECK(idx != 0) << "Couldn't resolve parameter end";
-
-	err = sqlite3_bind_int(statement, idx, group->end);
+	err = this->sqlBind(statement, ":end", group->end);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group end: " << sqlite3_errstr(err);
 
 	// bind the current routine
-	idx = sqlite3_bind_parameter_index(statement, ":routine");
-	CHECK(idx != 0) << "Couldn't resolve parameter routine";
-
-	err = sqlite3_bind_int(statement, idx, group->currentRoutine);
+	err = this->sqlBind(statement, ":routine", group->currentRoutine);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group routine: " << sqlite3_errstr(err);
 
 
 	// optionally, also bind the id field
 	err = this->sqlBind(statement, ":id", group->id, true);
+	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
 }
 
 #pragma mark - Operators
@@ -292,4 +278,14 @@ bool operator<=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
 }
 bool operator>=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
 	return !(lhs < rhs);
+}
+
+/**
+ * Outputs the some info about the group to the output stream.
+ */
+ostream &operator<<(ostream& strm, const DataStore::Group& obj) {
+	strm << "group id " << obj.id << "{name = " << obj.name << ", range = ["
+		 << obj.start << ", " << obj.end << "]}";
+
+	return strm;
 }

@@ -12,7 +12,7 @@
 #include "DataStore.h"
 #include "Framebuffer.h"
 
-class Routine;
+#include "Routine.h"
 
 class OutputMapper {
 	public:

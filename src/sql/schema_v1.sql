@@ -3,7 +3,7 @@ R"=====(
 CREATE TABLE routines (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	name text,
-	lua text
+	code text
 );
 
 CREATE TABLE info (
@@ -55,9 +55,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_channels_node ON channels (node);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_channels_node_data ON channels (node, id, numPixels, fbOffset);
 
 -- insert default info values
-# INSERT INTO info (key, value) VALUES ("schema_version", "1");
+-- INSERT INTO info (key, value) VALUES ("schema_version", "1");
 
-# INSERT INTO info (key, value) VALUES ("server_build", "unknown");
-# INSERT INTO info (key, value) VALUES ("server_version", "unknown");
+-- INSERT INTO info (key, value) VALUES ("server_build", "unknown");
+-- INSERT INTO info (key, value) VALUES ("server_version", "unknown");
 
 -- )====="

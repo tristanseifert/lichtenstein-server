@@ -8,6 +8,7 @@
 
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include <time.h>
 
@@ -70,11 +71,12 @@ class DataStore {
 			public:
 				std::string name;
 
-				std::string lua;
+				std::string code;
 
 			// operators
 			friend bool operator==(const Routine& lhs, const Routine& rhs);
 			friend bool operator< (const Routine& lhs, const Routine& rhs);
+			friend std::ostream &operator<<(std::ostream& strm, const Routine& obj);
 		};
 	public:
 		DataStore::Routine *findRoutineWithId(int id);
@@ -124,6 +126,7 @@ class DataStore {
 			// operators
 			friend bool operator==(const Group& lhs, const Group& rhs);
 			friend bool operator< (const Group& lhs, const Group& rhs);
+			friend std::ostream &operator<<(std::ostream& strm, const Group& obj);
 		};
 	public:
 		DataStore::Group *findGroupWithId(int id);
@@ -167,6 +170,7 @@ class DataStore {
 			// operators
 			friend bool operator==(const Node& lhs, const Node& rhs);
 			friend bool operator< (const Node& lhs, const Node& rhs);
+			friend std::ostream &operator<<(std::ostream& strm, const Node& obj);
 		};
 	public:
 		DataStore::Node *findNodeWithMac(uint8_t mac[6]);

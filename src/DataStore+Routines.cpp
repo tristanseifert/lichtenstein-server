@@ -37,14 +37,15 @@ vector<DataStore::Routine *> DataStore::getAllRoutines() {
 }
 
 /**
- * Finds a routine with the given id. If no such group exists, nullptr is returned.
+ * Finds a routine with the given id. If no such routine exists, nullptr is
+ * returned.
  */
 DataStore::Routine *DataStore::findRoutineWithId(int id) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	// check whether the node exists
-	if(this->_groupWithIdExists(id) == false) {
+	// check whether the routine exists
+	if(this->_routineWithIdExists(id) == false) {
 		return nullptr;
 	}
 
@@ -52,18 +53,18 @@ DataStore::Routine *DataStore::findRoutineWithId(int id) {
 	DataStore::Routine *routine = nullptr;
 
 	// it exists, so we must now get it from the db
-	err = this->sqlPrepare("SELECT * FROM routines WHERE id = ?1;", &statement);
+	err = this->sqlPrepare("SELECT * FROM routines WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the id
-	err = sqlite3_bind_int(statement, 1, id);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
+	err = this->sqlBind(statement, ":id", id);
+	CHECK(err == SQLITE_OK) << "Couldn't bind routine id: " << sqlite3_errstr(err);
 
 	// execute the query
 	result = this->sqlStep(statement);
 
 	if(result == SQLITE_ROW) {
-		// populate the node object
+		// populate the routine object
 		routine = new DataStore::Routine();
 		this->_routineFromRow(statement, routine);
 	}
@@ -92,8 +93,8 @@ void DataStore::updateRoutine(DataStore::Routine *routine) {
 }
 
 /**
- * Creates a new routine in the database, then assigns the id value of the group
- * that was passed in.
+ * Creates a new routine in the database, then assigns the id value of the
+ * routine that was passed in.
  */
 void DataStore::_createRoutine(DataStore::Routine *routine) {
 	int err = 0, result;
@@ -103,7 +104,7 @@ void DataStore::_createRoutine(DataStore::Routine *routine) {
 	VLOG(1) << "Creating new routine named " << routine->name;
 
 	// prepare an update query
-	err = this->sqlPrepare("INSERT INTO routines (name, lua) VALUES (:name, :lua);", &statement);
+	err = this->sqlPrepare("INSERT INTO routines (name, code) VALUES (:name, :code);", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -118,7 +119,7 @@ void DataStore::_createRoutine(DataStore::Routine *routine) {
 
 	// update the rowid
 	result = sqlite3_last_insert_rowid(this->db);
-	CHECK(result == 0) << "rowid for inserted routine is zero… this shouldn't happen.";
+	CHECK(result != 0) << "rowid for inserted routine is zero… this shouldn't happen.";
 
 	routine->id = result;
 }
@@ -135,7 +136,7 @@ void DataStore::_updateRoutine(DataStore::Routine *routine) {
 	VLOG(1) << "Updating existing routine with id " << routine->id;
 
 	// prepare an update query
-	err = this->sqlPrepare("UPDATE routines SET name = :name, lua = :lua WHERE id = :id;", &statement);
+	err = this->sqlPrepare("UPDATE routines SET name = :name, code = :code WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -150,19 +151,19 @@ void DataStore::_updateRoutine(DataStore::Routine *routine) {
 }
 
 /**
- * Determines whether a group with the given id exists.
+ * Determines whether a routine with the given id exists.
  */
 bool DataStore::_routineWithIdExists(int id) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
 	// prepare a count statement
-	err = this->sqlPrepare("SELECT count(*) FROM routines WHERE id = ?1;", &statement);
+	err = this->sqlPrepare("SELECT count(*) FROM routines WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the id
-	err = sqlite3_bind_int(statement, 1, id);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
+	err = this->sqlBind(statement, ":id", id);
+	CHECK(err == SQLITE_OK) << "Couldn't bind routine id: " << sqlite3_errstr(err);
 
 	// execute the query
 	result = this->sqlStep(statement);
@@ -200,38 +201,33 @@ void DataStore::_routineFromRow(sqlite3_stmt *statement, DataStore::Routine *rou
 		else if(strcmp(colName, "name") == 0) {
 			routine->name = this->_stringFromColumn(statement, i);
 		}
-		// is it the Lua code column?
-		else if(strcmp(colName, "lua") == 0) {
-			routine->lua = this->_stringFromColumn(statement, i);
+		// is it the code column?
+		else if(strcmp(colName, "code") == 0) {
+			routine->code = this->_stringFromColumn(statement, i);
 		}
 	}
 }
 
 /**
- * Binds the fields of a group object to a prepared query. The prepared query
+ * Binds the fields of a routine object to a prepared query. The prepared query
  * is expected to have named parameters corresponding to all of the fields
- * in the group object; the "id" field is the only field that may be missing.
+ * in the routine object; the "id" field is the only field that may be missing.
  */
 void DataStore::_bindRoutineToStatement(sqlite3_stmt *statement, DataStore::Routine *routine) {
 	int err, idx;
 
 	// bind the name
-	idx = sqlite3_bind_parameter_index(statement, ":name");
-	CHECK(idx != 0) << "Couldn't resolve parameter name";
-
-	err = sqlite3_bind_text(statement, idx, routine->name.c_str(), -1, SQLITE_TRANSIENT);
+	err = this->sqlBind(statement, ":name", routine->name);
 	CHECK(err == SQLITE_OK) << "Couldn't bind routine name: " << sqlite3_errstr(err);
 
-	// bind the lua code
-	idx = sqlite3_bind_parameter_index(statement, ":lua");
-	CHECK(idx != 0) << "Couldn't resolve parameter lua";
-
-	err = sqlite3_bind_text(statement, idx, routine->lua.c_str(), -1, SQLITE_TRANSIENT);
-	CHECK(err == SQLITE_OK) << "Couldn't bind routine Lua code: " << sqlite3_errstr(err);
+	// bind the code
+	err = this->sqlBind(statement, ":code", routine->code);
+	CHECK(err == SQLITE_OK) << "Couldn't bind routine code: " << sqlite3_errstr(err);
 
 
 	// optionally, also bind the id field
 	err = this->sqlBind(statement, ":id", routine->id, true);
+	CHECK(err == SQLITE_OK) << "Couldn't bind routine id: " << sqlite3_errstr(err);
 }
 
 #pragma mark - Operators
@@ -259,4 +255,14 @@ bool operator<=(const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
 }
 bool operator>=(const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
 	return !(lhs < rhs);
+}
+
+/**
+ * Outputs the some info about the routine to the output stream.
+ */
+ostream &operator<<(ostream& strm, const DataStore::Routine& obj) {
+	strm << "routine id " << obj.id << "{name = " << obj.name << ","
+		 << obj.code.size() << " bytes of code}";
+
+	return strm;
 }
