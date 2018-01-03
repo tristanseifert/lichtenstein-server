@@ -53,6 +53,43 @@ class DataStore {
 		void setInfoValue(std::string key, std::string value);
 		std::string getInfoValue(std::string key);
 
+	// types and functions relating to routines
+	public:
+		class Routine {
+			// allow access to id field by command server for JSON serialization
+			friend class DataStore;
+			friend class CommandServer;
+			friend class OutputMapper;
+			friend class Routine;
+
+			friend void to_json(nlohmann::json& j, const Routine& n);
+
+			private:
+				int id = 0;
+
+			public:
+				std::string name;
+
+				std::string lua;
+
+			// operators
+			friend bool operator==(const Routine& lhs, const Routine& rhs);
+			friend bool operator< (const Routine& lhs, const Routine& rhs);
+		};
+	public:
+		DataStore::Routine *findRoutineWithId(int id);
+		void updateRoutine(DataStore::Routine *group);
+
+		std::vector<DataStore::Routine *> getAllRoutines();
+	private:
+		void _routineFromRow(sqlite3_stmt *statement, DataStore::Routine *group);
+		void _bindRoutineToStatement(sqlite3_stmt *statement, DataStore::Routine *group);
+
+		void _createRoutine(DataStore::Routine *group);
+		void _updateRoutine(DataStore::Routine *group);
+
+		bool _routineWithIdExists(int id);
+
 	// types and functions relating to groups
 	public:
 		class Group {
@@ -154,6 +191,17 @@ class DataStore {
 		void upgradeSchema();
 
 		void close();
+
+	private:
+		int sqlExec(const char *sql, char **errmsg);
+		int sqlPrepare(const char *sql, sqlite3_stmt **stmt);
+
+		int sqlBind(sqlite3_stmt *stmt, const char *param, std::string value, bool optional = false);
+		int sqlBind(sqlite3_stmt *stmt, const char *param, void *data, int len, bool optional = false);
+		int sqlBind(sqlite3_stmt *stmt, const char *param, int value, bool optional = false);
+
+		int sqlStep(sqlite3_stmt *stmt);
+		int sqlFinalize(sqlite3_stmt *stmt);
 
 	private:
 		std::string _stringFromColumn(sqlite3_stmt *statement, int col);

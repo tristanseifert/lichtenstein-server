@@ -7,6 +7,7 @@
 
 #include <map>
 #include <set>
+#include <vector>
 
 #include "DataStore.h"
 #include "Framebuffer.h"
@@ -27,8 +28,24 @@ class OutputMapper {
 				OutputGroup(DataStore::Group *g);
 				virtual ~OutputGroup() {};
 
+				/**
+				 * Returns an iterator into the group's framebuffer.
+				 */
+				std::vector<HSIPixel>::iterator getDataPointer() {
+					return this->buffer.begin();
+				}
+
+				/**
+				 * Returns the number of pixels in the group.
+				 */
+				int numPixels() const {
+					return this->group->numPixels();
+				}
+
 			private:
 				DataStore::Group *group = nullptr;
+
+				std::vector<HSIPixel> buffer;
 
 				friend bool operator==(const OutputGroup& lhs, const OutputGroup& rhs);
 				friend bool operator< (const OutputGroup& lhs, const OutputGroup& rhs);
@@ -46,6 +63,9 @@ class OutputMapper {
 				void addMember(OutputGroup *group);
 				void removeMember(OutputGroup *group);
 				bool containsMember(OutputGroup *group);
+
+			private:
+				void _resizeBuffer();
 
 			private:
 				std::set<OutputGroup *> groups;

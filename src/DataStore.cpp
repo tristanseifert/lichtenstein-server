@@ -16,10 +16,13 @@ const char *schema_v1 =
 const char *schema_latest = schema_v1;
 const string latestSchemaVersion = "1";
 
-// default properties to insert into the info table after schema provisioning
+/**
+ * Default info properties that are inserted into the database after it's been
+ * provisioned.
+ */
 const char *schema_info_default =
-	"INSERT INTO info (key, value) VALUES (\"server_build\", \"unknown\");"
-	"INSERT INTO info (key, value) VALUES (\"server_version\", \"unknown\");"
+	"INSERT INTO info (key, value) VALUES (\"server_build\", \"" GIT_HASH "/" GIT_BRANCH "\");"
+	"INSERT INTO info (key, value) VALUES (\"server_version\", \"" VERSION "\");"
 ;
 
 /**
@@ -47,6 +50,139 @@ DataStore::DataStore(std::string path) {
 DataStore::~DataStore() {
 	this->commit();
 	this->close();
+}
+
+#pragma mark - SQL Execution
+/**
+ * A thin wrapper around sqlite3_exec; passes the current DB instance, the given
+ * SQL, and the error pointer, and returns its error code.
+ */
+int DataStore::sqlExec(const char *sql, char **errmsg) {
+	int err = 0;
+
+	// run the query
+	VLOG(2) << "Executing SQL: " << sql;
+	err = sqlite3_exec(this->db, sql, nullptr, nullptr, errmsg);
+
+	return err;
+}
+
+/**
+ * A thin wrapper around sqlite3_prepare_v2; passes the current DB instance, the
+ * given SQL, and a pointer to an sqlite statement. Returns the error code of
+ * the sqlite3_prepare_v2 function.
+ */
+int DataStore::sqlPrepare(const char *sql, sqlite3_stmt **stmt) {
+	int err = 0;
+
+	// prepare the query
+	err = sqlite3_prepare_v2(this->db, sql, -1, stmt, 0);
+
+	VLOG(2) << "Crated statement 0x" << hex << *stmt << dec << " with SQL `"
+			<< sql << "`, err: " << sqlite3_errstr(err);
+
+	return err;
+}
+
+/**
+ * Binds a string to a named parameter in the given statement.
+ */
+int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, string value, bool optional) {
+	int err, idx;
+
+	VLOG(2) << "Binding string `" << value << "` to parameter `" << param << '`'
+			<< " on statement 0x" << hex << stmt;
+
+	// resolve the parameter
+	idx = sqlite3_bind_parameter_index(stmt, param);
+
+	if(idx == 0 && optional) {
+		VLOG(2) << "Couldn't resolve optional parameter `" << param
+				<< "`, ignoring error";
+		return 0;
+	}
+
+	CHECK(idx != 0) << "Couldn't resolve parameter " << param;
+
+	// bind
+	err = sqlite3_bind_text(stmt, idx, value.c_str(), -1, SQLITE_TRANSIENT);
+	return err;
+}
+
+/**
+ * Binds a blob to a named parameter in the given statement.
+ */
+int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, void *data, int len, bool optional) {
+	int err, idx;
+
+	VLOG(2) << "Binding blob 0x" << hex << data << ", length " << dec << len
+			<< " bytes to parameter `" << param << '`'
+			<< " on statement 0x" << hex << stmt;
+
+	// resolve the parameter
+	idx = sqlite3_bind_parameter_index(stmt, param);
+
+	if(idx == 0 && optional) {
+		VLOG(2) << "Couldn't resolve optional parameter `" << param
+				<< "`, ignoring error";
+		return 0;
+	}
+
+	CHECK(idx != 0) << "Couldn't resolve parameter " << param;
+
+	// bind
+	err = sqlite3_bind_blob(stmt, idx, data, len, SQLITE_STATIC);
+	return err;
+}
+
+/**
+ * Binds an integer to a named parameter in the given statement.
+ */
+int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, int value, bool optional) {
+	int err, idx;
+
+	VLOG(2) << "Binding integer `" << value << "` to parameter `" << param << '`'
+			<< " on statement 0x" << hex << stmt;
+
+	// resolve the parameter
+	idx = sqlite3_bind_parameter_index(stmt, param);
+
+	if(idx == 0 && optional) {
+		VLOG(2) << "Couldn't resolve optional parameter `" << param
+				<< "`, ignoring error";
+		return 0;
+	}
+
+	CHECK(idx != 0) << "Couldn't resolve parameter " << param;
+
+	// bind
+	err = sqlite3_bind_int(stmt, idx, value);
+	return err;
+}
+
+/**
+ * Steps through the query.
+ */
+int DataStore::sqlStep(sqlite3_stmt *stmt) {
+	int result = 0;
+
+	result = sqlite3_step(stmt);
+	VLOG(2) << "Stepping through statement 0x" << hex << stmt << dec << ": "
+			<< sqlite3_errstr(result);
+
+	return result;
+}
+
+/**
+ * Finalizes/closes a previously created statement.
+ */
+int DataStore::sqlFinalize(sqlite3_stmt *stmt) {
+	int result = 0;
+
+	result = sqlite3_finalize(stmt);
+	VLOG(2) << "Closed statement 0x" << hex << stmt << dec << ": " << result;
+
+	return result;
 }
 
 #pragma mark - Database I/O
@@ -100,23 +236,23 @@ void DataStore::openConfigDb() {
 	char *errStr;
 
 	// set journal mode mode
-	status = sqlite3_exec(this->db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &errStr);
+	status = this->sqlExec("PRAGMA journal_mode=WAL;", &errStr);
 	CHECK(status == SQLITE_OK) << "Couldn't set journal_mode: " << errStr;
 
 	// set incremental autovacuuming mode
-	status = sqlite3_exec(this->db, "PRAGMA auto_vacuum=INCREMENTAL;", nullptr, nullptr, &errStr);
+	status = this->sqlExec("PRAGMA auto_vacuum=INCREMENTAL;", &errStr);
 	CHECK(status == SQLITE_OK) << "Couldn't set auto_vacuum: " << errStr;
 
 	// set UTF-8 encoding
-	status = sqlite3_exec(this->db, "PRAGMA encoding=\"UTF-8\";", nullptr, nullptr, &errStr);
+	status = this->sqlExec("PRAGMA encoding=\"UTF-8\";", &errStr);
 	CHECK(status == SQLITE_OK) << "Couldn't set encoding: " << errStr;
 
 	// store temporary objects in memory
-	status = sqlite3_exec(this->db, "PRAGMA temp_store=MEMORY;", nullptr, nullptr, &errStr);
+	status = this->sqlExec("PRAGMA temp_store=MEMORY;", &errStr);
 	CHECK(status == SQLITE_OK) << "Couldn't set temp_store: " << errStr;
 
 	// truncate the journal rather than deleting it
-	status = sqlite3_exec(this->db, "PRAGMA journal_mode=TRUNCATE;", nullptr, nullptr, &errStr);
+	status = this->sqlExec("PRAGMA journal_mode=TRUNCATE;", &errStr);
 	CHECK(status == SQLITE_OK) << "Couldn't set journal_mode: " << errStr;
 }
 
@@ -137,11 +273,11 @@ void DataStore::optimize() {
 	LOG(INFO) << "Database optimization requested";
 
 	// vacuums the database
-	status = sqlite3_exec(this->db, "VACUUM;", nullptr, nullptr, &errStr);
+	status = this->sqlExec("VACUUM;", &errStr);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't vacuum: " << errStr;
 
 	// run analyze pragma
-	status = sqlite3_exec(this->db, "PRAGMA optimize;", nullptr, nullptr, &errStr);
+	status = this->sqlExec("PRAGMA optimize;", &errStr);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't run optimize: " << errStr;
 }
 
@@ -176,10 +312,10 @@ void DataStore::checkDbVersion() {
 	sqlite3_stmt *statement = nullptr;
 
 	// first, check if the table exists
-	err = sqlite3_prepare_v2(this->db, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='info';", -1, &statement, 0);
+	err = this->sqlPrepare( "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='info';", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
-	result = sqlite3_step(statement);
+	result = this->sqlStep(statement);
 
 	if(result == SQLITE_ROW) {
 		// retrieve the value of the first column (0-based)
@@ -193,7 +329,7 @@ void DataStore::checkDbVersion() {
 	}
 
 	// free our statement
-	sqlite3_finalize(statement);
+	this->sqlFinalize(statement);
 
 
 	// the database has a schema, we just have to find out what version…
@@ -221,11 +357,11 @@ void DataStore::provisonBlankDb() {
 	char *errStr;
 
 	// execute the entire schema string in one go. if this fails we're fucked
-	status = sqlite3_exec(this->db, schema_latest, nullptr, nullptr, &errStr);
+	status = this->sqlExec(schema_latest, &errStr);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't run schema: " << errStr;
 
 	// set the default values in the info table
-	status = sqlite3_exec(this->db, schema_info_default, nullptr, nullptr, &errStr);
+	status = this->sqlExec(schema_info_default, &errStr);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't set info default values: " << errStr;
 }
 
@@ -297,23 +433,23 @@ void DataStore::setInfoValue(string key, string value) {
 	sqlite3_stmt *statement = nullptr;
 
 	// prepare an update query
-	err = sqlite3_prepare_v2(this->db, "UPDATE info SET value = ? WHERE key = ?;", -1, &statement, 0);
+	err = this->sqlPrepare("UPDATE info SET value = :value WHERE key = :key;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the value
-	err = sqlite3_bind_text(statement, 1, value.c_str(), -1, SQLITE_TRANSIENT);
+	err = this->sqlBind(statement, ":value", value);
 	CHECK(err == SQLITE_OK) << "Couldn't bind value: " << sqlite3_errstr(err);
 
 	// bind the key
-	err = sqlite3_bind_text(statement, 2, key.c_str(), -1, SQLITE_TRANSIENT);
+	err = this->sqlBind(statement, ":key", key);
 	CHECK(err == SQLITE_OK) << "Couldn't bind key: " << sqlite3_errstr(err);
 
 	// execute query
-	result = sqlite3_step(statement);
+	result = this->sqlStep(statement);
 	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
 
 	// free the statement
-	sqlite3_finalize(statement);
+	this->sqlFinalize(statement);
 }
 
 /**
@@ -326,14 +462,14 @@ string DataStore::getInfoValue(string key) {
 	string returnValue;
 
 	// prepare a query and bind key
-	err = sqlite3_prepare_v2(this->db, "SELECT value FROM info WHERE key = ?;", -1, &statement, 0);
+	err = this->sqlPrepare("SELECT value FROM info WHERE key = :key;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
-	err = sqlite3_bind_text(statement, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+	err = this->sqlBind(statement, ":key", key);
 	CHECK(err == SQLITE_OK) << "Couldn't bind key: " << sqlite3_errstr(err);
 
 	// execute the query
-	result = sqlite3_step(statement);
+	result = this->sqlStep(statement);
 
 	if(result == SQLITE_ROW) {
 		const unsigned char *value = sqlite3_column_text(statement, 0);
@@ -341,637 +477,10 @@ string DataStore::getInfoValue(string key) {
 	}
 
 	// free the statement
-	sqlite3_finalize(statement);
+	this->sqlFinalize(statement);
 
 	// return a C++ string
 	return returnValue;
-}
-
-#pragma mark - Nodes
-/**
- * Returns all nodes in the datastore in a vector.
- */
-vector<DataStore::Node *> DataStore::getAllNodes() {
-	int err = 0, result, count;
-	sqlite3_stmt *statement = nullptr;
-
-	vector<DataStore::Node *> nodes;
-
-	// execute the query
-	err = sqlite3_prepare_v2(this->db, "SELECT * FROM nodes;", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// execute the query
-	while((result = sqlite3_step(statement)) == SQLITE_ROW) {
-		// create the node, populate it, and add it to the vector
-		DataStore::Node *node = new DataStore::Node();
-		this->_nodeFromRow(statement, node);
-
-		nodes.push_back(node);
-	}
-
-	// free our statement
-	sqlite3_finalize(statement);
-
-	return nodes;
-}
-
-/**
- * Finds a node with the given MAC address. Returns a pointer to a Node object
- * if it exists, or nullptr if not.
- *
- * @note The caller is responsible for deleting the returned object when it is
- * no longer needed.
- */
-DataStore::Node *DataStore::findNodeWithMac(uint8_t macIn[6]) {
-	int err = 0, result, count;
-	sqlite3_stmt *statement = nullptr;
-
-	// check whether the node exists
-	if(this->_nodeWithMacExists(macIn) == false) {
-		return nullptr;
-	}
-
-	// allocate the object for later
-	DataStore::Node *node = new DataStore::Node();
-
-	// it exists, so we must now get it from the db
-	err = sqlite3_prepare_v2(this->db, "SELECT * FROM nodes WHERE mac = ?1;", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// bind the mac address
-	err = sqlite3_bind_blob(statement, 1, macIn, 6, SQLITE_STATIC);
-	CHECK(err == SQLITE_OK) << "Couldn't bind MAC: " << sqlite3_errstr(err);
-
-	// execute the query
-	result = sqlite3_step(statement);
-
-	if(result == SQLITE_ROW) {
-		// populate the node object
-		this->_nodeFromRow(statement, node);
-	}
-
-	// free our statement
-	sqlite3_finalize(statement);
-
-	// return the populated node object
-	return node;
-}
-
-/**
- * Copies the fields from a statement (which is currently returning a row) into
- * an existing node object.
- */
-void DataStore::_nodeFromRow(sqlite3_stmt *statement, DataStore::Node *node) {
-	int numColumns = sqlite3_column_count(statement);
-
-	// iterate over all returned columns
-	for(int i = 0; i < numColumns; i++) {
-		// get the column name and see to which property it matches up
-		const char *colName = sqlite3_column_name(statement, i);
-
-		// is it the id column?
-		if(strcmp(colName, "id") == 0) {
-			node->id = sqlite3_column_int(statement, i);
-		}
-		// is it the ip column?
-		else if(strcmp(colName, "ip") == 0) {
-			node->ip = sqlite3_column_int(statement, i);
-		}
-		// is it the MAC address column?
-		else if(strcmp(colName, "mac") == 0) {
-			const void *rawMac = sqlite3_column_blob(statement, i);
-			int length = sqlite3_column_bytes(statement, i);
-
-			// copy only the first six bytes… that's all we have space for
-			if(length > 6) {
-				length = 6;
-			}
-
-			memcpy(node->macAddr, rawMac, length);
-		}
-		// is it the hostname column?
-		else if(strcmp(colName, "hostname") == 0) {
-			node->hostname = this->_stringFromColumn(statement, i);
-		}
-		// is it the adopted column?
-		else if(strcmp(colName, "adopted") == 0) {
-			node->adopted = (sqlite3_column_int(statement, i) != 0);
-		}
-		// is it the hardware version column?
-		else if(strcmp(colName, "hwversion") == 0) {
-			node->hwVersion = sqlite3_column_int(statement, i);
-		}
-		// is it the software version column?
-		else if(strcmp(colName, "swversion") == 0) {
-			node->swVersion = sqlite3_column_int(statement, i);
-		}
-		// is it the last seen timestamp column?
-		else if(strcmp(colName, "lastSeen") == 0) {
-			node->lastSeen = sqlite3_column_int(statement, i);
-		}
-	}
-}
-
-/**
- * Binds the fields of a node object to a prepared query. The prepared query
- * is expected to have named parameters corresponding to all of the fields
- * in the node object; the "id" field is the only field that may be missing.
- */
-void DataStore::_bindNodeToStatement(sqlite3_stmt *statement, DataStore::Node *node) {
-	int err, idx;
-
-	// bind the ip address
-	idx = sqlite3_bind_parameter_index(statement, ":ip");
-	CHECK(idx != 0) << "Couldn't resolve parameter ip";
-
-	err = sqlite3_bind_int(statement, idx, node->ip);
-	CHECK(err == SQLITE_OK) << "Couldn't bind node IP address: " << sqlite3_errstr(err);
-
-	// bind the MAC address
-	idx = sqlite3_bind_parameter_index(statement, ":mac");
-	CHECK(idx != 0) << "Couldn't resolve parameter mac";
-
-	err = sqlite3_bind_blob(statement, idx, node->macAddr, 6, SQLITE_STATIC);
-	CHECK(err == SQLITE_OK) << "Couldn't bind node MAC: " << sqlite3_errstr(err);
-
-	// bind the hostname
-	idx = sqlite3_bind_parameter_index(statement, ":hostname");
-	CHECK(idx != 0) << "Couldn't resolve parameter hostname";
-
-	err = sqlite3_bind_text(statement, idx, node->hostname.c_str(), -1, SQLITE_TRANSIENT);
-	CHECK(err == SQLITE_OK) << "Couldn't bind node hostname: " << sqlite3_errstr(err);
-
-	// bind the adopted status
-	idx = sqlite3_bind_parameter_index(statement, ":adopted");
-	CHECK(idx != 0) << "Couldn't resolve parameter adopted";
-
-	err = sqlite3_bind_int(statement, idx, node->adopted ? 1 : 0);
-	CHECK(err == SQLITE_OK) << "Couldn't bind node adopted status: " << sqlite3_errstr(err);
-
-	// bind the HW version
-	idx = sqlite3_bind_parameter_index(statement, ":hwversion");
-	CHECK(idx != 0) << "Couldn't resolve parameter hwversion";
-
-	err = sqlite3_bind_int(statement, idx, node->hwVersion);
-	CHECK(err == SQLITE_OK) << "Couldn't bind node hardware version: " << sqlite3_errstr(err);
-
-	// bind the SW version
-	idx = sqlite3_bind_parameter_index(statement, ":swversion");
-	CHECK(idx != 0) << "Couldn't resolve parameter swversion";
-
-	err = sqlite3_bind_int(statement, idx, node->swVersion);
-	CHECK(err == SQLITE_OK) << "Couldn't bind node software version: " << sqlite3_errstr(err);
-
-	// bind the last seen timestamp
-	idx = sqlite3_bind_parameter_index(statement, ":lastseen");
-	CHECK(idx != 0) << "Couldn't resolve parameter lastseen";
-
-	err = sqlite3_bind_int(statement, idx, node->lastSeen);
-	CHECK(err == SQLITE_OK) << "Couldn't bind node last seen timestamp: " << sqlite3_errstr(err);
-
-	// optionally, also bind the id field
-	idx = sqlite3_bind_parameter_index(statement, ":id");
-
-	if(idx != 0) {
-		err = sqlite3_bind_int(statement, idx, node->id);
-		CHECK(err == SQLITE_OK) << "Couldn't bind node id: " << sqlite3_errstr(err);
-	}
-}
-
-/**
- * Updates a node in the database based off the data in the passed object. If
- * the node doesn't exist, it's created.
- */
-void DataStore::updateNode(DataStore::Node *node) {
-	// does the node exist?
-	// if(this->_nodeWithMacExists(node->macAddr)) {
-	if(node->id != 0) {
-		// it does, so we can just update it
-		this->_updateNode(node);
-	} else {
-		// it doesn't, so we need to create it
-		this->_createNode(node);
-	}
-}
-
-/**
- * Updates an existing node in the database. Nodes are searched for based on
- * their MAC address.
- */
-void DataStore::_updateNode(DataStore::Node *node) {
-	int err = 0, result;
-	sqlite3_stmt *statement = nullptr;
-
-	// logging
-	char mac[24];
-	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", node->macAddr[0],
-			 node->macAddr[1], node->macAddr[2], node->macAddr[3],
-			 node->macAddr[4], node->macAddr[5]);
-	VLOG(1) << "Updating existing node with MAC " << mac;
-
-	// prepare an update query
-	err = sqlite3_prepare_v2(this->db, "UPDATE nodes SET ip = :ip, mac = :mac, hostname = :hostname, adopted = :adopted, hwversion = :hwversion, swversion = :swversion, lastSeen = :lastseen WHERE id = :id;", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// bind the properties
-	this->_bindNodeToStatement(statement, node);
-
-	// then execute it
-	result = sqlite3_step(statement);
-	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
-
-	// free the statement
-	sqlite3_finalize(statement);
-}
-
-/**
- * Creates a node in the database. This doesn't check whether one with the same
- * MAC already exists -- if it does, the query will fail.
- */
-void DataStore::_createNode(DataStore::Node *node) {
-	int err = 0, result;
-	sqlite3_stmt *statement = nullptr;
-
-	// logging
-	char mac[24];
-	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", node->macAddr[0],
-			 node->macAddr[1], node->macAddr[2], node->macAddr[3],
-			 node->macAddr[4], node->macAddr[5]);
-	VLOG(1) << "Creating new node with MAC " << mac;
-
-	// prepare an update query
-	err = sqlite3_prepare_v2(this->db, "INSERT INTO nodes (ip, mac, hostname, adopted, hwversion, swversion, lastSeen) VALUES (:ip, :mac, :hostname, :adopted, :hwversion, :swversion, :lastseen);", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// bind the properties
-	this->_bindNodeToStatement(statement, node);
-
-	// then execute it
-	result = sqlite3_step(statement);
-	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
-
-	// free the statement
-	sqlite3_finalize(statement);
-
-	// update the rowid
-	result = sqlite3_last_insert_rowid(this->db);
-	CHECK(result == 0) << "rowid for inserted node is zero… this shouldn't happen.";
-
-	node->id = result;
-}
-
-/**
- * Checks if a node with the specified MAC address exists.
- */
-bool DataStore::_nodeWithMacExists(uint8_t macIn[6]) {
-	int err = 0, result, count;
-	sqlite3_stmt *statement = nullptr;
-
-	// prepare a count statement
-	err = sqlite3_prepare_v2(this->db, "SELECT count(*) FROM nodes WHERE mac = ?1;", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// bind the mac address
-	err = sqlite3_bind_blob(statement, 1, macIn, 6, SQLITE_STATIC);
-	CHECK(err == SQLITE_OK) << "Couldn't bind MAC: " << sqlite3_errstr(err);
-
-	// execute the query
-	result = sqlite3_step(statement);
-
-	if(result == SQLITE_ROW) {
-		// retrieve the value of the first column (0-based)
-		count = sqlite3_column_int(statement, 0);
-	}
-
-	// free our statement
-	sqlite3_finalize(statement);
-
-	// if count is nonzero, the node exists
-	char mac[24];
-	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", macIn[0], macIn[1],
-	 		 macIn[2], macIn[3], macIn[4], macIn[5]);
-
-	CHECK(count < 2) << "Duplicate node records for MAC 0x" << std::hex << mac;
-
-	return (count != 0);
-}
-
-#pragma mark - Groups
-/**
- * Returns all groups in the datastore in a vector.
- */
-std::vector<DataStore::Group *> DataStore::getAllGroups() {
-	int err = 0, result, count;
-	sqlite3_stmt *statement = nullptr;
-
-	vector<DataStore::Group *> nodes;
-
-	// execute the query
-	err = sqlite3_prepare_v2(this->db, "SELECT * FROM groups;", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// execute the query
-	while((result = sqlite3_step(statement)) == SQLITE_ROW) {
-		// create the group, populate it, and add it to the vector
-		DataStore::Group *group = new DataStore::Group();
-		this->_groupFromRow(statement, group);
-
-		nodes.push_back(group);
-	}
-
-	// free our statement
-	sqlite3_finalize(statement);
-
-	return nodes;
-}
-
-/**
- * Finds a group with the given id. If no such group exists, nullptr is returned.
- */
-DataStore::Group *DataStore::findGroupWithId(int id) {
-	int err = 0, result, count;
-	sqlite3_stmt *statement = nullptr;
-
-	// check whether the node exists
-	if(this->_groupWithIdExists(id) == false) {
-		return nullptr;
-	}
-
-	// allocate the object for later
-	DataStore::Group *group = new DataStore::Group();
-
-	// it exists, so we must now get it from the db
-	err = sqlite3_prepare_v2(this->db, "SELECT * FROM groups WHERE id = ?1;", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// bind the id
-	err = sqlite3_bind_int(statement, 1, id);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
-
-	// execute the query
-	result = sqlite3_step(statement);
-
-	if(result == SQLITE_ROW) {
-		// populate the node object
-		this->_groupFromRow(statement, group);
-	}
-
-	// free our statement
-	sqlite3_finalize(statement);
-
-	// return the populated node object
-	return group;
-}
-
-/**
- * Updates the specified group. If a group with this id already exists (as would
- * be expected if it was previously fetched from the database) the existing
- * group is updated. Otherwise, a new group is created.
- */
-void DataStore::updateGroup(DataStore::Group *group) {
-	// does the group exist?
-	if(group->id != 0) {
-		// it does, so we can just update it
-		this->_updateGroup(group);
-	} else {
-		// it doesn't, so we need to create it
-		this->_createGroup(group);
-	}
-}
-
-/**
- * Creates a new group in the database, then assigns the id value of the group
- * that was passed in.
- */
-void DataStore::_createGroup(DataStore::Group *group) {
-	int err = 0, result;
-	sqlite3_stmt *statement = nullptr;
-
-	// logging
-	VLOG(1) << "Creating new group named " << group->name;
-
-	// prepare an update query
-	err = sqlite3_prepare_v2(this->db, "INSERT INTO groups (name, enabled, start, end, currentRoutine) VALUES (:name, :enabled, :start, :end, :routine);", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// bind the properties
-	this->_bindGroupToStatement(statement, group);
-
-	// then execute it
-	result = sqlite3_step(statement);
-	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
-
-	// free the statement
-	sqlite3_finalize(statement);
-
-	// update the rowid
-	result = sqlite3_last_insert_rowid(this->db);
-	CHECK(result == 0) << "rowid for inserted group is zero… this shouldn't happen.";
-
-	group->id = result;
-}
-
-/**
- * Updates an existing group in the database. This replaces all fields except
- * for id.
- */
-void DataStore::_updateGroup(DataStore::Group *group) {
-	int err = 0, result;
-	sqlite3_stmt *statement = nullptr;
-
-	// logging
-	VLOG(1) << "Updating existing group with id " << group->id;
-
-	// prepare an update query
-	err = sqlite3_prepare_v2(this->db, "UPDATE groups SET name = :name, enabled = :enabled, start = :start, end = :end, currentRoutine = :routine WHERE id = :id;", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// bind the properties
-	this->_bindGroupToStatement(statement, group);
-
-	// then execute it
-	result = sqlite3_step(statement);
-	CHECK(result == SQLITE_DONE) << "Couldn't execute query: " << sqlite3_errstr(result);
-
-	// free the statement
-	sqlite3_finalize(statement);
-}
-
-/**
- * Determines whether a group with the given id exists.
- */
-bool DataStore::_groupWithIdExists(int id) {
-	int err = 0, result, count;
-	sqlite3_stmt *statement = nullptr;
-
-	// prepare a count statement
-	err = sqlite3_prepare_v2(this->db, "SELECT count(*) FROM groups WHERE id = ?1;", -1, &statement, 0);
-	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
-
-	// bind the id
-	err = sqlite3_bind_int(statement, 1, id);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
-
-	// execute the query
-	result = sqlite3_step(statement);
-
-	if(result == SQLITE_ROW) {
-		// retrieve the value of the first column (0-based)
-		count = sqlite3_column_int(statement, 0);
-	}
-
-	// free our statement
-	sqlite3_finalize(statement);
-
-	// if count is nonzero, the node exists
-	CHECK(count < 2) << "Found " << count << " nodes with the same id, this should never happen";
-	return (count != 0);
-}
-
-/**
- * Copies the fields from a statement (which is currently returning a row) into
- * an existing group object.
- */
-void DataStore::_groupFromRow(sqlite3_stmt *statement, DataStore::Group *group) {
-	int numColumns = sqlite3_column_count(statement);
-
-	// iterate over all returned columns
-	for(int i = 0; i < numColumns; i++) {
-		// get the column name and see to which property it matches up
-		const char *colName = sqlite3_column_name(statement, i);
-
-		// is it the id column?
-		if(strcmp(colName, "id") == 0) {
-			group->id = sqlite3_column_int(statement, i);
-		}
-		// is it the name column?
-		else if(strcmp(colName, "name") == 0) {
-			group->name = this->_stringFromColumn(statement, i);
-		}
-		// is it the enabled column?
-		else if(strcmp(colName, "enabled") == 0) {
-			group->enabled = (sqlite3_column_int(statement, i) != 0);
-		}
-		// is it the framebuffer starting offset column?
-		else if(strcmp(colName, "start") == 0) {
-			group->start = sqlite3_column_int(statement, i);
-		}
-		// is it the framebuffer ending offset column?
-		else if(strcmp(colName, "end") == 0) {
-			group->end = sqlite3_column_int(statement, i);
-		}
-		// is it the current routine column?
-		else if(strcmp(colName, "currentRoutine") == 0) {
-			group->currentRoutine = sqlite3_column_int(statement, i);
-		}
-	}
-}
-
-/**
- * Binds the fields of a group object to a prepared query. The prepared query
- * is expected to have named parameters corresponding to all of the fields
- * in the group object; the "id" field is the only field that may be missing.
- */
-void DataStore::_bindGroupToStatement(sqlite3_stmt *statement, DataStore::Group *group) {
-	int err, idx;
-
-	// bind the name
-	idx = sqlite3_bind_parameter_index(statement, ":name");
-	CHECK(idx != 0) << "Couldn't resolve parameter name";
-
-	err = sqlite3_bind_text(statement, idx, group->name.c_str(), -1, SQLITE_TRANSIENT);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group name: " << sqlite3_errstr(err);
-
-	// bind the enabled flag
-	idx = sqlite3_bind_parameter_index(statement, ":enabled");
-	CHECK(idx != 0) << "Couldn't resolve parameter enabled";
-
-	err = sqlite3_bind_int(statement, idx, group->enabled ? 1 : 0);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group enabled status: " << sqlite3_errstr(err);
-
-	// bind the framebuffer starting offset
-	idx = sqlite3_bind_parameter_index(statement, ":start");
-	CHECK(idx != 0) << "Couldn't resolve parameter start";
-
-	err = sqlite3_bind_int(statement, idx, group->start);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group start: " << sqlite3_errstr(err);
-
-	// bind the framebuffer ending offset
-	idx = sqlite3_bind_parameter_index(statement, ":end");
-	CHECK(idx != 0) << "Couldn't resolve parameter end";
-
-	err = sqlite3_bind_int(statement, idx, group->end);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group end: " << sqlite3_errstr(err);
-
-	// bind the current routine
-	idx = sqlite3_bind_parameter_index(statement, ":routine");
-	CHECK(idx != 0) << "Couldn't resolve parameter routine";
-
-	err = sqlite3_bind_int(statement, idx, group->currentRoutine);
-	CHECK(err == SQLITE_OK) << "Couldn't bind group routine: " << sqlite3_errstr(err);
-
-
-	// optionally, also bind the id field
-	idx = sqlite3_bind_parameter_index(statement, ":id");
-
-	if(idx != 0) {
-		err = sqlite3_bind_int(statement, idx, group->id);
-		CHECK(err == SQLITE_OK) << "Couldn't bind group id: " << sqlite3_errstr(err);
-	}
-}
-
-#pragma mark - Operators
-/**
- * Compares whether two nodes are equal; they are equal if they have the same
- * id; thus, this will not work if one of the nodes hasn't been inserted into
- * the database yet.
- */
-bool operator==(const DataStore::Node& lhs, const DataStore::Node& rhs) {
-	return (lhs.id == rhs.id);
-}
-
-bool operator!=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
-	return !(lhs == rhs);
-}
-
-bool operator< (const DataStore::Node& lhs, const DataStore::Node& rhs) {
-	return (lhs.id < rhs.id);
-}
-bool operator> (const DataStore::Node& lhs, const DataStore::Node& rhs) {
-	return rhs < lhs;
-}
-bool operator<=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
-	return !(lhs > rhs);
-}
-bool operator>=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
-	return !(lhs < rhs);
-}
-
-/**
- * Compares whether two groups are equal; they are equal if they have the same
- * id; thus, this will not work if one of the groups hasn't been inserted into
- * the database yet.
- */
-bool operator==(const DataStore::Group& lhs, const DataStore::Group& rhs) {
-	return (lhs.id == rhs.id);
-}
-
-bool operator!=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
-	return !(lhs == rhs);
-}
-
-bool operator< (const DataStore::Group& lhs, const DataStore::Group& rhs) {
-	return (lhs.id < rhs.id);
-}
-bool operator> (const DataStore::Group& lhs, const DataStore::Group& rhs) {
-	return rhs < lhs;
-}
-bool operator<=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
-	return !(lhs > rhs);
-}
-bool operator>=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
-	return !(lhs < rhs);
 }
 
 #pragma mark - Conversion Routines

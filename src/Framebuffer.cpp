@@ -51,7 +51,7 @@ void Framebuffer::recalculateMinSize() {
 /**
  * Returns a pointer to the framebuffer's pixel data.
  */
-vector<tuple<double, double, double>>::iterator Framebuffer::getDataPointer() {
+vector<HSIPixel>::iterator Framebuffer::getDataPointer() {
 	return this->data.begin();
 }
 

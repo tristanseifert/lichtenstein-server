@@ -17,6 +17,8 @@
 
 #include "DataStore.h"
 
+typedef std::tuple<double, double, double> HSIPixel;
+
 class Framebuffer {
 	public:
 		Framebuffer(DataStore *store);
@@ -26,7 +28,7 @@ class Framebuffer {
 
 		void resize(int elements);
 
-		std::vector<std::tuple<double, double, double>>::iterator getDataPointer();
+		std::vector<HSIPixel>::iterator getDataPointer();
 
 		/**
 		 * Returns how many elements the framebuffer can accomodate. It is
@@ -39,7 +41,7 @@ class Framebuffer {
 	private:
 		DataStore *store;
 
-		std::vector<std::tuple<double, double, double>> data;
+		std::vector<HSIPixel> data;
 };
 
 #endif

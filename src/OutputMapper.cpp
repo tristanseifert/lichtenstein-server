@@ -79,6 +79,12 @@ void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug)
  */
 OutputMapper::OutputGroup::OutputGroup(DataStore::Group *g) {
 	this->group = g;
+
+	// reserve the correct amount of memory
+	int elements = this->numPixels();
+
+	this->buffer.resize(elements, {0, 0, 0});
+	this->buffer.reserve(elements);
 }
 
 /**
@@ -121,6 +127,9 @@ OutputMapper::OutputUberGroup::OutputUberGroup(vector<OutputGroup *> &members) :
 	for(auto group : members) {
 		this->groups.insert(group);
 	}
+
+	// resize the framebuffer
+	this->_resizeBuffer();
 }
 
 /**
@@ -131,6 +140,9 @@ void OutputMapper::OutputUberGroup::addMember(OutputGroup *group) {
 	if(this->containsMember(group) == false) {
 		this->groups.insert(group);
 	}
+
+	// resize the framebuffer
+	this->_resizeBuffer();
 }
 
 /**
@@ -145,6 +157,9 @@ void OutputMapper::OutputUberGroup::removeMember(OutputGroup *group) {
 			}
 		}
 	}
+
+	// resize the framebuffer
+	this->_resizeBuffer();
 }
 
 /**
@@ -160,4 +175,20 @@ bool OutputMapper::OutputUberGroup::containsMember(OutputGroup *inGroup) {
 
 	// if we fall through to the bottom, it's not in the group
 	return false;
+}
+
+/**
+ * Reserves the correct amount of memory in the storage vector.
+ */
+void OutputMapper::OutputUberGroup::_resizeBuffer() {
+	int elements = 0;
+
+	// sum up all of the groups' pixels
+	for(auto group : this->groups) {
+		elements += group->numPixels();
+	}
+
+	// reserve the memory
+	this->buffer.resize(elements, {0, 0, 0});
+	this->buffer.reserve(elements);
 }
