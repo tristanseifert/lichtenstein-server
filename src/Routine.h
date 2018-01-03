@@ -1,6 +1,6 @@
 /**
  * Encapsulates the code for a particular routine, as well as its state. State
- * is stored as a key/value array that's accessible from within the Lua code.
+ * is stored as a key/value array that's accessible from within the code.
  */
 #ifndef ROUTINE_H
 #define ROUTINE_H
@@ -12,19 +12,16 @@
 #include <string>
 #include <stdexcept>
 
-// include lua for state n shit
-extern "C" {
-	#include "lua.h"
-}
+#include <angelscript.h>
 
 class Routine {
 	public:
-		// thrown if the lua code can't be loaded
+		// thrown if the script code can't be loaded
 		class LoadError : public std::runtime_error {
 			public:
 				LoadError() = delete;
-				LoadError(int code) : std::runtime_error("lua loading error") {
-					this->luaErrCode = code;
+				LoadError(int code) : std::runtime_error("script loading error") {
+					this->errCode = code;
 					this->_createWhatString();
 				}
 
@@ -39,7 +36,7 @@ class Routine {
 				static const int whatBufSz = 4096;
 				char whatBuf[whatBufSz];
 
-				int luaErrCode = 0;
+				int errCode = 0;
 		};
 
 	public:
@@ -51,9 +48,9 @@ class Routine {
 		void attachBuffer(std::vector<HSIPixel> *buf);
 
 	private:
-		void _setUpLuaState();
+		void _setUpAngelscriptState();
 
-		lua_State *luaState = nullptr;
+		asIScriptEngine *engine;
 
 	private:
 		DataStore::Routine *routine;
