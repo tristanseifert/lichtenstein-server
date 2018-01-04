@@ -1,5 +1,7 @@
 #include "NodeDiscovery.h"
 
+#include "DataStore.h"
+
 #include <glog/logging.h>
 #include <pthread/pthread.h>
 
@@ -201,7 +203,7 @@ void NodeDiscovery::handleMulticastPacket(void *data, size_t length) {
  * Either way, information such as IP and hostname are updated in the database.
  */
 void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
-	DataStore::Node *node;
+	DbNode *node;
 
 	// get the packet
 	lichtenstein_node_announcement_t *packet = static_cast<lichtenstein_node_announcement_t *>(data);
@@ -211,10 +213,10 @@ void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
 
 	if(node == nullptr) {
 		LOG(INFO) << "Found new node with MAC "
-				  << DataStore::Node::macToString(packet->macAddr)
+				  << DbNode::macToString(packet->macAddr)
 				  << ", adding it to database";
 
-		node = new DataStore::Node();
+		node = new DbNode();
 	}
 
 	// fill the node's info with what we found in the packet

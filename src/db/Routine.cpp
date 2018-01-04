@@ -1,3 +1,4 @@
+#include "Routine.h"
 #include "DataStore.h"
 
 #include "json.hpp"
@@ -15,11 +16,11 @@ using json = nlohmann::json;
 /**
  * Returns all routines in the datastore in a vector.
  */
-vector<DataStore::Routine *> DataStore::getAllRoutines() {
+vector<DbRoutine *> DataStore::getAllRoutines() {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	vector<DataStore::Routine *> routines;
+	vector<DbRoutine *> routines;
 
 	// execute the query
 	err = this->sqlPrepare("SELECT * FROM routines;", &statement);
@@ -28,7 +29,7 @@ vector<DataStore::Routine *> DataStore::getAllRoutines() {
 	// execute the query
 	while((result = this->sqlStep(statement)) == SQLITE_ROW) {
 		// create the routine, populate it, and add it to the vector
-		DataStore::Routine *routine = new DataStore::Routine(statement, this);
+		DbRoutine *routine = new DbRoutine(statement, this);
 
 		routines.push_back(routine);
 	}
@@ -43,17 +44,17 @@ vector<DataStore::Routine *> DataStore::getAllRoutines() {
  * Finds a routine with the given id. If no such routine exists, nullptr is
  * returned.
  */
-DataStore::Routine *DataStore::findRoutineWithId(int id) {
+DbRoutine *DataStore::findRoutineWithId(int id) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
 	// check whether the routine exists
-	if(DataStore::Routine::_idExists(id, this) == false) {
+	if(DbRoutine::_idExists(id, this) == false) {
 		return nullptr;
 	}
 
 	// allocate the object for later
-	DataStore::Routine *routine = nullptr;
+	DbRoutine *routine = nullptr;
 
 	// it exists, so we must now get it from the db
 	err = this->sqlPrepare("SELECT * FROM routines WHERE id = :id;", &statement);
@@ -67,7 +68,7 @@ DataStore::Routine *DataStore::findRoutineWithId(int id) {
 	result = this->sqlStep(statement);
 
 	if(result == SQLITE_ROW) {
-		routine = new DataStore::Routine(statement, this);
+		routine = new DbRoutine(statement, this);
 	}
 
 	// free our statement
@@ -82,7 +83,7 @@ DataStore::Routine *DataStore::findRoutineWithId(int id) {
  * expected if it was previously fetched from the database) the existing routine
  * is updated. Otherwise, a new routine is created.
  */
-void DataStore::update(DataStore::Routine *routine) {
+void DataStore::update(DbRoutine *routine) {
 	// convert the default properties back into a JSON object
 	routine->_encodeJSON();
 
@@ -101,7 +102,7 @@ void DataStore::update(DataStore::Routine *routine) {
  * Creates a new routine in the database, then assigns the id value of the
  * routine that was passed in.
  */
-void DataStore::Routine::_create(DataStore *db) {
+void DbRoutine::_create(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
@@ -133,7 +134,7 @@ void DataStore::Routine::_create(DataStore *db) {
  * Updates an existing routine in the database. This replaces all fields except
  * for id.
  */
-void DataStore::Routine::_update(DataStore *db) {
+void DbRoutine::_update(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
@@ -158,7 +159,7 @@ void DataStore::Routine::_update(DataStore *db) {
 /**
  * Determines whether a routine with the given id exists.
  */
-bool DataStore::Routine::_idExists(int id, DataStore *db) {
+bool DbRoutine::_idExists(int id, DataStore *db) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
@@ -190,7 +191,7 @@ bool DataStore::Routine::_idExists(int id, DataStore *db) {
  * Copies the fields from a statement (which is currently returning a row) into
  * an existing routine object.
  */
-void DataStore::Routine::_fromRow(sqlite3_stmt *statement, DataStore *db) {
+void DbRoutine::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 	int numColumns = sqlite3_column_count(statement);
 
 	// iterate over all returned columns
@@ -223,7 +224,7 @@ void DataStore::Routine::_fromRow(sqlite3_stmt *statement, DataStore *db) {
  * is expected to have named parameters corresponding to all of the fields
  * in the routine object; the "id" field is the only field that may be missing.
  */
-void DataStore::Routine::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
+void DbRoutine::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 	int err, idx;
 
 	// bind the name
@@ -249,7 +250,7 @@ void DataStore::Routine::_bindToStatement(sqlite3_stmt *statement, DataStore *db
  * Decodes the JSON from the `defaultParamsJSON` field into a map accessible by
  * external code.
  */
-void DataStore::Routine::_decodeJSON() {
+void DbRoutine::_decodeJSON() {
 	// parse the JSON string
 	try {
 		json j = json::parse(this->defaultParamsJSON);
@@ -270,7 +271,7 @@ void DataStore::Routine::_decodeJSON() {
  * Serializes the map of default parameters back into the `defaultParamsJSON`
  * field to be stored in the database.
  */
-void DataStore::Routine::_encodeJSON() {
+void DbRoutine::_encodeJSON() {
 	// turn the map into a json object
 	json j = json(this->defaultParams);
 
@@ -284,31 +285,31 @@ void DataStore::Routine::_encodeJSON() {
  * id; thus, this will not work if one of the routines hasn't been inserted into
  * the database yet.
  */
-bool operator==(const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
+bool operator==(const DbRoutine& lhs, const DbRoutine& rhs) {
 	return (lhs.id == rhs.id);
 }
 
-bool operator!=(const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
+bool operator!=(const DbRoutine& lhs, const DbRoutine& rhs) {
 	return !(lhs == rhs);
 }
 
-bool operator< (const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
+bool operator< (const DbRoutine& lhs, const DbRoutine& rhs) {
 	return (lhs.id < rhs.id);
 }
-bool operator> (const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
+bool operator> (const DbRoutine& lhs, const DbRoutine& rhs) {
 	return rhs < lhs;
 }
-bool operator<=(const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
+bool operator<=(const DbRoutine& lhs, const DbRoutine& rhs) {
 	return !(lhs > rhs);
 }
-bool operator>=(const DataStore::Routine& lhs, const DataStore::Routine& rhs) {
+bool operator>=(const DbRoutine& lhs, const DbRoutine& rhs) {
 	return !(lhs < rhs);
 }
 
 /**
  * Outputs the some info about the routine to the output stream.
  */
-ostream &operator<<(ostream& strm, const DataStore::Routine& obj) {
+ostream &operator<<(ostream& strm, const DbRoutine& obj) {
 	strm << "routine id " << obj.id << "{name = " << obj.name << ", "
 		 << obj.code.size() << " bytes of code}";
 

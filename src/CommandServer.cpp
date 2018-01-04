@@ -1,5 +1,7 @@
 #include "CommandServer.h"
 
+#include "DataStore.h"
+
 #include "json.hpp"
 #include <glog/logging.h>
 
@@ -338,7 +340,9 @@ void CommandServer::processClientRequest(json &j, int fd) {
 	} catch(exception e) {}
 
 	// serialize it to a string and send it
-	string responseStr = response.dump();
+	bool humanReadable = this->config->GetBoolean("command", "humanReadableResponses", false);
+
+	string responseStr = humanReadable ? response.dump(4) : response.dump();
 
 	const char *responseBuf = responseStr.c_str();
 	size_t length = strlen(responseBuf);
@@ -393,9 +397,9 @@ void CommandServer::clientRequestListNodes(json &response) {
 	response["status"] = 0;
 
 	// iterate over all nodes and insert them
-	response["nodes"] = vector<DataStore::Node>();
+	response["nodes"] = vector<DbNode>();
 
-	vector<DataStore::Node *> nodes = this->store->getAllNodes();
+	vector<DbNode *> nodes = this->store->getAllNodes();
 	for(auto node : nodes) {
 		response["nodes"].push_back(*node);
 
@@ -411,9 +415,9 @@ void CommandServer::clientRequestListGroups(nlohmann::json &response) {
 	response["status"] = 0;
 
 	// iterate over all groups and insert them
-	response["groups"] = vector<DataStore::Group>();
+	response["groups"] = vector<DbGroup>();
 
-	vector<DataStore::Group *> groups = this->store->getAllGroups();
+	vector<DbGroup *> groups = this->store->getAllGroups();
 	for(auto group : groups) {
 		response["groups"].push_back(*group);
 
@@ -426,7 +430,7 @@ void CommandServer::clientRequestListGroups(nlohmann::json &response) {
 /**
  * Converts a node object to a json representation.
  */
-void to_json(json& j, const DataStore::Node& n) {
+void to_json(json& j, const DbNode& n) {
 	// convert the MAC address to a string
 	char mac[24];
 	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", n.macAddr[0],
@@ -457,7 +461,7 @@ void to_json(json& j, const DataStore::Node& n) {
 /**
  * Converts a group object to a json representation.
  */
-void to_json(json& j, const DataStore::Group& group) {
+void to_json(json& j, const DbGroup& group) {
 	// build the JSON representation
 	j = json{
 		{"id", group.id},

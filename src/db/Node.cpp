@@ -1,3 +1,4 @@
+#include "Node.h"
 #include "DataStore.h"
 
 #include <glog/logging.h>
@@ -13,11 +14,11 @@ using namespace std;
 /**
  * Returns all nodes in the datastore in a vector.
  */
-vector<DataStore::Node *> DataStore::getAllNodes() {
+vector<DbNode *> DataStore::getAllNodes() {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	vector<DataStore::Node *> nodes;
+	vector<DbNode *> nodes;
 
 	// execute the query
 	err = this->sqlPrepare("SELECT * FROM nodes;", &statement);
@@ -26,7 +27,7 @@ vector<DataStore::Node *> DataStore::getAllNodes() {
 	// execute the query
 	while((result = this->sqlStep(statement)) == SQLITE_ROW) {
 		// create the node, populate it, and add it to the vector
-		DataStore::Node *node = new DataStore::Node(statement, this);
+		DbNode *node = new DbNode(statement, this);
 
 		nodes.push_back(node);
 	}
@@ -44,17 +45,17 @@ vector<DataStore::Node *> DataStore::getAllNodes() {
  * @note The caller is responsible for deleting the returned object when it is
  * no longer needed.
  */
-DataStore::Node *DataStore::findNodeWithMac(uint8_t macIn[6]) {
+DbNode *DataStore::findNodeWithMac(uint8_t macIn[6]) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
 	// check whether the node exists
-	if(DataStore::Node::_macExists(macIn, this) == false) {
+	if(DbNode::_macExists(macIn, this) == false) {
 		return nullptr;
 	}
 
 	// allocate the object for later
-	DataStore::Node *node = nullptr;
+	DbNode *node = nullptr;
 
 	// it exists, so we must now get it from the db
 	err = this->sqlPrepare("SELECT * FROM nodes WHERE mac = :mac;", &statement);
@@ -69,7 +70,7 @@ DataStore::Node *DataStore::findNodeWithMac(uint8_t macIn[6]) {
 
 	if(result == SQLITE_ROW) {
 		// populate the node object
-		node = new DataStore::Node(statement, this);
+		node = new DbNode(statement, this);
 	}
 
 	// free our statement
@@ -83,7 +84,7 @@ DataStore::Node *DataStore::findNodeWithMac(uint8_t macIn[6]) {
  * Updates a node in the database based off the data in the passed object. If
  * the node doesn't exist, it's created.
  */
-void DataStore::update(DataStore::Node *node) {
+void DataStore::update(DbNode *node) {
 	// does the node exist?
 	// if(this->_nodeWithMacExists(node->macAddr)) {
 	if(node->id != 0) {
@@ -100,7 +101,7 @@ void DataStore::update(DataStore::Node *node) {
  * Creates a node in the database. This doesn't check whether one with the same
  * MAC already exists -- if it does, the query will fail.
  */
-void DataStore::Node::_create(DataStore *db) {
+void DbNode::_create(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
@@ -132,7 +133,7 @@ void DataStore::Node::_create(DataStore *db) {
  * Updates an existing node in the database. Nodes are searched for based on
  * their MAC address.
  */
-void DataStore::Node::_update(DataStore *db) {
+void DbNode::_update(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
@@ -157,7 +158,7 @@ void DataStore::Node::_update(DataStore *db) {
 /**
  * Checks if a node with the specified MAC address exists.
  */
-bool DataStore::Node::_macExists(uint8_t macIn[6], DataStore *db) {
+bool DbNode::_macExists(uint8_t macIn[6], DataStore *db) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
@@ -181,7 +182,7 @@ bool DataStore::Node::_macExists(uint8_t macIn[6], DataStore *db) {
 	db->sqlFinalize(statement);
 
 	// if count is nonzero, the node exists
-	CHECK(count < 2) << "Duplicate node records for MAC " << Node::macToString(macIn);
+	CHECK(count < 2) << "Duplicate node records for MAC " << DbNode::macToString(macIn);
 
 	return (count != 0);
 }
@@ -190,7 +191,7 @@ bool DataStore::Node::_macExists(uint8_t macIn[6], DataStore *db) {
  * Copies the fields from a statement (which is currently returning a row) into
  * an existing node object.
  */
-void DataStore::Node::_fromRow(sqlite3_stmt *statement, DataStore *db) {
+void DbNode::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 	int numColumns = sqlite3_column_count(statement);
 
 	// iterate over all returned columns
@@ -246,7 +247,7 @@ void DataStore::Node::_fromRow(sqlite3_stmt *statement, DataStore *db) {
  * is expected to have named parameters corresponding to all of the fields
  * in the node object; the "id" field is the only field that may be missing.
  */
-void DataStore::Node::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
+void DbNode::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 	int err, idx;
 
 	// bind the ip address
@@ -286,7 +287,7 @@ void DataStore::Node::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 /**
  * Converts a MAC address to a string.
  */
-const string DataStore::Node::macToString(const uint8_t macIn[6]) {
+const string DbNode::macToString(const uint8_t macIn[6]) {
 	static const int macBufSz = 32;
 
 	char mac[macBufSz];
@@ -302,31 +303,31 @@ const string DataStore::Node::macToString(const uint8_t macIn[6]) {
  * id; thus, this will not work if one of the nodes hasn't been inserted into
  * the database yet.
  */
-bool operator==(const DataStore::Node& lhs, const DataStore::Node& rhs) {
+bool operator==(const DbNode& lhs, const DbNode& rhs) {
 	return (lhs.id == rhs.id);
 }
 
-bool operator!=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
+bool operator!=(const DbNode& lhs, const DbNode& rhs) {
 	return !(lhs == rhs);
 }
 
-bool operator< (const DataStore::Node& lhs, const DataStore::Node& rhs) {
+bool operator< (const DbNode& lhs, const DbNode& rhs) {
 	return (lhs.id < rhs.id);
 }
-bool operator> (const DataStore::Node& lhs, const DataStore::Node& rhs) {
+bool operator> (const DbNode& lhs, const DbNode& rhs) {
 	return rhs < lhs;
 }
-bool operator<=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
+bool operator<=(const DbNode& lhs, const DbNode& rhs) {
 	return !(lhs > rhs);
 }
-bool operator>=(const DataStore::Node& lhs, const DataStore::Node& rhs) {
+bool operator>=(const DbNode& lhs, const DbNode& rhs) {
 	return !(lhs < rhs);
 }
 
 /**
  * Outputs the some info about the node to the output stream.
  */
-ostream &operator<<(ostream& strm, const DataStore::Node& obj) {
+ostream &operator<<(ostream& strm, const DbNode& obj) {
 	strm << "node id " << obj.id << "{hostname = " << obj.hostname << ", mac = "
 	 	 << obj.macToString() << "}";
 

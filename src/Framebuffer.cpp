@@ -1,5 +1,7 @@
 #include "Framebuffer.h"
 
+#include "DataStore.h"
+
 #include <glog/logging.h>
 
 #include <vector>
@@ -34,7 +36,7 @@ void Framebuffer::recalculateMinSize() {
 	int minSize = 0;
 
 	// fetch all groups, then iterate over them
-	vector<DataStore::Group *> groups = this->store->getAllGroups();
+	vector<DbGroup *> groups = this->store->getAllGroups();
 
 	for(auto group : groups) {
 		minSize += group->numPixels();
@@ -69,14 +71,4 @@ void Framebuffer::resize(int elements) {
 
 	// now, reserve that memory
 	this->data.reserve(elements);
-}
-
-#pragma mark Operators
-/**
- * Output an HSIPixel struct.
- */
-ostream &operator<<(ostream& strm, const HSIPixel& obj) {
-	strm << "{h = " << obj.h << ", s = " << obj.s << ", i = " << obj.i << "}";
-
-	return strm;
 }

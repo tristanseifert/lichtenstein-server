@@ -5,16 +5,19 @@
 #ifndef OUTPUTMAPPER_H
 #define OUTPUTMAPPER_H
 
+#include "HSIPixel.h"
+#include "db/Group.h"
+
 #include <map>
 #include <set>
 #include <vector>
 
 #include "INIReader.h"
 
-#include "DataStore.h"
-#include "Framebuffer.h"
+class Routine;
 
-#include "Routine.h"
+class DataStore;
+class Framebuffer;
 
 class OutputMapper {
 	public:
@@ -27,7 +30,7 @@ class OutputMapper {
 
 			public:
 				OutputGroup() = delete;
-				OutputGroup(DataStore::Group *g);
+				OutputGroup(DbGroup *g);
 				virtual ~OutputGroup() {};
 
 				/**
@@ -45,7 +48,7 @@ class OutputMapper {
 				}
 
 			private:
-				DataStore::Group *group = nullptr;
+				DbGroup *group = nullptr;
 
 				std::vector<HSIPixel> buffer;
 
@@ -76,6 +79,10 @@ class OutputMapper {
 	public:
 		void addMapping(OutputGroup *g, Routine *r);
 		void removeMappingForGroup(OutputGroup *g);
+
+		inline Routine *routineForMapping(OutputGroup *g) {
+			return this->outputMap[g];
+		}
 
 	private:
 		void _removeMappingsInUbergroup(OutputUberGroup *ug);

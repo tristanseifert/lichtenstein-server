@@ -14,8 +14,7 @@
 #include "CommandServer.h"
 #include "NodeDiscovery.h"
 #include "DataStore.h"
-#include "Framebuffer.h"
-#include "OutputMapper.h"
+#include "EffectRunner.h"
 #include "Routine.h"
 
 using namespace std;
@@ -30,8 +29,7 @@ static DataStore *store = nullptr;
 static CommandServer *cs = nullptr;
 static NodeDiscovery *nd = nullptr;
 
-static Framebuffer *fb = nullptr;
-static OutputMapper *mapper = nullptr;
+static EffectRunner *runner = nullptr;
 
 // define flags
 DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
@@ -94,16 +92,10 @@ int main(int argc, char *argv[]) {
 	nd = new NodeDiscovery(store, configReader);
 	nd->start();
 
-	// allocate the framebuffer
-	fb = new Framebuffer(store, configReader);
-	fb->recalculateMinSize();
-
-	// create the output mapper
-	mapper = new OutputMapper(store, fb, configReader);
-
 	// start the protocol parser (binary lichtenstein protocol)
 
 	// start the effect evaluator
+	runner = new EffectRunner(store, configReader);
 
 	// XXX: Test the routine code
 	/*vector<DataStore::Routine *> routines = store->getAllRoutines();
@@ -142,11 +134,9 @@ int main(int argc, char *argv[]) {
 	delete cs;
 	delete nd;
 
-	delete mapper;
-	delete fb;
+	delete runner;
 
 	// ensure the database is commited to disk
-	store->commit();
 	delete store;
 }
 

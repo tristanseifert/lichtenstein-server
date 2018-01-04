@@ -1,5 +1,9 @@
 #include "OutputMapper.h"
 
+#include "DataStore.h"
+#include "Framebuffer.h"
+#include "Routine.h"
+
 #include <glog/logging.h>
 
 #include <map>
@@ -79,7 +83,7 @@ void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug)
  * Creates an output group that corresponds to a particular group in the
  * datastore.
  */
-OutputMapper::OutputGroup::OutputGroup(DataStore::Group *g) {
+OutputMapper::OutputGroup::OutputGroup(DbGroup *g) {
 	this->group = g;
 
 	// reserve the correct amount of memory

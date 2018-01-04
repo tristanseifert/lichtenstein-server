@@ -1,6 +1,8 @@
 #include "Routine.h"
 
+#include "DataStore.h"
 #include "Framebuffer.h"
+
 #include <glog/logging.h>
 
 #include <map>
@@ -61,7 +63,7 @@ int ASRandomIntInRange(int min, int max);
  * Initializes a new routine object with the given database routine (that's how
  * we get our AngelScript code) and properties to pass to that code.
  */
-Routine::Routine(DataStore::Routine *r, map<string, double> &params) {
+Routine::Routine(DbRoutine *r, map<string, double> &params) {
 	this->routine = r;
 	this->params = params;
 
@@ -70,7 +72,7 @@ Routine::Routine(DataStore::Routine *r, map<string, double> &params) {
 	this->_setUpAngelscriptState();
 }
 
-Routine::Routine(DataStore::Routine *r) {
+Routine::Routine(DbRoutine *r) {
 	this->routine = r;
 	this->params = r->defaultParams;
 

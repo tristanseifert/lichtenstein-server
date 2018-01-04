@@ -9,7 +9,7 @@
 
 #include "INIReader.h"
 
-#include "DataStore.h"
+class DataStore;
 
 class NodeDiscovery {
 	public:

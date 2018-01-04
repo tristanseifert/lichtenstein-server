@@ -1,3 +1,4 @@
+#include "Group.h"
 #include "DataStore.h"
 
 #include <glog/logging.h>
@@ -6,6 +7,8 @@
 #include <vector>
 #include <iostream>
 
+#include "json.hpp"
+
 using namespace std;
 
 
@@ -13,11 +16,11 @@ using namespace std;
 /**
  * Returns all groups in the datastore in a vector.
  */
-vector<DataStore::Group *> DataStore::getAllGroups() {
+vector<DbGroup *> DataStore::getAllGroups() {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	vector<DataStore::Group *> groups;
+	vector<DbGroup *> groups;
 
 	// execute the query
 	err = this->sqlPrepare("SELECT * FROM groups;", &statement);
@@ -26,7 +29,7 @@ vector<DataStore::Group *> DataStore::getAllGroups() {
 	// execute the query
 	while((result = this->sqlStep(statement)) == SQLITE_ROW) {
 		// create the group, populate it, and add it to the vector
-		DataStore::Group *group = new DataStore::Group(statement, this);
+		DbGroup *group = new DbGroup(statement, this);
 
 		groups.push_back(group);
 	}
@@ -40,17 +43,17 @@ vector<DataStore::Group *> DataStore::getAllGroups() {
 /**
  * Finds a group with the given id. If no such group exists, nullptr is returned.
  */
-DataStore::Group *DataStore::findGroupWithId(int id) {
+DbGroup *DataStore::findGroupWithId(int id) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
 	// check whether the group exists
-	if(DataStore::Group::_idExists(id, this) == false) {
+	if(DbGroup::_idExists(id, this) == false) {
 		return nullptr;
 	}
 
 	// allocate the object for later
-	DataStore::Group *group = nullptr;
+	DbGroup *group = nullptr;
 
 	// it exists, so we must now get it from the db
 	err = this->sqlPrepare("SELECT * FROM groups WHERE id = :id;", &statement);
@@ -65,7 +68,7 @@ DataStore::Group *DataStore::findGroupWithId(int id) {
 
 	if(result == SQLITE_ROW) {
 		// populate the group object
-		group = new DataStore::Group(statement, this);
+		group = new DbGroup(statement, this);
 	}
 
 	// free our statement
@@ -80,7 +83,7 @@ DataStore::Group *DataStore::findGroupWithId(int id) {
  * be expected if it was previously fetched from the database) the existing
  * group is updated. Otherwise, a new group is created.
  */
-void DataStore::update(DataStore::Group *group) {
+void DataStore::update(DbGroup *group) {
 	// does the group exist?
 	if(group->id != 0) {
 		// it does, so we can just update it
@@ -96,7 +99,7 @@ void DataStore::update(DataStore::Group *group) {
  * Creates a new group in the database, then assigns the id value of the group
  * that was passed in.
  */
-void DataStore::Group::_create(DataStore *db) {
+void DbGroup::_create(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
@@ -128,7 +131,7 @@ void DataStore::Group::_create(DataStore *db) {
  * Updates an existing group in the database. This replaces all fields except
  * for id.
  */
-void DataStore::Group::_update(DataStore *db) {
+void DbGroup::_update(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
@@ -153,7 +156,7 @@ void DataStore::Group::_update(DataStore *db) {
 /**
  * Determines whether a group with the given id exists.
  */
-bool DataStore::Group::_idExists(int id, DataStore *db) {
+bool DbGroup::_idExists(int id, DataStore *db) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
@@ -185,7 +188,7 @@ bool DataStore::Group::_idExists(int id, DataStore *db) {
  * Copies the fields from a statement (which is currently returning a row) into
  * an existing group object.
  */
-void DataStore::Group::_fromRow(sqlite3_stmt *statement, DataStore *db) {
+void DbGroup::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 	int numColumns = sqlite3_column_count(statement);
 
 	// iterate over all returned columns
@@ -225,7 +228,7 @@ void DataStore::Group::_fromRow(sqlite3_stmt *statement, DataStore *db) {
  * is expected to have named parameters corresponding to all of the fields
  * in the group object; the "id" field is the only field that may be missing.
  */
-void DataStore::Group::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
+void DbGroup::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 	int err, idx;
 
 	// bind the name
@@ -260,31 +263,31 @@ void DataStore::Group::_bindToStatement(sqlite3_stmt *statement, DataStore *db) 
  * id; thus, this will not work if one of the groups hasn't been inserted into
  * the database yet.
  */
-bool operator==(const DataStore::Group& lhs, const DataStore::Group& rhs) {
+bool operator==(const DbGroup& lhs, const DbGroup& rhs) {
 	return (lhs.id == rhs.id);
 }
 
-bool operator!=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
+bool operator!=(const DbGroup& lhs, const DbGroup& rhs) {
 	return !(lhs == rhs);
 }
 
-bool operator< (const DataStore::Group& lhs, const DataStore::Group& rhs) {
+bool operator< (const DbGroup& lhs, const DbGroup& rhs) {
 	return (lhs.id < rhs.id);
 }
-bool operator> (const DataStore::Group& lhs, const DataStore::Group& rhs) {
+bool operator> (const DbGroup& lhs, const DbGroup& rhs) {
 	return rhs < lhs;
 }
-bool operator<=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
+bool operator<=(const DbGroup& lhs, const DbGroup& rhs) {
 	return !(lhs > rhs);
 }
-bool operator>=(const DataStore::Group& lhs, const DataStore::Group& rhs) {
+bool operator>=(const DbGroup& lhs, const DbGroup& rhs) {
 	return !(lhs < rhs);
 }
 
 /**
  * Outputs the some info about the group to the output stream.
  */
-ostream &operator<<(ostream& strm, const DataStore::Group& obj) {
+ostream &operator<<(ostream& strm, const DbGroup& obj) {
 	strm << "group id " << obj.id << "{name = " << obj.name << ", range = ["
 		 << obj.start << ", " << obj.end << "]}";
 

@@ -1,4 +1,4 @@
 *.dSYM
-db/
+store
 build/
 *.d

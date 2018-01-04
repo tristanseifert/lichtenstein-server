@@ -5,8 +5,8 @@
 #ifndef ROUTINE_H
 #define ROUTINE_H
 
-#include "DataStore.h"
-#include "Framebuffer.h"
+#include "HSIPixel.h"
+#include "db/Routine.h"
 
 #include <map>
 #include <string>
@@ -55,8 +55,8 @@ class Routine {
 
 	public:
 		Routine() = delete;
-		Routine(DataStore::Routine *r);
-		Routine(DataStore::Routine *r, std::map<std::string, double> &params);
+		Routine(DbRoutine *r);
+		Routine(DbRoutine *r, std::map<std::string, double> &params);
 		~Routine();
 
 		void attachBuffer(std::vector<HSIPixel> *buf);
@@ -104,7 +104,7 @@ class Routine {
 		asIScriptFunction *effectStepFxn = nullptr;
 
 	private:
-		DataStore::Routine *routine = nullptr;
+		DbRoutine *routine = nullptr;
 		std::map<std::string, double> params;
 
 		std::vector<HSIPixel> *buffer;

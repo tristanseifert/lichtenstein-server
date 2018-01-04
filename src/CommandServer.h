@@ -15,7 +15,7 @@
 #include "INIReader.h"
 #include "json.hpp"
 
-#include "DataStore.h"
+class DataStore;
 
 class CommandServer {
 	public:
