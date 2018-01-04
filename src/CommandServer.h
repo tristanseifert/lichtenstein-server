@@ -12,13 +12,14 @@
 #include <atomic>
 #include <vector>
 
+#include "INIReader.h"
 #include "json.hpp"
 
 #include "DataStore.h"
 
 class CommandServer {
 	public:
-		CommandServer(std::string socket, DataStore *store);
+		CommandServer(DataStore *store, INIReader *reader);
 		~CommandServer();
 
 		void start();
@@ -59,6 +60,7 @@ class CommandServer {
 
 	private:
 		DataStore *store;
+		INIReader *config;
 
 		std::string socketPath;
 		std::thread *worker = nullptr;

@@ -10,11 +10,14 @@
 #include <vector>
 #include <iostream>
 #include <map>
+#include <thread>
+#include <mutex>
 
 #include <time.h>
 
 #include <sqlite3.h>
 
+#include "INIReader.h"
 #include "json.hpp"
 
 // forward declare some classes the objects are friends with
@@ -26,7 +29,7 @@ class DataStore {
 		typedef void (*CustomFunction)(DataStore *, void *);
 
 	public:
-		DataStore(std::string path);
+		DataStore(INIReader *reader);
 		~DataStore();
 
 		void commit();
@@ -230,6 +233,7 @@ class DataStore {
 	private:
 		void open();
 		void openConfigDb();
+
 		void checkDbVersion();
 		void provisonBlankDb();
 		void updateStoredServerVersion();
@@ -237,6 +241,17 @@ class DataStore {
 		void upgradeSchema();
 
 		void close();
+
+	private:
+		friend void BackgroundCheckpointThreadEntry(void *ctx);
+
+		void createCheckpointThread();
+		void _checkpointThreadEntry();
+
+		void terminateCheckpointThread();
+
+		std::thread *checkpointThread = nullptr;
+		std::mutex checkpointLock;
 
 	private:
 		int sqlExec(const char *sql, char **errmsg);
@@ -255,8 +270,9 @@ class DataStore {
 		std::string _stringFromColumn(sqlite3_stmt *statement, int col);
 
 	private:
-		std::string path;
+		INIReader *config;
 
+		std::string path;
 		sqlite3 *db;
 };
 

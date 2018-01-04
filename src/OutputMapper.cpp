@@ -10,9 +10,11 @@ using namespace std;
 /**
  * Initializes the output mapper.
  */
-OutputMapper::OutputMapper(DataStore *s, Framebuffer *f) {
+OutputMapper::OutputMapper(DataStore *s, Framebuffer *f, INIReader *reader) {
 	this->store = s;
 	this->fb = f;
+
+	this->config = reader;
 }
 
 /**

@@ -34,9 +34,13 @@ const char *schema_info_default =
  * It is then up to the user to remediate this issue, usually by either deleting
  * the existing database, or by fixing it manually.
  */
-DataStore::DataStore(std::string path) {
-	this->path = path;
+DataStore::DataStore(INIReader *reader) {
+	// read the db path from the config
+	this->config = reader;
 
+	this->path = this->config->Get("db", "path", "");
+
+	// open the db
 	this->open();
 }
 
@@ -48,6 +52,10 @@ DataStore::DataStore(std::string path) {
  * @note No further access to the database is possible after this point.
  */
 DataStore::~DataStore() {
+	// kill the checkpoint thread
+	this->terminateCheckpointThread();
+
+	// close the database
 	this->commit();
 	this->close();
 }
@@ -195,6 +203,91 @@ int DataStore::sqlGetLastRowId() {
 	return result;
 }
 
+#pragma mark - Background Checkpointing
+/**
+ * Background checkpoint thread entry point
+ */
+void BackgroundCheckpointThreadEntry(void *ctx) {
+#ifdef __APPLE__
+	pthread_setname_np("Database Background Checkpointing");
+#else
+	pthread_setname_np(pthread_self(), "Database Background Checkpointing");
+#endif
+
+	DataStore *datastore = static_cast<DataStore *>(ctx);
+	datastore->_checkpointThreadEntry();
+}
+
+/**
+ * Checks whether the conditions for a checkpoint thread are met (WAL journal
+ * mode and non-zero checkpoint interval)
+ */
+void DataStore::createCheckpointThread() {
+	// verify journal mode
+	string journalMode = this->config->Get("db", "journal", "WAL");
+
+	if(journalMode != "WAL") {
+		VLOG(1) << "Not creating checkpoint thread: journal mode is " << journalMode;
+		return;
+	}
+
+	// verify duration
+	int duration = this->config->GetInteger("db", "checkpointInterval", 0);
+
+	if(duration <= 0) {
+		VLOG(1) << "Not creating checkpoint thread: interval is " << duration;
+		return;
+	}
+
+	// we're good to create the thread
+	this->checkpointThread = new thread(BackgroundCheckpointThreadEntry, this);
+}
+
+/**
+ * Entry point for the checkpoint thread. This just sits in a loop sleeping
+ * until the checkpoint interval has elapsed.
+ */
+void DataStore::_checkpointThreadEntry() {
+	int duration = this->config->GetInteger("db", "checkpointInterval", 0);
+	LOG(INFO) << "Performing background checkpoint every " << duration
+			  << " seconds";
+
+	// enter a while loop: not ideal, but we can just kill the thread off
+	while(1) {
+		this_thread::sleep_until(chrono::system_clock::now() + chrono::seconds(duration));
+
+		LOG(INFO) << "Performing background checkpoint";
+		this->commit();
+	}
+}
+
+/**
+ * Brutally murders the checkpoint thread. We don't have a way to "wake" the
+ * thread so we just get the native handle and kill it. Waiting for the
+ * checkpoint lock prevents us from killing it in the middle of a checkpoint.
+ */
+void DataStore::terminateCheckpointThread() {
+	// exit if there's no thread to kill
+	if(this->checkpointThread == nullptr) {
+		return;
+	}
+
+	LOG(INFO) << "Terminating checkpoint thread";
+
+	// get the checkpoint lock; this waits until any checkpoints are done
+	this->checkpointLock.lock();
+
+	// platform-specific hax: get the pthread_t handle
+	pthread_cancel(this->checkpointThread->native_handle());
+	this->checkpointThread->join();
+
+	// delete thread
+	delete this->checkpointThread;
+
+	// we need to release the lock again or we'll deadlock later
+	this->checkpointLock.unlock();
+}
+
 #pragma mark - Database I/O
 /**
  * Explicitly requests that the underlying storage engine commits all writes to
@@ -207,10 +300,17 @@ int DataStore::sqlGetLastRowId() {
 void DataStore::commit() {
 	int status = 0;
 
+	// we need to acquire the lock
+	this->checkpointLock.lock();
+
+	// perform the checkpoint
 	LOG(INFO) << "Performing database checkpoint";
 
 	status = sqlite3_wal_checkpoint_v2(this->db, nullptr, SQLITE_CHECKPOINT_PASSIVE, nullptr, nullptr);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't complete checkpoint: " << sqlite3_errstr(status);
+
+	// and release the lock
+	this->checkpointLock.unlock();
 }
 
 /**
@@ -236,6 +336,9 @@ void DataStore::open() {
 
 	// check the database schema version and upgrade if needed
 	this->checkDbVersion();
+
+	// create the background checkpoint thread
+	this->createCheckpointThread();
 }
 
 /**
@@ -245,9 +348,8 @@ void DataStore::openConfigDb() {
 	int status = 0;
 	char *errStr;
 
-	// set journal mode mode
-	status = this->sqlExec("PRAGMA journal_mode=WAL;", &errStr);
-	CHECK(status == SQLITE_OK) << "Couldn't set journal_mode: " << errStr;
+	static const int sqlBufSize = 256;
+	char sqlBuf[sqlBufSize];
 
 	// set incremental autovacuuming mode
 	status = this->sqlExec("PRAGMA auto_vacuum=INCREMENTAL;", &errStr);
@@ -262,8 +364,13 @@ void DataStore::openConfigDb() {
 	CHECK(status == SQLITE_OK) << "Couldn't set temp_store: " << errStr;
 
 	// truncate the journal rather than deleting it
-	status = this->sqlExec("PRAGMA journal_mode=TRUNCATE;", &errStr);
-	CHECK(status == SQLITE_OK) << "Couldn't set journal_mode: " << errStr;
+	string journalMode = this->config->Get("db", "journal", "WAL");
+
+	snprintf(sqlBuf, sqlBufSize, "PRAGMA journal_mode=%s;", journalMode.c_str());
+
+	status = this->sqlExec(sqlBuf, &errStr);
+	CHECK(status == SQLITE_OK) << "Couldn't set journal_mode to " << journalMode
+	  						   << ": " << errStr;
 }
 
 /**
@@ -373,6 +480,9 @@ void DataStore::provisonBlankDb() {
 	// set the default values in the info table
 	status = this->sqlExec(schema_info_default, &errStr);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't set info default values: " << errStr;
+
+	// force a checkpoint
+	this->commit();
 }
 
 /**

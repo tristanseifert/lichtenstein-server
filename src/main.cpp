@@ -37,10 +37,7 @@ static OutputMapper *mapper = nullptr;
 DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
 DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 
-// parameters read from the config file
-string dbPath;
-string commandSocketPath;
-
+// parsing of the config file
 INIReader *configReader = nullptr;
 void parseConfigFile(string path);
 
@@ -72,8 +69,6 @@ int main(int argc, char *argv[]) {
 	// interpret command-line flags
 	gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-	FLAGS_v = FLAGS_verbosity;
-
 	// first, parse the config file
 	parseConfigFile(FLAGS_config_path);
 
@@ -89,26 +84,50 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGINT, &sigIntHandler, nullptr);
 
 	// load the datastore from disk
-	store = new DataStore(dbPath);
+	store = new DataStore(configReader);
 
 	// start the external command interpreter (JSON socket)
-	cs = new CommandServer(commandSocketPath, store);
+	cs = new CommandServer(store, configReader);
 	cs->start();
 
 	// star the node discovery
-	nd = new NodeDiscovery(store);
+	nd = new NodeDiscovery(store, configReader);
 	nd->start();
 
 	// allocate the framebuffer
-	fb = new Framebuffer(store);
+	fb = new Framebuffer(store, configReader);
 	fb->recalculateMinSize();
 
 	// create the output mapper
-	mapper = new OutputMapper(store, fb);
+	mapper = new OutputMapper(store, fb, configReader);
 
 	// start the protocol parser (binary lichtenstein protocol)
 
 	// start the effect evaluator
+
+	// XXX: Test the routine code
+	/*vector<DataStore::Routine *> routines = store->getAllRoutines();
+	DataStore::Routine *r = routines[0];
+	LOG(INFO) << "Found routines: " << *r;
+
+	Routine *rout;
+
+	try {
+		rout = new Routine(r);
+	} catch (Routine::LoadError e) {
+		LOG(ERROR) << "Error loading script: " << e.what();
+	}
+
+	vector<HSIPixel> buf;
+	buf.resize(300, {0, 0, 0});
+	rout->attachBuffer(&buf);
+
+	for(int i = 0; i < 1000; i++) {
+		rout->execute(i);
+	}
+
+	LOG(INFO) << "Average script execution time: " << rout->getAvgExecutionTime() << "µS";
+	*/
 
 	// wait for a signal
 	while(keepRunning) {
@@ -137,6 +156,8 @@ int main(int argc, char *argv[]) {
 void parseConfigFile(string path) {
 	int err;
 
+	LOG(INFO) << "Reading configuration from " << path;
+
 	// attempt to open the config file
 	configReader = new INIReader(path);
 
@@ -148,7 +169,21 @@ void parseConfigFile(string path) {
 		LOG(FATAL) << "Parse error on line " << err << " of config file " << path;
 	}
 
-	// otherwise, get the properties we need to start up
-	dbPath = configReader->Get("db", "path", "");
-	commandSocketPath = configReader->Get("command", "socket", "");
+	// set up the logging parameters
+	int verbosity = configReader->GetInteger("logging", "verbosity", 0);
+
+	if(verbosity < 0) {
+		FLAGS_v = abs(verbosity);
+		FLAGS_minloglevel = 0;
+
+		LOG(INFO) << "Enabled verbose logging up to level " << abs(verbosity);
+	} else {
+		// disable verbose logging
+		FLAGS_v = 0;
+
+		// ALWAYS log FATAL errors
+		FLAGS_minloglevel = min(verbosity, 2);
+	}
+
+	FLAGS_logtostderr = configReader->GetBoolean("logging", "stderr", true);
 }

@@ -34,8 +34,9 @@ void NodeDiscoveryEntry(void *ctx) {
 /**
  * Sets up the node discovery server.
  */
-NodeDiscovery::NodeDiscovery(DataStore *store) {
+NodeDiscovery::NodeDiscovery(DataStore *store, INIReader *reader) {
 	this->store = store;
+	this->config = reader;
 }
 
 /**

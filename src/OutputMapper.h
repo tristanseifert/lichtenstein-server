@@ -9,6 +9,8 @@
 #include <set>
 #include <vector>
 
+#include "INIReader.h"
+
 #include "DataStore.h"
 #include "Framebuffer.h"
 
@@ -16,7 +18,7 @@
 
 class OutputMapper {
 	public:
-		OutputMapper(DataStore *s, Framebuffer *f);
+		OutputMapper(DataStore *s, Framebuffer *f, INIReader *reader);
 		~OutputMapper();
 
 	public:
@@ -81,6 +83,7 @@ class OutputMapper {
 	private:
 		DataStore *store;
 		Framebuffer *fb;
+		INIReader *config;
 
 		std::map<OutputGroup *, Routine *> outputMap;
 };

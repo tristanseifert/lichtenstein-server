@@ -11,8 +11,9 @@ using namespace std;
 /**
  * Allocates the framebuffer memory.
  */
-Framebuffer::Framebuffer(DataStore *store) {
+Framebuffer::Framebuffer(DataStore *store, INIReader *reader) {
 	this->store = store;
+	this->config = reader;
 }
 
 /**

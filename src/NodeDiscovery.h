@@ -7,11 +7,13 @@
 
 #include <cstddef>
 
+#include "INIReader.h"
+
 #include "DataStore.h"
 
 class NodeDiscovery {
 	public:
-		NodeDiscovery(DataStore *store);
+		NodeDiscovery(DataStore *store, INIReader *reader);
 		~NodeDiscovery();
 
 		void start();
@@ -30,6 +32,7 @@ class NodeDiscovery {
 
 	private:
 		DataStore *store;
+		INIReader *config;
 
 		std::thread *worker = nullptr;
 		std::atomic_bool run;

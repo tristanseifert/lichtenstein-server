@@ -51,9 +51,12 @@ void CommandClientEntry(void *ctx) {
  * Initializes the command server. This creates some internal structures and
  * prepares for the thread to start.
  */
-CommandServer::CommandServer(string socket, DataStore *store) {
-	this->socketPath = socket;
+CommandServer::CommandServer(DataStore *store, INIReader *reader) {
+	this->config = reader;
 	this->store = store;
+
+	// get the path of the socket
+	this->socketPath = this->config->Get("command", "socketPath", "");
 }
 
 /**
@@ -160,7 +163,10 @@ void CommandServer::createSocket() {
 	int err = 0;
 
 	// delete the existing socket if needed
-	unlink(this->socketPath.c_str());
+	if(this->config->GetBoolean("command", "unlinkSocket", true)) {
+		err = unlink(this->socketPath.c_str());
+		PLOG_IF(INFO, (err != 0 && errno != ENOENT)) << "Couldn't unlink command socket: ";
+	}
 
 	// create the bare socket
 	this->sock = socket(AF_UNIX, SOCK_STREAM, 0);

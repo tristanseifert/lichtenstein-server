@@ -15,6 +15,8 @@
 #include <vector>
 #include <iostream>
 
+#include "INIReader.h"
+
 #include "DataStore.h"
 
 struct HSIPixel {
@@ -48,7 +50,7 @@ std::ostream &operator<<(std::ostream& strm, const HSIPixel& obj);
 
 class Framebuffer {
 	public:
-		Framebuffer(DataStore *store);
+		Framebuffer(DataStore *store, INIReader *reader);
 		~Framebuffer();
 
 		void recalculateMinSize();
@@ -67,6 +69,7 @@ class Framebuffer {
 
 	private:
 		DataStore *store;
+		INIReader *config;
 
 		std::vector<HSIPixel> data;
 };
