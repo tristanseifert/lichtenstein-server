@@ -60,6 +60,7 @@ class Routine {
 		~Routine();
 
 		void attachBuffer(std::vector<HSIPixel> *buf);
+		void changeParams(std::map<std::string, double> &newParams);
 
 		void execute(int frame);
 
@@ -103,7 +104,7 @@ class Routine {
 		asIScriptFunction *effectStepFxn = nullptr;
 
 	private:
-		DataStore::Routine *routine;
+		DataStore::Routine *routine = nullptr;
 		std::map<std::string, double> params;
 
 		std::vector<HSIPixel> *buffer;

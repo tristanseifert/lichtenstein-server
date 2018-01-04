@@ -15,6 +15,7 @@
 #include <scriptarray/scriptarray.h>
 #include <scriptdictionary/scriptdictionary.h>
 #include <scriptmath/scriptmath.h>
+#include <datetime/datetime.h>
 #include <debugger/debugger.h>
 
 using namespace std;
@@ -34,7 +35,7 @@ const char *testScript = R"(/**
  */
 
 void effectStep() {
-	// debug_print("hello world from test.as!");
+	debug_print("hello world from test.as!");
 
 	double intensityStep = 1.0 / double(buffer.length() - 1);
 
@@ -52,23 +53,26 @@ void ASScriptPrint(string &msg);
 
 void ASHSIPixelConstructor(void *memory);
 void ASHSIPixelDestructor(void *memory);
+void ASHSIPixelListConstructor(double *list, HSIPixel *self);
 
 int ASRandomIntInRange(int min, int max);
 
 /**
  * Initializes a new routine object with the given database routine (that's how
- * we get our Lua code) and properties to pass to that code.
+ * we get our AngelScript code) and properties to pass to that code.
  */
 Routine::Routine(DataStore::Routine *r, map<string, double> &params) {
 	this->routine = r;
 	this->params = params;
+
+	this->params.insert(r->defaultParams.begin(), r->defaultParams.end());
 
 	this->_setUpAngelscriptState();
 }
 
 Routine::Routine(DataStore::Routine *r) {
 	this->routine = r;
-	this->params = map<string, double>();
+	this->params = r->defaultParams;
 
 	this->_setUpAngelscriptState();
 }
@@ -93,6 +97,23 @@ void Routine::attachBuffer(vector<HSIPixel> *buf) {
 	this->bufferSz = this->buffer->size();
 
 	this->_updateASBufferArray();
+}
+
+/**
+ * Updates the parameters.
+ */
+void Routine::changeParams(map<string, double> &newParams) {
+	this->params = newParams;
+
+	// merge the default parameters
+	this->params.insert(this->routine->defaultParams.begin(), this->routine->defaultParams.end());
+
+	// copy them into the script dict
+	this->asParams->DeleteAll();
+
+	for(auto const& [key, val] : this->params) {
+		this->asParams->Set(key, val);
+	}
 }
 
 #pragma mark - AngelScript Stuff
@@ -153,13 +174,14 @@ void Routine::_setUpAngelscriptState() {
 	// register message callback
 	this->engine->SetMessageCallback(asFUNCTION(ASMessageCallback), 0, asCALL_CDECL);
 
-	// register the std::string class as the string type and our globals
+	// register some script addons
 	RegisterStdString(this->engine);
 	RegisterScriptArray(this->engine, true);
 	RegisterScriptDictionary(this->engine);
-
+	RegisterScriptDateTime(this->engine);
 	RegisterScriptMath(this->engine);
 
+	// register globals (functions, types and global variables)
 	this->_setUpAngelscriptGlobals();
 
 	// creating the module
@@ -292,17 +314,30 @@ void Routine::_setUpAngelscriptGlobals() {
 										   asOBJ_VALUE | asGetTypeTraits<HSIPixel>());
 	CHECK(err >= 0) << "Couldn't register HSIPixel type: " << err;
 
-	// register a constructor and destructor
+	// register a constructor, list constructor, and destructor
 	err = this->engine->RegisterObjectBehaviour("HSIPixel", asBEHAVE_CONSTRUCT,
 												"void f()",
 												asFUNCTION(ASHSIPixelConstructor),
 												asCALL_CDECL_OBJLAST);
 	CHECK(err >= 0) << "Couldn't register HSIPixel constructor: " << err;
+	err = this->engine->RegisterObjectBehaviour("HSIPixel", asBEHAVE_LIST_CONSTRUCT,
+												"void f(const int &in) {double, double, double}",
+												asFUNCTION(ASHSIPixelListConstructor),
+												asCALL_CDECL_OBJLAST);
+	CHECK(err >= 0) << "Couldn't register HSIPixel list constructor: " << err;
+
 	err = this->engine->RegisterObjectBehaviour("HSIPixel", asBEHAVE_DESTRUCT,
 												"void f()",
 												asFUNCTION(ASHSIPixelDestructor),
 												asCALL_CDECL_OBJLAST);
 	CHECK(err >= 0) << "Couldn't register HSIPixel destructor: " << err;
+
+	// register comparison (==) operator
+	err = this->engine->RegisterObjectMethod("HSIPixel",
+											 "bool opEquals(const HSIPixel &in) const",
+											 asMETHODPR(HSIPixel, operator==,(const HSIPixel&) const, bool),
+											 asCALL_THISCALL);
+ 	CHECK(err >= 0) << "Couldn't register HSIPixel comparison (==) operator: " << err;
 
 	// register assignment operator
 	err = this->engine->RegisterObjectMethod("HSIPixel",
@@ -400,6 +435,13 @@ void ASHSIPixelConstructor(void *memory) {
  */
 void ASHSIPixelDestructor(void *memory) {
   ((HSIPixel *) memory)->~HSIPixel();
+}
+
+/**
+ * List constructor for the HSIPixel type.
+ */
+void ASHSIPixelListConstructor(double *list, HSIPixel *self) {
+	new(self) HSIPixel(list[0], list[1], list[2]);
 }
 
 /**

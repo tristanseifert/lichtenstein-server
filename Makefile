@@ -6,7 +6,7 @@ BUILD_DIR ?= ./build
 SRC_DIRS ?= ./src
 
 # flags for angelscript
-ANGELSCRIPT_ADDONS := scriptbuilder scriptstdstring scriptarray scriptdictionary scriptmath debugger
+ANGELSCRIPT_ADDONS := scriptbuilder scriptstdstring scriptarray scriptdictionary scriptmath datetime debugger
 ANGELSCRIPT_ADDON_DIRS := $(addprefix libs/angelscript-sdk/add_on/,$(ANGELSCRIPT_ADDONS))
 ANGELSCRIPT_ADDON_FILES := $(shell find $(ANGELSCRIPT_ADDON_DIRS) -name *.cpp -or -name *.c -or -name *.s)
 
