@@ -18,11 +18,24 @@
 #include "DataStore.h"
 
 typedef struct {
-	double h;
-	double s;
-	double i;
+	public:
+		double h;
+		double s;
+		double i;
 } HSIPixel;
 std::ostream &operator<<(std::ostream& strm, const HSIPixel& obj);
+
+/*inline HSIPixel::HSIPixel(const HSIPixel& p) {
+	this->h = p.h;
+	this->s = p.s;
+	this->i = p.i;
+}
+
+inline HSIPixel &HSIPixel::operator =(const HSIPixel &other) noexcept {
+	this->h = other.h;
+	this->s = other.s;
+	this->i = other.i;
+}*/
 
 class Framebuffer {
 	public:

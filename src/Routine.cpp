@@ -7,12 +7,14 @@
 #include <string>
 #include <stdexcept>
 #include <chrono>
+#include <random>
 
 #include <angelscript.h>
 #include <scriptstdstring/scriptstdstring.h>
 #include <scriptbuilder/scriptbuilder.h>
 #include <scriptarray/scriptarray.h>
 #include <scriptdictionary/scriptdictionary.h>
+#include <scriptmath/scriptmath.h>
 #include <debugger/debugger.h>
 
 using namespace std;
@@ -50,6 +52,8 @@ void ASScriptPrint(string &msg);
 
 void ASHSIPixelConstructor(void *memory);
 void ASHSIPixelDestructor(void *memory);
+
+int ASRandomIntInRange(int min, int max);
 
 /**
  * Initializes a new routine object with the given database routine (that's how
@@ -104,15 +108,27 @@ void Routine::_attachDebugger() {
  * to execute it.
  */
 void Routine::_cleanUpAngelscriptState() {
+	// release the buffer/param dict we created
+	if(this->asBuffer) {
+		this->asBuffer->Release();
+		this->asBuffer = nullptr;
+	}
+
+	if(this->asParams) {
+		this->asParams->Release();
+		this->asParams = nullptr;
+	}
+
 	// abort any currently executing scripts
 	if(this->scriptCtx) {
 		this->scriptCtx->Abort();
+
+		this->scriptCtx->Release();
+		this->scriptCtx = nullptr;
 	}
 
 	// destroy old angelscript engine
 	if(this->engine) {
-		this->scriptCtx->Release();
-		this->scriptCtx = nullptr;
 		this->engine->ShutDownAndRelease();
 		this->engine = nullptr;
 	}
@@ -141,6 +157,8 @@ void Routine::_setUpAngelscriptState() {
 	RegisterStdString(this->engine);
 	RegisterScriptArray(this->engine, true);
 	RegisterScriptDictionary(this->engine);
+
+	RegisterScriptMath(this->engine);
 
 	this->_setUpAngelscriptGlobals();
 
@@ -263,6 +281,12 @@ void Routine::_setUpAngelscriptGlobals() {
 											   asCALL_CDECL);
    	CHECK(err >= 0) << "Couldn't register debug_print: " << err;
 
+	// register the "random_range" function
+	err = this->engine->RegisterGlobalFunction("int random_range(int min, int max)",
+											   asFUNCTION(ASRandomIntInRange),
+											   asCALL_CDECL);
+   	CHECK(err >= 0) << "Couldn't register debug_print: " << err;
+
 	// register the HSIPixel type
 	err = this->engine->RegisterObjectType("HSIPixel", sizeof(HSIPixel),
 										   asOBJ_VALUE | asGetTypeTraits<HSIPixel>());
@@ -279,6 +303,13 @@ void Routine::_setUpAngelscriptGlobals() {
 												asFUNCTION(ASHSIPixelDestructor),
 												asCALL_CDECL_OBJLAST);
 	CHECK(err >= 0) << "Couldn't register HSIPixel destructor: " << err;
+
+	// register assignment operator
+	err = this->engine->RegisterObjectMethod("HSIPixel",
+											 "HSIPixel &opAssign(const HSIPixel &in)",
+											 asMETHODPR(HSIPixel,operator =, (const HSIPixel &), HSIPixel&),
+											 asCALL_THISCALL);
+ 	CHECK(err >= 0) << "Couldn't register HSIPixel assignment operator: " << err;
 
 
 	// register fields in the HSIPixel type
@@ -369,6 +400,17 @@ void ASHSIPixelConstructor(void *memory) {
  */
 void ASHSIPixelDestructor(void *memory) {
   ((HSIPixel *) memory)->~HSIPixel();
+}
+
+/**
+ * Returns a random number in the given range.
+ */
+int ASRandomIntInRange(int min, int max) {
+    random_device rd; // obtain a random number from hardware
+    mt19937 eng(rd()); // seed the generator
+    uniform_int_distribution<> distr(min, max); // define the range
+
+	return distr(eng);
 }
 
 /**

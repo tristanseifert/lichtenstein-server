@@ -1,7 +1,6 @@
 /**
  * Test script: this fills the buffer with pixels of increasing intensity.
  */
-
 void effectStep() {
 	debug_print("hello world from test.as!");
 
