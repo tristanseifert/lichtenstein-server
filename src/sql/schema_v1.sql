@@ -20,7 +20,9 @@ CREATE TABLE nodes (
 	adopted integer,
 	hwversion integer,
 	swversion integer,
-	lastSeen datetime
+	lastSeen datetime,
+	numChannels integer,
+	fbSize integer
 );
 
 CREATE TABLE groups (

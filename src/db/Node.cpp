@@ -171,7 +171,7 @@ void DbNode::_create(DataStore *db) {
 	VLOG(1) << "Creating new node with MAC " << this->macToString();
 
 	// prepare an update query
-	err = db->sqlPrepare("INSERT INTO nodes (ip, mac, hostname, adopted, hwversion, swversion, lastSeen) VALUES (:ip, :mac, :hostname, :adopted, :hwversion, :swversion, :lastseen);", &statement);
+	err = db->sqlPrepare("INSERT INTO nodes (ip, mac, hostname, adopted, hwversion, swversion, lastSeen, numChannels, fbSize) VALUES (:ip, :mac, :hostname, :adopted, :hwversion, :swversion, :lastseen, numChannels, fbSize);", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -203,7 +203,7 @@ void DbNode::_update(DataStore *db) {
 	VLOG(1) << "Updating existing node with MAC " << this->macToString();
 
 	// prepare an update query
-	err = db->sqlPrepare("UPDATE nodes SET ip = :ip, mac = :mac, hostname = :hostname, adopted = :adopted, hwversion = :hwversion, swversion = :swversion, lastSeen = :lastseen WHERE id = :id;", &statement);
+	err = db->sqlPrepare("UPDATE nodes SET ip = :ip, mac = :mac, hostname = :hostname, adopted = :adopted, hwversion = :hwversion, swversion = :swversion, lastSeen = :lastseen, numChannels = :numChannels, fbSize = :fbSize WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -301,6 +301,14 @@ void DbNode::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 		else if(strcmp(colName, "lastSeen") == 0) {
 			this->lastSeen = sqlite3_column_int(statement, i);
 		}
+		// is it the number of channels?
+		else if(strcmp(colName, "numChannels") == 0) {
+			this->numChannels = sqlite3_column_int(statement, i);
+		}
+		// is it the framebuffer size?
+		else if(strcmp(colName, "fbSize") == 0) {
+			this->fbSize = sqlite3_column_int(statement, i);
+		}
 	}
 }
 
@@ -339,6 +347,14 @@ void DbNode::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 	// bind the last seen timestamp
 	err = db->sqlBind(statement, ":lastseen", this->lastSeen);
 	CHECK(err == SQLITE_OK) << "Couldn't bind node last seen timestamp: " << sqlite3_errstr(err);
+
+	// bind the number of channels
+	err = db->sqlBind(statement, ":numChannels", this->numChannels);
+	CHECK(err == SQLITE_OK) << "Couldn't bind node number of channels: " << sqlite3_errstr(err);
+
+	// bind the framebuffer size
+	err = db->sqlBind(statement, ":fbSize", this->fbSize);
+	CHECK(err == SQLITE_OK) << "Couldn't bind node framebuffer size: " << sqlite3_errstr(err);
 
 	// optionally, also bind the id field
 	err = db->sqlBind(statement, ":id", this->id, true);

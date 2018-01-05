@@ -64,6 +64,8 @@ void EffectRunner::setUpThreadPool() {
 		numThreads = max((numThreads / 2), 1);
 	}
 
+	LOG(INFO) << "Using " << numThreads << " threads for thread pool";
+
 	// set up the thread pool
 	this->workPool = new ctpl::thread_pool(numThreads);
 	CHECK(this->workPool != nullptr) << "Couldn't allocate worker thread pool";
@@ -75,9 +77,9 @@ void EffectRunner::setUpThreadPool() {
  */
 void CoordinatorEntryPoint(void *ctx) {
 #ifdef __APPLE__
-	pthread_setname_np("Command Server");
+	pthread_setname_np("Effect Coordinator");
 #else
-	pthread_setname_np(pthread_self(), "Command Server");
+	pthread_setname_np(pthread_self(), "Effect Coordinator");
 #endif
 
 	EffectRunner *runner = static_cast<EffectRunner *>(ctx);
@@ -109,9 +111,10 @@ void EffectRunner::coordinatorThreadEntry() {
 	LOG(INFO) << "Started coordinator thread, fps = " << fps;
 
 	// set up the timer
+	double sleepTimeMs = (1000 / double(fps));
 
 	// run as long as the main thread is still alive
 	while(this->coordinatorRunning) {
-
+		// sleep for the correct amount of time
 	}
 }

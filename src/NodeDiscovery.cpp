@@ -240,9 +240,15 @@ void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
 
 	node->hostname = string(hostnameBuf);
 
+	// get the framebuffer size and number of channels
+	node->numChannels = packet->channels;
+	node->fbSize = packet->fbSize;
+
 	// update it in the db
 	this->store->update(node);
 
 	// clean up
 	delete[] hostnameBuf;
+
+	delete node;
 }

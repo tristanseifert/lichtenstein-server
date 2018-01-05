@@ -26,6 +26,7 @@ class DbNode {
 	private:
 		int id = 0;
 
+		/// configured channels, up to numChannels
 		std::vector<DbChannel *> channels;
 
 	public:
@@ -40,6 +41,11 @@ class DbNode {
 		uint32_t swVersion = 0;
 
 		time_t lastSeen = 0;
+
+		/// total number of output channels
+		int numChannels = 0;
+		/// size of framebuffer, in bytes
+		int fbSize = 0;
 
 	public:
 		// Node() = delete;
@@ -100,6 +106,9 @@ inline void to_json(nlohmann::json& j, const DbNode& n) {
 		{"swVersion", n.swVersion},
 
 		{"lastSeen", n.lastSeen},
+
+		{"numChannels", n.numChannels},
+		{"fbSize", n.fbSize},
 
 		{"channels", n.channels}
 	};
