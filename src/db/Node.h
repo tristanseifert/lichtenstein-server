@@ -4,21 +4,29 @@
 #ifndef DB_NODE_H
 #define DB_NODE_H
 
+#include <arpa/inet.h>
+
 #include <sqlite3.h>
 
 #include "json.hpp"
 
 class DataStore;
+class DbChannel;
 
 class DbNode {
 	// allow access to id field by command server for JSON serialization
 	friend class DataStore;
 	friend class CommandServer;
 
-	friend void to_json(nlohmann::json& j, const DbNode& n);
+	friend class DbChannel;
+
+	public:
+		friend void to_json(nlohmann::json& j, const DbNode& n);
 
 	private:
 		int id = 0;
+
+		std::vector<DbChannel *> channels;
 
 	public:
 		uint32_t ip = 0;
@@ -36,6 +44,7 @@ class DbNode {
 	public:
 		// Node() = delete;
 		DbNode() {}
+		~DbNode();
 
 		/// converts a MAC address to a string
 		static const std::string macToString(const uint8_t macIn[6]);
@@ -45,10 +54,13 @@ class DbNode {
 			return DbNode::macToString(this->macAddr);
 		}
 
-	private:
-		inline DbNode(sqlite3_stmt *statement, DataStore *db) {
-			this->_fromRow(statement, db);
+		/// returns a const reference to access the channels
+		const std::vector<DbChannel *> &getChannels() const {
+			return const_cast<const std::vector<DbChannel *> &>(this->channels);
 		}
+
+	private:
+		DbNode(sqlite3_stmt *statement, DataStore *db);
 
 		void _create(DataStore *db);
 		void _update(DataStore *db);
@@ -63,5 +75,42 @@ class DbNode {
 	friend bool operator< (const DbNode& lhs, const DbNode& rhs);
 	friend std::ostream &operator<<(std::ostream& strm, const DbNode& obj);
 };
+
+#pragma mark - JSON Serialization
+/**
+ * Converts a node object to a json representation.
+ */
+inline void to_json(nlohmann::json& j, const DbNode& n) {
+	// convert IP to a string
+	static const int ipAddrSz = 24;
+	char ipAddr[ipAddrSz];
+	inet_ntop(AF_INET, &n.ip, ipAddr, ipAddrSz);
+
+	// build the JSON representation
+	j = nlohmann::json{
+		{"id", n.id},
+
+		{"mac", n.macToString()},
+		{"ip", std::string(ipAddr)},
+		{"hostname", n.hostname},
+
+		{"adopted", n.adopted},
+
+		{"hwVersion", n.hwVersion},
+		{"swVersion", n.swVersion},
+
+		{"lastSeen", n.lastSeen},
+
+		{"channels", n.channels}
+	};
+}
+
+inline void to_json(nlohmann::json& j, const DbNode *node) {
+	if(node == nullptr) {
+		j = nlohmann::json(nullptr);
+	} else {
+		j = nlohmann::json(*node);
+	}
+}
 
 #endif

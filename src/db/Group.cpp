@@ -48,9 +48,10 @@ DbGroup *DataStore::findGroupWithId(int id) {
 	sqlite3_stmt *statement = nullptr;
 
 	// check whether the group exists
-	if(DbGroup::_idExists(id, this) == false) {
+/*	if(DbGroup::_idExists(id, this) == false) {
 		return nullptr;
 	}
+*/
 
 	// allocate the object for later
 	DbGroup *group = nullptr;
@@ -218,7 +219,10 @@ void DbGroup::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 		}
 		// is it the current routine column?
 		else if(strcmp(colName, "currentRoutine") == 0) {
-			this->currentRoutine = sqlite3_column_int(statement, i);
+			this->currentRoutineId = sqlite3_column_int(statement, i);
+
+			// fetch the appropriate routine from the database
+			this->currentRoutine = db->findRoutineWithId(this->currentRoutineId);
 		}
 	}
 }
@@ -247,8 +251,14 @@ void DbGroup::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 	err = db->sqlBind(statement, ":end", this->end);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group end: " << sqlite3_errstr(err);
 
-	// bind the current routine
-	err = db->sqlBind(statement, ":routine", this->currentRoutine);
+	// get the id of the attached routine and bind its ID
+	if(this->currentRoutine != nullptr) {
+		this->currentRoutineId = this->currentRoutine->id;
+	} else {
+		this->currentRoutineId = 0;
+	}
+
+	err = db->sqlBind(statement, ":routine", this->currentRoutineId);
 	CHECK(err == SQLITE_OK) << "Couldn't bind group routine: " << sqlite3_errstr(err);
 
 

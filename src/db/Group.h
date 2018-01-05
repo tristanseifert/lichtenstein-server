@@ -9,6 +9,7 @@
 #include "json.hpp"
 
 class DataStore;
+class DbRoutine;
 
 class DbGroup {
 	// allow access to id field by command server for JSON serialization
@@ -20,6 +21,7 @@ class DbGroup {
 
 	private:
 		int id = 0;
+		int currentRoutineId = 0;
 
 	public:
 		std::string name;
@@ -29,7 +31,7 @@ class DbGroup {
 		int start;
 		int end;
 
-		int currentRoutine;
+		DbRoutine *currentRoutine;
 
 	public:
 		/**
@@ -60,5 +62,33 @@ class DbGroup {
 	friend bool operator< (const DbGroup& lhs, const DbGroup& rhs);
 	friend std::ostream &operator<<(std::ostream& strm, const DbGroup& obj);
 };
+
+#pragma mark - JSON Serialization
+/**
+ * Converts a group object to a json representation.
+ */
+inline void to_json(nlohmann::json& j, const DbGroup& group) {
+	// build the JSON representation
+	j = nlohmann::json{
+		{"id", group.id},
+
+		{"name", group.name},
+
+		{"enabled", group.enabled},
+
+		{"start", group.start},
+		{"end", group.end},
+
+		{"currentRoutine", group.currentRoutine}
+	};
+}
+
+inline void to_json(nlohmann::json& j, const DbGroup *group) {
+	if(group == nullptr) {
+		j = nlohmann::json(nullptr);
+	} else {
+		j = nlohmann::json(*group);
+	}
+}
 
 #endif

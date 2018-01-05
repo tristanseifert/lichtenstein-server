@@ -23,6 +23,7 @@
 #include "Group.h"
 #include "Routine.h"
 #include "Node.h"
+#include "Channel.h"
 
 // forward declare some classes the objects are friends with
 class CommandServer;
@@ -62,6 +63,17 @@ class DataStore {
 		void setInfoValue(std::string key, std::string value);
 		std::string getInfoValue(std::string key);
 
+	// types and functions relating to channels
+	private:
+		friend class DbChannel;
+
+	public:
+		std::vector<DbChannel *> getAllChannels();
+		std::vector<DbChannel *> getChannelsForNode(DbNode *node);
+		DbChannel *findChannelWithId(int id);
+
+		void update(DbChannel *channel);
+
 	// types and functions relating to routines
 	private:
 		friend class DbRoutine;
@@ -89,6 +101,7 @@ class DataStore {
 	public:
 		std::vector<DbNode *> getAllNodes();
 		DbNode *findNodeWithMac(uint8_t mac[6]);
+		DbNode *findNodeWithId(int id);
 
 		void update(DbNode *node);
 

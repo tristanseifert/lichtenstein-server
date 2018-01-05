@@ -17,6 +17,8 @@ class DbRoutine {
 	friend class OutputMapper;
 	friend class Routine;
 
+	friend class DbGroup;
+
 	friend void to_json(nlohmann::json& j, const DbRoutine& n);
 
 	private:
@@ -55,5 +57,29 @@ class DbRoutine {
 	friend bool operator< (const DbRoutine& lhs, const DbRoutine& rhs);
 	friend std::ostream &operator<<(std::ostream& strm, const DbRoutine& obj);
 };
+
+#pragma mark - JSON Serialization
+/**
+ * Converts a routine object to a json representation.
+ */
+inline void to_json(nlohmann::json& j, const DbRoutine& routine) {
+	// build the JSON representation
+	j = nlohmann::json{
+		{"id", routine.id},
+
+		{"name", routine.name},
+		{"code", routine.code},
+
+		{"defaults", routine.defaultParams}
+	};
+}
+
+inline void to_json(nlohmann::json& j, const DbRoutine *routine) {
+	if(routine == nullptr) {
+		j = nlohmann::json(nullptr);
+	} else {
+		j = nlohmann::json(*routine);
+	}
+}
 
 #endif

@@ -50,9 +50,10 @@ DbNode *DataStore::findNodeWithMac(uint8_t macIn[6]) {
 	sqlite3_stmt *statement = nullptr;
 
 	// check whether the node exists
-	if(DbNode::_macExists(macIn, this) == false) {
+/*	if(DbNode::_macExists(macIn, this) == false) {
 		return nullptr;
 	}
+*/
 
 	// allocate the object for later
 	DbNode *node = nullptr;
@@ -81,6 +82,39 @@ DbNode *DataStore::findNodeWithMac(uint8_t macIn[6]) {
 }
 
 /**
+ * Finds a node with the given id. If no such node exists, nullptr is returned.
+ */
+DbNode *DataStore::findNodeWithId(int id) {
+	int err = 0, result, count;
+	sqlite3_stmt *statement = nullptr;
+
+	// allocate the object for later
+	DbNode *node = nullptr;
+
+	// it exists, so we must now get it from the db
+	err = this->sqlPrepare("SELECT * FROM nodes WHERE id = :id;", &statement);
+	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
+
+	// bind the id
+	err = this->sqlBind(statement, ":id", id);
+	CHECK(err == SQLITE_OK) << "Couldn't bind node id: " << sqlite3_errstr(err);
+
+	// execute the query
+	result = this->sqlStep(statement);
+
+	if(result == SQLITE_ROW) {
+		// populate the group object
+		node = new DbNode(statement, this);
+	}
+
+	// free our statement
+	this->sqlFinalize(statement);
+
+	// return the populated group object
+	return node;
+}
+
+/**
  * Updates a node in the database based off the data in the passed object. If
  * the node doesn't exist, it's created.
  */
@@ -93,6 +127,34 @@ void DataStore::update(DbNode *node) {
 	} else {
 		// it doesn't, so we need to create it
 		node->_create(this);
+	}
+
+	// update each channel too
+	VLOG_IF(1, node->channels.size() > 0) << "Updating channels for node " << node;
+
+	for(auto channel : node->channels) {
+		this->update(channel);
+	}
+}
+
+#pragma mark - Constructor and Destructor
+/**
+ * Creates a node, and also fetches the channels associated with it. We will
+ * delete those channels later.
+ */
+DbNode::DbNode(sqlite3_stmt *statement, DataStore *db) {
+	this->_fromRow(statement, db);
+
+	// also fetch the channels that go with this node
+	this->channels = db->getChannelsForNode(this);
+}
+
+/**
+ * When we're deallocated, also deallocate each of the channels.
+ */
+DbNode::~DbNode() {
+	for(auto channel : this->channels) {
+		delete channel;
 	}
 }
 

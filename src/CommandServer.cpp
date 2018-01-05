@@ -401,7 +401,7 @@ void CommandServer::clientRequestListNodes(json &response) {
 
 	vector<DbNode *> nodes = this->store->getAllNodes();
 	for(auto node : nodes) {
-		response["nodes"].push_back(*node);
+		response["nodes"].push_back(json(*node));
 
 		// delete the nodes in the vector; they're temporary
 		delete node;
@@ -419,60 +419,9 @@ void CommandServer::clientRequestListGroups(nlohmann::json &response) {
 
 	vector<DbGroup *> groups = this->store->getAllGroups();
 	for(auto group : groups) {
-		response["groups"].push_back(*group);
+		response["groups"].push_back(json(*group));
 
 		// delete the groups in the vector; they're temporary
 		delete group;
 	}
-}
-
-#pragma mark - JSON Conversion Routines
-/**
- * Converts a node object to a json representation.
- */
-void to_json(json& j, const DbNode& n) {
-	// convert the MAC address to a string
-	char mac[24];
-	snprintf(mac, 24, "%02X-%02X-%02X-%02X-%02X-%02X", n.macAddr[0],
-			 n.macAddr[1], n.macAddr[2], n.macAddr[3], n.macAddr[4],
-			 n.macAddr[5]);
-
-	// convert IP to a string
-	char ipAddr[16];
-	inet_ntop(AF_INET, &n.ip, ipAddr, 16);
-
-	// build the JSON representation
-	j = json{
-		{"id", n.id},
-
-		{"mac", string(mac)},
-		{"ip", string(ipAddr)},
-		{"hostname", n.hostname},
-
-		{"adopted", n.adopted},
-
-		{"hwVersion", n.hwVersion},
-		{"swVersion", n.swVersion},
-
-		{"lastSeen", n.lastSeen}
-	};
-}
-
-/**
- * Converts a group object to a json representation.
- */
-void to_json(json& j, const DbGroup& group) {
-	// build the JSON representation
-	j = json{
-		{"id", group.id},
-
-		{"name", group.name},
-
-		{"enabled", group.enabled},
-
-		{"start", group.start},
-		{"end", group.end},
-
-		{"currentRoutine", group.currentRoutine}
-	};
 }

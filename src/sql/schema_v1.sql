@@ -29,14 +29,21 @@ CREATE TABLE groups (
 	enabled integer,
 	start integer,
 	end integer,
-	currentRoutine integer
+	currentRoutine integer,
+
+	-- enforce foreign keys
+	FOREIGN KEY(currentRoutine) REFERENCES routines(id)
 );
 
 CREATE TABLE channels (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	node integer,
+	nodeOffset integer,
 	numPixels integer,
-	fbOffset integer
+	fbOffset integer,
+
+	-- enforce foreign keys
+	FOREIGN KEY(node) REFERENCES nodes(id)
 );
 
 -- create indices
