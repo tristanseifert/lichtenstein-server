@@ -70,6 +70,13 @@ int main(int argc, char *argv[]) {
 	// first, parse the config file
 	parseConfigFile(FLAGS_config_path);
 
+	// set thread name
+	#ifdef __APPLE__
+		pthread_setname_np("Main Thread");
+	#else
+		pthread_setname_np(pthread_self(), "Main Thread");
+	#endif
+
 	// set up a signal handler for termination so we can close down cleanly
 	keepRunning = true;
 

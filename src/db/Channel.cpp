@@ -212,7 +212,7 @@ bool DbChannel::_idExists(int id, DataStore *db) {
 
 	if(result == SQLITE_ROW) {
 		// retrieve the value of the first column (0-based)
-		count = sqlite3_column_int(statement, 0);
+		count = db->sqlGetColumnInt(statement, 0);
 	}
 
 	// free our statement
@@ -228,32 +228,32 @@ bool DbChannel::_idExists(int id, DataStore *db) {
  * an existing channel object.
  */
 void DbChannel::_fromRow(sqlite3_stmt *statement, DataStore *db) {
-	int numColumns = sqlite3_column_count(statement);
+	int numColumns = db->sqlGetNumColumns(statement);
 
 	// iterate over all returned columns
 	for(int i = 0; i < numColumns; i++) {
 		// get the column name and see to which property it matches up
-		const char *colName = sqlite3_column_name(statement, i);
+		string colName = db->sqlColumnName(statement, i);
 
 		// is it the id column?
-		if(strcmp(colName, "id") == 0) {
-			this->id = sqlite3_column_int(statement, i);
+		if(colName == "id") {
+			this->id = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the node channel index column?
-		else if(strcmp(colName, "nodeOffset") == 0) {
-			this->nodeOffset = sqlite3_column_int(statement, i);
+		else if(colName == "nodeOffset") {
+			this->nodeOffset = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the pixel length column?
-		else if(strcmp(colName, "numPixels") == 0) {
-			this->numPixels = sqlite3_column_int(statement, i);
+		else if(colName == "numPixels") {
+			this->numPixels = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the framebuffer starting offset column?
-		else if(strcmp(colName, "fbOffset") == 0) {
-			this->fbOffset = sqlite3_column_int(statement, i);
+		else if(colName == "fbOffset") {
+			this->fbOffset = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the node column?
-		else if(strcmp(colName, "node") == 0) {
-			this->nodeId = sqlite3_column_int(statement, i);
+		else if(colName == "node") {
+			this->nodeId = db->sqlGetColumnInt(statement, i);
 
 			// fetch the appropriate routine from the database
 			if(this->node == nullptr || this->node->id != this->nodeId) {

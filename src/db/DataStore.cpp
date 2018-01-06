@@ -7,6 +7,49 @@
 using namespace std;
 using json = nlohmann::json;
 
+/**
+ * When set, locking support is compiled into the application. It's not active
+ * unless the config switch `db.serializeAccess` is set to true.
+ */
+// disclaimer:
+// i literally don't fucking know what i'm doing but it works like 99% of
+// the time but basically fuck computers and i need a new career hahahahaha
+#define USE_LOCKING 1
+/// set to enable logging when the locks are accessed
+#define LOCKING_LOGS 1
+
+#if USE_LOCKING
+	// gets the thread name into the "threadName" variable
+	#define LOCK_GET_THREAD_NAME() \
+		const static int threadNameSz = 64; \
+		char threadName[threadNameSz]; \
+		pthread_getname_np(pthread_self(), threadName, threadNameSz);
+
+	// checks if locking is enabled
+	#define LOCK_IS_ENABLED() (this->useDbLock)
+
+	// acquires the db lock
+	#define LOCK_START() unique_lock<mutex> lk; \
+		if(LOCK_IS_ENABLED()) { \
+			lk = unique_lock<mutex>(this->dbLock); \
+			{ \
+				LOCK_GET_THREAD_NAME(); \
+				VLOG(2) << "Acquired db lock from thread: " << threadName; \
+		} \
+	}
+
+	// releases the db lock
+	#define LOCK_END()  if(LOCK_IS_ENABLED()) { \
+		lk.unlock(); { \
+			LOCK_GET_THREAD_NAME(); \
+			VLOG(2) << "Released db lock from thread: " << threadName; \
+		} \
+	}
+#else
+	#define LOCK_START()
+	#define LOCK_END()
+#endif
+
 // include the v1 schema
 const char *schema_v1 =
 #include "sql/schema_v1.sql"
@@ -39,6 +82,7 @@ DataStore::DataStore(INIReader *reader) {
 	this->config = reader;
 
 	this->path = this->config->Get("db", "path", "");
+	this->useDbLock = this->config->GetBoolean("db", "serializeAccess", false);
 
 	// open the db
 	this->open();
@@ -69,8 +113,12 @@ int DataStore::sqlExec(const char *sql, char **errmsg) {
 	int err = 0;
 
 	// run the query
+	LOCK_START();
+
 	VLOG(2) << "Executing SQL: " << sql;
+
 	err = sqlite3_exec(this->db, sql, nullptr, nullptr, errmsg);
+	LOCK_END();
 
 	return err;
 }
@@ -84,10 +132,13 @@ int DataStore::sqlPrepare(const char *sql, sqlite3_stmt **stmt) {
 	int err = 0;
 
 	// prepare the query
+	LOCK_START();
 	err = sqlite3_prepare_v2(this->db, sql, -1, stmt, 0);
 
 	VLOG(2) << "Created statement 0x" << hex << *stmt << dec << " with SQL `"
 			<< sql << "`, err: " << sqlite3_errstr(err);
+
+	LOCK_END();
 
 	return err;
 }
@@ -98,6 +149,7 @@ int DataStore::sqlPrepare(const char *sql, sqlite3_stmt **stmt) {
 int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, string value, bool optional) {
 	int err, idx;
 
+	LOCK_START();
 	VLOG(2) << "Binding string `" << value << "` to parameter `" << param << '`'
 			<< " on statement 0x" << hex << stmt;
 
@@ -114,6 +166,8 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, string value, bool
 
 	// bind
 	err = sqlite3_bind_text(stmt, idx, value.c_str(), -1, SQLITE_TRANSIENT);
+	LOCK_END();
+
 	return err;
 }
 
@@ -123,6 +177,7 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, string value, bool
 int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, void *data, int len, bool optional) {
 	int err, idx;
 
+	LOCK_START();
 	VLOG(2) << "Binding blob 0x" << hex << data << ", length " << dec << len
 			<< " bytes to parameter `" << param << '`'
 			<< " on statement 0x" << hex << stmt;
@@ -139,7 +194,9 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, void *data, int le
 	CHECK(idx != 0) << "Couldn't resolve parameter " << param;
 
 	// bind
-	err = sqlite3_bind_blob(stmt, idx, data, len, SQLITE_STATIC);
+	err = sqlite3_bind_blob(stmt, idx, data, len, SQLITE_TRANSIENT);
+	LOCK_END();
+
 	return err;
 }
 
@@ -149,6 +206,7 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, void *data, int le
 int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, int value, bool optional) {
 	int err, idx;
 
+	LOCK_START();
 	VLOG(2) << "Binding integer `" << value << "` to parameter `" << param << '`'
 			<< " on statement 0x" << hex << stmt;
 
@@ -165,6 +223,8 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, int value, bool op
 
 	// bind
 	err = sqlite3_bind_int(stmt, idx, value);
+	LOCK_END();
+
 	return err;
 }
 
@@ -174,10 +234,13 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, int value, bool op
 int DataStore::sqlStep(sqlite3_stmt *stmt) {
 	int result = 0;
 
+	LOCK_START();
 	result = sqlite3_step(stmt);
+
 	VLOG(2) << "Stepping through statement 0x" << hex << stmt << dec << ": "
 			<< result;
 
+	LOCK_END();
 	return result;
 }
 
@@ -187,9 +250,12 @@ int DataStore::sqlStep(sqlite3_stmt *stmt) {
 int DataStore::sqlFinalize(sqlite3_stmt *stmt) {
 	int result = 0;
 
+	LOCK_START();
 	result = sqlite3_finalize(stmt);
-	VLOG(2) << "Closed statement 0x" << hex << stmt << dec << ": " << result;
 
+	VLOG(2) << "Finalized statement 0x" << hex << stmt << dec << ": " << result;
+
+	LOCK_END();
 	return result;
 }
 
@@ -197,10 +263,97 @@ int DataStore::sqlFinalize(sqlite3_stmt *stmt) {
  * Returns the rowid of the last INSERT/UPDATE operation.
  */
 int DataStore::sqlGetLastRowId() {
+	LOCK_START();
 	int result = sqlite3_last_insert_rowid(this->db);
+
 	LOG_IF(ERROR, result == 0) << "ROWID is zero… potential misuse of sqlGetLastRowId()";
 
+	LOCK_END();
 	return result;
+}
+
+/**
+ * Returns the number of columns that the result of this statement contains.
+ */
+int DataStore::sqlGetNumColumns(sqlite3_stmt *statement) {
+	LOCK_START();
+	int numColumns = sqlite3_column_count(statement);
+	LOCK_END();
+
+	// check for errors
+	CHECK(numColumns >= 0) << "Got negative result from sqlite3_column_count";
+
+	return numColumns;
+}
+
+/**
+ * Returns the value of the given column as an integer.
+ */
+int DataStore::sqlGetColumnInt(sqlite3_stmt *statement, int index) {
+	LOCK_START();
+	int result = sqlite3_column_int(statement, index);
+	LOCK_END();
+
+	return result;
+}
+
+/**
+ * Returns the value of the given column as a string.
+ */
+string DataStore::sqlGetColumnString(sqlite3_stmt *statement, int index) {
+	LOCK_START();
+
+	// get the UTF-8 string and its length from sqlite, then allocate a buffer
+	const unsigned char *name = sqlite3_column_text(statement, index);
+	int nameLen = sqlite3_column_bytes(statement, index);
+
+	char *nameStr = new char[nameLen + 1];
+	std::fill(nameStr, nameStr + nameLen + 1, 0);
+
+	// copy the string, but only the number of bytes sqlite returned
+	memcpy(nameStr, name, nameLen);
+
+	// create a C++ string and then deallocate the buffer
+	string retVal = string(nameStr);
+	delete[] nameStr;
+
+	LOCK_END();
+
+	return retVal;
+}
+
+/**
+ * Returns a pointer to the blob value of the given column, and writes the size
+ * of the blob to the integer specified.
+ */
+const void *DataStore::sqlGetColumnBlob(sqlite3_stmt *statement, int index, size_t &size) {
+	// get the blob lmao
+	LOCK_START();
+
+	const void *blobData = sqlite3_column_blob(statement, index);
+	int length = sqlite3_column_bytes(statement, index);
+	CHECK(length >= 0) << "got negative length from sqlite3_column_bytes";
+
+
+	// return the data
+	size = length;
+
+	LOCK_END();
+	return blobData;
+}
+
+/**
+ * Returns the name of the given column.
+ */
+string DataStore::sqlColumnName(sqlite3_stmt *statement, int index) {
+	string nameStr;
+
+	LOCK_START();
+	const char *colName = sqlite3_column_name(statement, index);
+	nameStr = string(colName);
+	LOCK_END();
+
+	return nameStr;
 }
 
 #pragma mark - Background Checkpointing
@@ -275,7 +428,7 @@ void DataStore::terminateCheckpointThread() {
 	LOG(INFO) << "Terminating checkpoint thread";
 
 	// get the checkpoint lock; this waits until any checkpoints are done
-	this->checkpointLock.lock();
+	unique_lock<mutex> checkpointLk(this->checkpointLock);
 
 	// platform-specific hax: get the pthread_t handle
 	pthread_cancel(this->checkpointThread->native_handle());
@@ -285,7 +438,7 @@ void DataStore::terminateCheckpointThread() {
 	delete this->checkpointThread;
 
 	// we need to release the lock again or we'll deadlock later
-	this->checkpointLock.unlock();
+	checkpointLk.unlock();
 }
 
 #pragma mark - Database I/O
@@ -301,16 +454,19 @@ void DataStore::commit() {
 	int status = 0;
 
 	// we need to acquire the lock
-	this->checkpointLock.lock();
+	unique_lock<mutex> checkpointLk(this->checkpointLock);
 
 	// perform the checkpoint
 	LOG(INFO) << "Performing database checkpoint";
 
+	LOCK_START();
 	status = sqlite3_wal_checkpoint_v2(this->db, nullptr, SQLITE_CHECKPOINT_PASSIVE, nullptr, nullptr);
+	LOCK_END();
+
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't complete checkpoint: " << sqlite3_errstr(status);
 
 	// and release the lock
-	this->checkpointLock.unlock();
+	checkpointLk.unlock();
 }
 
 /**
@@ -417,9 +573,13 @@ void DataStore::close() {
 	this->optimize();
 
 	// attempt to close the db
+	LOCK_START();
+
 	status = sqlite3_close(this->db);
 	LOG_IF(ERROR, status != SQLITE_OK) << "Couldn't close database, data loss may result!";
 	VLOG_IF(1, status == SQLITE_OK) << "Database has been closed, no further access is possible";
+
+	LOCK_END();
 }
 
 #pragma mark - Schema Version Management
@@ -531,10 +691,14 @@ void DataStore::registerCustomFunction(string name, CustomFunction callback, voi
 	sqliteCtx->ctx = ctx;
 
 	// register the function with sqlite
+	LOCK_START();
+
 	err = sqlite3_create_function(this->db, name.c_str(), 0, SQLITE_UTF8, sqliteCtx,
 								  sqlFunctionHandler, nullptr, nullptr);
 
 	CHECK(err == SQLITE_OK) << "Couldn't register function: " << sqlite3_errstr(err);
+
+	LOCK_END();
 }
 
 #pragma mark - Metadata
@@ -604,27 +768,4 @@ string DataStore::getInfoValue(string key) {
 
 	// return a C++ string
 	return returnValue;
-}
-
-#pragma mark - Conversion Routines
-/**
- * Converts the string value in column `col` to an UTF-8 string, then creates a
- * standard C++ string from it.
- */
-string DataStore::_stringFromColumn(sqlite3_stmt *statement, int col) {
-	// get the UTF-8 string and its length from sqlite, then allocate a buffer
-	const unsigned char *name = sqlite3_column_text(statement, col);
-	int nameLen = sqlite3_column_bytes(statement, col);
-
-	char *nameStr = new char[nameLen + 1];
-	std::fill(nameStr, nameStr + nameLen + 1, 0);
-
-	// copy the string, but only the number of bytes sqlite returned
-	memcpy(nameStr, name, nameLen);
-
-	// create a C++ string and then deallocate the buffer
-	string retVal = string(nameStr);
-	delete[] nameStr;
-
-	return retVal;
 }

@@ -141,6 +141,14 @@ class DataStore {
 
 		int sqlGetLastRowId();
 
+		int sqlGetNumColumns(sqlite3_stmt *statement);
+
+		int sqlGetColumnInt(sqlite3_stmt *statement, int index);
+		std::string sqlGetColumnString(sqlite3_stmt *statement, int index);
+		const void *sqlGetColumnBlob(sqlite3_stmt *statement, int index, size_t &size);
+
+		std::string sqlColumnName(sqlite3_stmt *statement, int index);
+
 	private:
 		std::string _stringFromColumn(sqlite3_stmt *statement, int col);
 
@@ -149,6 +157,9 @@ class DataStore {
 
 		std::string path;
 		sqlite3 *db;
+
+		bool useDbLock = false;
+		std::mutex dbLock;
 };
 
 #endif

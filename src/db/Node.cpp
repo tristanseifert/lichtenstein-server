@@ -242,7 +242,7 @@ bool DbNode::_macExists(uint8_t macIn[6], DataStore *db) {
 
 	if(result == SQLITE_ROW) {
 		// retrieve the value of the first column (0-based)
-		count = sqlite3_column_int(statement, 0);
+		count = db->sqlGetColumnInt(statement, 0);
 	}
 
 	// free our statement
@@ -259,25 +259,27 @@ bool DbNode::_macExists(uint8_t macIn[6], DataStore *db) {
  * an existing node object.
  */
 void DbNode::_fromRow(sqlite3_stmt *statement, DataStore *db) {
-	int numColumns = sqlite3_column_count(statement);
+	int numColumns = db->sqlGetNumColumns(statement);
 
 	// iterate over all returned columns
 	for(int i = 0; i < numColumns; i++) {
 		// get the column name and see to which property it matches up
-		const char *colName = sqlite3_column_name(statement, i);
+		string colName = db->sqlColumnName(statement, i);
 
 		// is it the id column?
-		if(strcmp(colName, "id") == 0) {
-			this->id = sqlite3_column_int(statement, i);
+		if(colName == "id") {
+			this->id = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the ip column?
-		else if(strcmp(colName, "ip") == 0) {
-			this->ip = sqlite3_column_int(statement, i);
+		else if(colName == "ip") {
+			this->ip = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the MAC address column?
-		else if(strcmp(colName, "mac") == 0) {
-			const void *rawMac = sqlite3_column_blob(statement, i);
-			int length = sqlite3_column_bytes(statement, i);
+		else if(colName == "mac") {
+			size_t length = 0;
+
+			const void *rawMac = db->sqlGetColumnBlob(statement, i, length);
+			CHECK(rawMac != nullptr) << "MAC address is null… corrupt database?";
 
 			// copy only the first six bytes… that's all we have space for
 			if(length > 6) {
@@ -287,32 +289,32 @@ void DbNode::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 			memcpy(this->macAddr, rawMac, length);
 		}
 		// is it the hostname column?
-		else if(strcmp(colName, "hostname") == 0) {
-			this->hostname = db->_stringFromColumn(statement, i);
+		else if(colName == "hostname") {
+			this->hostname = db->sqlGetColumnString(statement, i);
 		}
 		// is it the adopted column?
-		else if(strcmp(colName, "adopted") == 0) {
-			this->adopted = (sqlite3_column_int(statement, i) != 0);
+		else if(colName == "adopted") {
+			this->adopted = (db->sqlGetColumnInt(statement, i) != 0);
 		}
 		// is it the hardware version column?
-		else if(strcmp(colName, "hwversion") == 0) {
-			this->hwVersion = sqlite3_column_int(statement, i);
+		else if(colName == "hwversion") {
+			this->hwVersion = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the software version column?
-		else if(strcmp(colName, "swversion") == 0) {
-			this->swVersion = sqlite3_column_int(statement, i);
+		else if(colName == "swversion") {
+			this->swVersion = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the last seen timestamp column?
-		else if(strcmp(colName, "lastSeen") == 0) {
-			this->lastSeen = sqlite3_column_int(statement, i);
+		else if(colName == "lastSeen") {
+			this->lastSeen = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the number of channels?
-		else if(strcmp(colName, "numChannels") == 0) {
-			this->numChannels = sqlite3_column_int(statement, i);
+		else if(colName == "numChannels") {
+			this->numChannels = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the framebuffer size?
-		else if(strcmp(colName, "fbSize") == 0) {
-			this->fbSize = sqlite3_column_int(statement, i);
+		else if(colName == "fbSize") {
+			this->fbSize = db->sqlGetColumnInt(statement, i);
 		}
 	}
 }

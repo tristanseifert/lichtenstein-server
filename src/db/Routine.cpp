@@ -182,7 +182,7 @@ bool DbRoutine::_idExists(int id, DataStore *db) {
 
 	if(result == SQLITE_ROW) {
 		// retrieve the value of the first column (0-based)
-		count = sqlite3_column_int(statement, 0);
+		count = db->sqlGetColumnInt(statement, 0);
 	}
 
 	// free our statement
@@ -198,28 +198,28 @@ bool DbRoutine::_idExists(int id, DataStore *db) {
  * an existing routine object.
  */
 void DbRoutine::_fromRow(sqlite3_stmt *statement, DataStore *db) {
-	int numColumns = sqlite3_column_count(statement);
+	int numColumns = db->sqlGetNumColumns(statement);
 
 	// iterate over all returned columns
 	for(int i = 0; i < numColumns; i++) {
 		// get the column name and see to which property it matches up
-		const char *colName = sqlite3_column_name(statement, i);
+		string colName = db->sqlColumnName(statement, i);
 
 		// is it the id column?
-		if(strcmp(colName, "id") == 0) {
-			this->id = sqlite3_column_int(statement, i);
+		if(colName == "id") {
+			this->id = db->sqlGetColumnInt(statement, i);
 		}
 		// is it the name column?
-		else if(strcmp(colName, "name") == 0) {
-			this->name = db->_stringFromColumn(statement, i);
+		else if(colName == "name") {
+			this->name = db->sqlGetColumnString(statement, i);
 		}
 		// is it the code column?
-		else if(strcmp(colName, "code") == 0) {
-			this->code = db->_stringFromColumn(statement, i);
+		else if(colName == "code") {
+			this->code = db->sqlGetColumnString(statement, i);
 		}
 		// is it the default params column?
-		else if(strcmp(colName, "defaultParams") == 0) {
-			this->defaultParamsJSON = db->_stringFromColumn(statement, i);
+		else if(colName == "defaultParams") {
+			this->defaultParamsJSON = db->sqlGetColumnString(statement, i);
 			this->_decodeJSON();
 		}
 	}
