@@ -128,8 +128,8 @@ void EffectRunner::coordinatorThreadEntry() {
 	struct timespec sleep;
 	sleep.tv_sec = 0;
 
-	// fetch all output channels (TODO: do this if they change too)
-	this->outputChannels = this->store->getAllChannels();
+	// fetch all output channels and set up buffers
+	this->updateChannelBuffers();
 
 	// starting time
 	auto start = chrono::high_resolution_clock::now();
@@ -195,6 +195,53 @@ void EffectRunner::coordinatorThreadEntry() {
 		delete channel;
 	}
 	this->outputChannels.clear();
+}
+
+/**
+ * Fetches all channels and allocates buffers for them.
+ */
+void EffectRunner::updateChannelBuffers() {
+	// attempt to acquire the lock
+    unique_lock<mutex> lk(this->channelBufferMutex);
+
+	// delete all buffers
+	for(auto const& [channel, buffer] : this->channelBuffers) {
+		delete[] buffer;
+	}
+
+	this->channelBuffers.clear();
+
+	// delete all old channels
+	for(auto channel : this->outputChannels) {
+		delete channel;
+	}
+
+	// fetch all output channels (TODO: do this if they change too)
+	this->outputChannels = this->store->getAllChannels();
+
+	// allocate buffers
+	for(auto channel : this->outputChannels) {
+		size_t numBytes = channel->numPixels;
+
+		// multiply the number of pixels by the number of bytes per pixel
+		switch(channel->format) {
+			case DbChannel::kPixelFormatRGB:
+				numBytes = numBytes * 3;
+				break;
+
+			case DbChannel::kPixelFormatRGBW:
+				numBytes = numBytes * 4;
+				break;
+		}
+
+		// allocate the buffer
+		uint8_t *buf = new uint8_t[numBytes];
+
+		this->channelBuffers[channel] = buf;
+	}
+
+	// unlock the lock
+	lk.unlock();
 }
 
 /**

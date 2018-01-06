@@ -21,6 +21,12 @@ class DbChannel {
 
 	friend void to_json(nlohmann::json& j, const DbChannel& n);
 
+	public:
+		enum PixelFormat {
+			kPixelFormatRGBW = 0,
+			kPixelFormatRGB = 1
+		};
+
 	private:
 		int id = 0;
 		int nodeId = 0;
@@ -32,6 +38,9 @@ class DbChannel {
 		int numPixels;
 		/// at what offset in the framebuffer this channel takes its data
 		int fbOffset;
+
+		/// what format does the node expect data in for this channel?
+		PixelFormat format;
 
 		DbNode *node;
 

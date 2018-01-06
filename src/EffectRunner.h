@@ -72,6 +72,15 @@ class EffectRunner {
 			return this->actualFps;
 		}
 
+	// channel handling
+	public:
+		void updateChannelBuffers();
+
+		std::vector<DbChannel *> outputChannels;
+		std::map<DbChannel *, uint8_t *> channelBuffers;
+
+		std::mutex channelBufferMutex;
+
 	private:
 		double avgSleepTime = 0;
 		double avgSleepTimeSamples = 0;
@@ -85,8 +94,6 @@ class EffectRunner {
 
 		std::condition_variable conversionCv;
 		std::atomic_uint outstandingConversions;
-
-		std::vector<DbChannel *> outputChannels;
 
 	private:
 		DataStore *store;

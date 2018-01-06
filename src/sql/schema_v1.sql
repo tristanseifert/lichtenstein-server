@@ -43,6 +43,7 @@ CREATE TABLE channels (
 	nodeOffset integer,
 	numPixels integer,
 	fbOffset integer,
+	format integer,
 
 	-- enforce foreign keys
 	FOREIGN KEY(node) REFERENCES nodes(id)

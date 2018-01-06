@@ -146,7 +146,7 @@ void DbChannel::_create(DataStore *db) {
 	VLOG(1) << "Creating new channel for node " << this->node;
 
 	// prepare an update query
-	err = db->sqlPrepare("INSERT INTO channels (node, nodeOffset, numPixels, fbOffset) VALUES (:node, :nodeOffset, :numPixels, :fbOffset);", &statement);
+	err = db->sqlPrepare("INSERT INTO channels (node, nodeOffset, numPixels, fbOffset) VALUES (:node, :nodeOffset, :numPixels, :fbOffset, format = :format);", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -178,7 +178,7 @@ void DbChannel::_update(DataStore *db) {
 	VLOG(1) << "Updating existing channel with id " << this->id;
 
 	// prepare an update query
-	err = db->sqlPrepare("UPDATE channels SET node = :node, nodeOffset = :nodeOffset, numPixels = :numPixels, fbOffset = :fbOffset WHERE id = :id;", &statement);
+	err = db->sqlPrepare("UPDATE channels SET node = :node, nodeOffset = :nodeOffset, numPixels = :numPixels, fbOffset = :fbOffset, format = :format WHERE id = :id;", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -251,6 +251,10 @@ void DbChannel::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 		else if(colName == "fbOffset") {
 			this->fbOffset = db->sqlGetColumnInt(statement, i);
 		}
+		// is it the pixel format column?
+		else if(colName == "format") {
+			this->format = static_cast<PixelFormat>(db->sqlGetColumnInt(statement, i));
+		}
 		// is it the node column?
 		else if(colName == "node") {
 			this->nodeId = db->sqlGetColumnInt(statement, i);
@@ -294,6 +298,10 @@ void DbChannel::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 	// bind the channel framebuffer offset
 	err = db->sqlBind(statement, ":fbOffset", this->fbOffset);
 	CHECK(err == SQLITE_OK) << "Couldn't bind channel framebuffer offset: " << sqlite3_errstr(err);
+
+	// bind the pixel format
+	err = db->sqlBind(statement, ":format", this->format);
+	CHECK(err == SQLITE_OK) << "Couldn't bind channel format: " << sqlite3_errstr(err);
 
 	// optionally, also bind the id field
 	err = db->sqlBind(statement, ":id", this->id, true);
