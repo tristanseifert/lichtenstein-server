@@ -76,6 +76,8 @@ class EffectRunner {
 	public:
 		void updateChannelBuffers();
 
+		std::atomic_bool channelBuffersNeedUpdate;
+
 		std::vector<DbChannel *> outputChannels;
 		std::map<DbChannel *, uint8_t *> channelBuffers;
 

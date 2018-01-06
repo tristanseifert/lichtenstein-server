@@ -137,6 +137,11 @@ void EffectRunner::coordinatorThreadEntry() {
 
 	// run as long as the main thread is still alive
 	while(this->coordinatorRunning) {
+		// shall we update the channel buffers?
+		if(this->channelBuffersNeedUpdate == true) {
+			this->updateChannelBuffers();
+		}
+
 		// check if we have effects to run
 		if(this->mapper->outputMap.empty() == false) {
 			// run the effect routines
@@ -239,6 +244,9 @@ void EffectRunner::updateChannelBuffers() {
 
 		this->channelBuffers[channel] = buf;
 	}
+
+	// reset the update flag
+	this->channelBuffersNeedUpdate = false;
 
 	// unlock the lock
 	lk.unlock();
