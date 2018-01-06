@@ -59,7 +59,7 @@ class Routine {
 		Routine(DbRoutine *r, std::map<std::string, double> &params);
 		~Routine();
 
-		void attachBuffer(std::vector<HSIPixel> *buf);
+		void attachBuffer(HSIPixel *buf, size_t elements);
 		void changeParams(std::map<std::string, double> &newParams);
 
 		void execute(int frame);
@@ -107,8 +107,7 @@ class Routine {
 		DbRoutine *routine = nullptr;
 		std::map<std::string, double> params;
 
-		std::vector<HSIPixel> *buffer;
-
+		HSIPixel *buffer;
 		int bufferSz = 0;
 		CScriptArray *asBuffer = nullptr;
 

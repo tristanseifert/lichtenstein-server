@@ -92,11 +92,9 @@ Routine::~Routine() {
 /**
  * Attaches the given buffer to this routine.
  */
-void Routine::attachBuffer(vector<HSIPixel> *buf) {
+void Routine::attachBuffer(HSIPixel *buf, size_t elements) {
 	this->buffer = buf;
-
-	// update the buffer size accessible to the script
-	this->bufferSz = this->buffer->size();
+	this->bufferSz = elements;
 
 	this->_updateASBufferArray();
 }
@@ -279,7 +277,7 @@ void Routine::_copyASBufferArrayData() {
 
 	for(int i = 0; i < this->bufferSz; i++) {
 		HSIPixel *pixel = static_cast<HSIPixel *>(this->asBuffer->At(i));
-		(*this->buffer)[i] = *pixel;
+		this->buffer[i] = *pixel;
 	}
 
 #if PROFILE_BUFCOPY

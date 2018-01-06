@@ -20,9 +20,7 @@ class DataStore;
 class Framebuffer;
 
 class OutputMapper {
-	public:
-		OutputMapper(DataStore *s, Framebuffer *f, INIReader *reader);
-		~OutputMapper();
+	friend class EffectRunner;
 
 	public:
 		class OutputGroup {
@@ -31,26 +29,36 @@ class OutputMapper {
 			public:
 				OutputGroup() = delete;
 				OutputGroup(DbGroup *g);
-				virtual ~OutputGroup() {};
+				virtual ~OutputGroup();
 
 				/**
 				 * Returns an iterator into the group's framebuffer.
 				 */
-				std::vector<HSIPixel>::iterator getDataPointer() {
-					return this->buffer.begin();
+				HSIPixel *getDataPointer() {
+					return this->buffer;
 				}
 
 				/**
 				 * Returns the number of pixels in the group.
 				 */
-				int numPixels() const {
+				virtual int numPixels() const {
 					return this->group->numPixels();
 				}
 
+				virtual void bindBufferToRoutine(Routine *r);
+				virtual void copyIntoFramebuffer(Framebuffer *fb);
+
+			private:
+				virtual void _resizeBuffer();
+
+				bool bufferChanged = false;
+				Routine *bufferBoundRoutine = nullptr;
+
+				HSIPixel *buffer = nullptr;
+				size_t bufferSz = 0;
+
 			private:
 				DbGroup *group = nullptr;
-
-				std::vector<HSIPixel> buffer;
 
 				friend bool operator==(const OutputGroup& lhs, const OutputGroup& rhs);
 				friend bool operator< (const OutputGroup& lhs, const OutputGroup& rhs);
@@ -62,7 +70,13 @@ class OutputMapper {
 			public:
 				OutputUberGroup();
 				OutputUberGroup(std::vector<OutputGroup *> &members);
-				~OutputUberGroup() {};
+				~OutputUberGroup();
+
+			public:
+				// overrides from OutputGroup
+				virtual int numPixels() const;
+
+				virtual void copyIntoFramebuffer(Framebuffer *fb);
 
 			private:
 				void addMember(OutputGroup *group);
@@ -70,11 +84,12 @@ class OutputMapper {
 				bool containsMember(OutputGroup *group);
 
 			private:
-				void _resizeBuffer();
-
-			private:
 				std::set<OutputGroup *> groups;
 		};
+
+	public:
+		OutputMapper(DataStore *s, Framebuffer *f, INIReader *reader);
+		~OutputMapper();
 
 	public:
 		void addMapping(OutputGroup *g, Routine *r);

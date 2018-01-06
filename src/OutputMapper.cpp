@@ -80,17 +80,72 @@ void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug)
 
 #pragma mark - Group Implementation
 /**
+ * Destroys the allocated buffer.
+ */
+OutputMapper::OutputGroup::~OutputGroup() {
+	if(this->buffer) {
+		free(this->buffer);
+		this->buffer = nullptr;
+	}
+}
+
+/**
  * Creates an output group that corresponds to a particular group in the
  * datastore.
  */
 OutputMapper::OutputGroup::OutputGroup(DbGroup *g) {
 	this->group = g;
 
-	// reserve the correct amount of memory
-	int elements = this->numPixels();
+	// allocate the buffer
+	this->_resizeBuffer();
+}
 
-	this->buffer.resize(elements, {0, 0, 0});
-	this->buffer.reserve(elements);
+/**
+ * Allocates the correct amount of memory in the framebuffer.
+ */
+void OutputMapper::OutputGroup::_resizeBuffer() {
+	// de-allocate any old buffers
+	if(this->buffer) {
+		free(this->buffer);
+		this->buffer = nullptr;
+	}
+
+	// allocate the buffer
+	this->bufferSz = this->numPixels();
+	this->buffer = static_cast<HSIPixel *>(calloc(this->bufferSz,
+												  sizeof(HSIPixel)));
+
+	// marks the buffer as having changed
+	this->bufferChanged = true;
+}
+
+/**
+ * Binds the buffer to the given routine. This is only done if either the buffer
+ * or the routine itself changed since the last invocation.
+ */
+void OutputMapper::OutputGroup::bindBufferToRoutine(Routine *r) {
+	if(r != this->bufferBoundRoutine || this->bufferChanged) {
+		// attach the buffer
+		r->attachBuffer(this->buffer, this->bufferSz);
+
+		this->bufferBoundRoutine = r;
+		this->bufferChanged = false;
+	}
+}
+
+/**
+ * Copies the pixel data for this group into the framebuffer at the correct
+ * offsets.
+ */
+void OutputMapper::OutputGroup::copyIntoFramebuffer(Framebuffer *fb) {
+	auto fbPointer = fb->getDataPointer();
+
+	int fbStart = this->group->start;
+	int fbEnd = this->group->end;
+
+	for(int i = fbStart, j = 0; i <= fbEnd; i++, j++) {
+		fbPointer[i] = this->buffer[j];
+	}
 }
 
 /**
@@ -139,6 +194,14 @@ OutputMapper::OutputUberGroup::OutputUberGroup(vector<OutputGroup *> &members) :
 }
 
 /**
+ * Cleans up any additional data structures that we allocated aside from the
+ * group framebuffer.
+ */
+OutputMapper::OutputUberGroup::~OutputUberGroup() {
+
+}
+
+/**
  * Inserts the specified output group to the ubergroup.
  */
 void OutputMapper::OutputUberGroup::addMember(OutputGroup *group) {
@@ -184,9 +247,19 @@ bool OutputMapper::OutputUberGroup::containsMember(OutputGroup *inGroup) {
 }
 
 /**
- * Reserves the correct amount of memory in the storage vector.
+ * Copies the pixel data for each of the groups that make up this ubergroup into
+ * the appropriate places of the framebuffer.
  */
-void OutputMapper::OutputUberGroup::_resizeBuffer() {
+void OutputMapper::OutputUberGroup::copyIntoFramebuffer(Framebuffer *fb) {
+	for(auto group : this->groups) {
+		group->copyIntoFramebuffer(fb);
+	}
+}
+
+/**
+ * Returns the number of pixels in the group.
+ */
+int OutputMapper::OutputUberGroup::numPixels() const {
 	int elements = 0;
 
 	// sum up all of the groups' pixels
@@ -194,7 +267,5 @@ void OutputMapper::OutputUberGroup::_resizeBuffer() {
 		elements += group->numPixels();
 	}
 
-	// reserve the memory
-	this->buffer.resize(elements, {0, 0, 0});
-	this->buffer.reserve(elements);
+	return elements;
 }

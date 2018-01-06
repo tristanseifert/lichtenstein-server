@@ -48,6 +48,11 @@ DbRoutine *DataStore::findRoutineWithId(int id) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
+	// if id is zero or negative, return
+	if(id <= 0) {
+		return nullptr;
+	}
+
 	// check whether the routine exists
 /*	if(DbRoutine::_idExists(id, this) == false) {
 		return nullptr;

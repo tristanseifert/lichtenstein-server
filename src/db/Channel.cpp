@@ -80,10 +80,16 @@ DbChannel *DataStore::findChannelWithId(int id) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	// check whether the group exists
-	if(DbChannel::_idExists(id, this) == false) {
+	// if id is zero or negative, return
+	if(id <= 0) {
 		return nullptr;
 	}
+
+	// check whether the channel exists
+/*	if(DbChannel::_idExists(id, this) == false) {
+		return nullptr;
+	}
+*/
 
 	// allocate the object for later
 	DbChannel *group = nullptr;

@@ -323,6 +323,9 @@ void DataStore::open() {
 	status = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
 	CHECK(status == SQLITE_OK) << "Couldn't set serialized thread model: " << sqlite3_errstr(status);
 
+	int threadsafe = sqlite3_threadsafe();
+	CHECK(threadsafe != 0) << "sqlite3 library isn't threadsafe: " << threadsafe;
+
 	// get the path
 	const char *path = this->path.c_str();
 	LOG(INFO) << "Opening sqlite3 database at " << path;

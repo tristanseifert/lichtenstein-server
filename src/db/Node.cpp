@@ -88,6 +88,11 @@ DbNode *DataStore::findNodeWithId(int id) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
+	// if id is zero or negative, return
+	if(id <= 0) {
+		return nullptr;
+	}
+
 	// allocate the object for later
 	DbNode *node = nullptr;
 

@@ -8,6 +8,8 @@
  *
  * Internally, the framebuffer stores each pixel as a HSI tuple. The index of
  * the H component is 0, S is at 1, and I is at 2.
+ *
+ * TODO: Resize the framebuffer if the configuration of groups is changed.
  */
 #ifndef FRAMEBUFFER_H
 #define FRAMEBUFFER_H
@@ -22,6 +24,8 @@
 class DataStore;
 
 class Framebuffer {
+	friend class EffectRunner;
+
 	public:
 		Framebuffer(DataStore *store, INIReader *reader);
 		~Framebuffer();

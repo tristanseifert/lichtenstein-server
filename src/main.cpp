@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
 	runner = new EffectRunner(store, configReader);
 
 	// XXX: Test the routine code
-	/*vector<DataStore::Routine *> routines = store->getAllRoutines();
+	/*vector<DbRoutine *> routines = store->getAllRoutines();
 	DataStore::Routine *r = routines[0];
 	LOG(INFO) << "Found routines: " << *r;
 
@@ -121,6 +121,29 @@ int main(int argc, char *argv[]) {
 	LOG(INFO) << "Average script execution time: " << rout->getAvgExecutionTime() << "µS";
 	*/
 
+	// XXX: Test the effect evaluation code
+	vector<DbGroup *> groups = store->getAllGroups();
+	vector<DbRoutine *> routines = store->getAllRoutines();
+
+	auto mapper = runner->getMapper();
+
+	for(int i = 0; i < groups.size(); i++) {
+		DbGroup *dbG = groups[i];
+
+		unsigned int routineIndex = i;
+
+		if(routineIndex >= routines.size()) {
+			routineIndex = (routines.size() - 1);
+		}
+		DbRoutine *dbR = routines[routineIndex];
+
+		// create the output group and add the mapping
+		OutputMapper::OutputGroup *g = new OutputMapper::OutputGroup(dbG);
+		Routine *r = new Routine(dbR);
+
+		mapper->addMapping(g, r);
+	}
+
 	// wait for a signal
 	while(keepRunning) {
 		pause();
@@ -136,7 +159,7 @@ int main(int argc, char *argv[]) {
 
 	delete runner;
 
-	// ensure the database is commited to disk
+	// delete the datastore last
 	delete store;
 }
 
