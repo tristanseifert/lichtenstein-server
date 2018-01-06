@@ -16,7 +16,7 @@ using json = nlohmann::json;
 // the time but basically fuck computers and i need a new career hahahahaha
 #define USE_LOCKING 1
 /// set to enable logging when the locks are accessed
-#define LOCKING_LOGS 1
+static const bool lockLogging = false;
 
 #if USE_LOCKING
 	// gets the thread name into the "threadName" variable
@@ -34,7 +34,7 @@ using json = nlohmann::json;
 			lk = unique_lock<mutex>(this->dbLock); \
 			{ \
 				LOCK_GET_THREAD_NAME(); \
-				VLOG(2) << "Acquired db lock from thread: " << threadName; \
+				if(lockLogging) VLOG(2) << "Acquired db lock from thread: " << threadName; \
 		} \
 	}
 
@@ -42,7 +42,7 @@ using json = nlohmann::json;
 	#define LOCK_END()  if(LOCK_IS_ENABLED()) { \
 		lk.unlock(); { \
 			LOCK_GET_THREAD_NAME(); \
-			VLOG(2) << "Released db lock from thread: " << threadName; \
+			if(lockLogging) VLOG(2) << "Released db lock from thread: " << threadName; \
 		} \
 	}
 #else

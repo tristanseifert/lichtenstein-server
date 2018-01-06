@@ -40,16 +40,36 @@ class EffectRunner {
 		friend void CoordinatorEntryPoint(void *ctx);
 
 		void setUpCoordinatorThread();
-
 		void coordinatorThreadEntry();
-		void coordinatorRunEffects();
-		void coordinatorDoConversions();
-
-		void runEffect(OutputMapper::OutputGroup *group, Routine *routine);
-		void convertPixelData(DbChannel *channel);
 
 		std::thread *coordinator;
 		std::atomic_bool coordinatorRunning;
+
+		double avgSleepTime = 0;
+		double avgSleepTimeSamples = 0;
+
+		std::atomic_int frameCounter;
+
+		std::mutex effectLock;
+
+	// effect running
+	private:
+		void coordinatorRunEffects();
+		void runEffect(OutputMapper::OutputGroup *group, Routine *routine);
+
+		std::condition_variable effectsCv;
+		std::atomic_int outstandingEffects;
+
+	// pixel conversion
+	private:
+		void coordinatorDoConversions();
+		void convertPixelData(DbChannel *channel);
+
+		void _convertToRgb(DbChannel *channel);
+		void _convertToRgbw(DbChannel *channel);
+
+		std::condition_variable conversionCv;
+		std::atomic_int outstandingConversions;
 
 	// nanosleep inaccuracy compensation
 	private:
@@ -74,28 +94,14 @@ class EffectRunner {
 
 	// channel handling
 	public:
-		void updateChannelBuffers();
+		void updateChannels();
 
-		std::atomic_bool channelBuffersNeedUpdate;
+		std::atomic_bool channelUpdatePending;
 
 		std::vector<DbChannel *> outputChannels;
 		std::map<DbChannel *, uint8_t *> channelBuffers;
 
 		std::mutex channelBufferMutex;
-
-	private:
-		double avgSleepTime = 0;
-		double avgSleepTimeSamples = 0;
-
-		std::atomic_int frameCounter;
-
-		std::mutex effectLock;
-
-		std::condition_variable effectsCv;
-		std::atomic_uint outstandingEffects;
-
-		std::condition_variable conversionCv;
-		std::atomic_uint outstandingConversions;
 
 	private:
 		DataStore *store;

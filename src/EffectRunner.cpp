@@ -5,6 +5,8 @@
 #include "Framebuffer.h"
 #include "Routine.h"
 
+#include "HSIPixel.h"
+
 #include <glog/logging.h>
 
 #include <thread>
@@ -42,19 +44,60 @@ EffectRunner::EffectRunner(DataStore *store, INIReader *config) {
  * Cleans up any resources we allocated and tear down the worker threads.
  */
 EffectRunner::~EffectRunner() {
-	// get rid of our worker thread pool
-	delete this->workPool;
+	VLOG(1) << "Deallocating effect runner: stopping thread pool";
+
+	// stop the worker thread pool, but don't execute the rest of the queue
+	this->workPool->stop(false);
+
+	/*
+	 * If the server is terminated while there are still outstanding conversions
+	 * or effects, but before we've pushed them all, we could deadlock because
+	 * the coordinator expects them all to complete. So, trick the coordinator
+	 * into thinking that all conversions are done, let it do its thing (which
+	 * would perhaps be some additional conversions we'll throw away) and then
+	 * it'll return and exit by itself.
+	 *
+	 * This lets us save some complexity by avoiding additional locking around
+	 * pushing functions onto the worker pool and checking whether the pool has
+	 * been deallocated.
+	 *
+	 * It _would_ be possible to do this with signals, but then we'd have to add
+	 * a signal handler and complicate the code some more.
+	 */
+	this->coordinatorRunning = false;
+
+	this->outstandingConversions = 0;
+	this->outstandingEffects = 0;
+
+	this->effectLock.unlock();
+	this->effectsCv.notify_one();
+
+    this->effectLock.unlock();
+    this->conversionCv.notify_one();
 
 	// Wait for the coordinator to finish
-	this->coordinatorRunning = false;
+	VLOG(1) << "Waiting for coordinator to terminate";
 	this->coordinator->join();
 
 	delete this->coordinator;
 	VLOG(1) << "Deleted coordinator";
 
+	// get rid of our worker thread pool.
+	delete this->workPool;
+
 	// delete framebuffer, mapper
 	delete this->fb;
 	delete this->mapper;
+
+	// deallocate buffers and the channels
+	for(auto channel : this->outputChannels) {
+		delete channel;
+	}
+
+	// delete all buffers
+	for(auto const& [channel, buffer] : this->channelBuffers) {
+		delete[] buffer;
+	}
 }
 
 /**
@@ -129,7 +172,7 @@ void EffectRunner::coordinatorThreadEntry() {
 	sleep.tv_sec = 0;
 
 	// fetch all output channels and set up buffers
-	this->updateChannelBuffers();
+	this->updateChannels();
 
 	// starting time
 	auto start = chrono::high_resolution_clock::now();
@@ -138,19 +181,25 @@ void EffectRunner::coordinatorThreadEntry() {
 	// run as long as the main thread is still alive
 	while(this->coordinatorRunning) {
 		// shall we update the channel buffers?
-		if(this->channelBuffersNeedUpdate == true) {
-			this->updateChannelBuffers();
+		if(this->channelUpdatePending == true) {
+			this->updateChannels();
 		}
 
 		// check if we have effects to run
 		if(this->mapper->outputMap.empty() == false) {
 			// run the effect routines
-			if(this->coordinatorRunning == false) return;
+			if(this->coordinatorRunning == false) goto cleanup;
 			this->coordinatorRunEffects();
 
+			// acquire the buffer lock (so they don't get modified)
+	        unique_lock<mutex> lk(this->channelBufferMutex);
+
 			// do the framebuffer conversions
-			if(this->coordinatorRunning == false) return;
+			if(this->coordinatorRunning == false) goto cleanup;
 			this->coordinatorDoConversions();
+
+			// explicitly unlock it (good practice; it'll get unlocked in the dtor)
+			lk.unlock();
 		}
 
 		// determine how long it took to do all that, sleep for the remainder
@@ -193,19 +242,29 @@ void EffectRunner::coordinatorThreadEntry() {
 		LOG_EVERY_N(INFO, 60) << "Actual fps: " << this->actualFps;
 	}
 
+	cleanup: ;
+
 	// cleanup
 	LOG(INFO) << "Shutting down coordinator thread";
 
+	// delete all channels
 	for(auto channel : this->outputChannels) {
 		delete channel;
 	}
 	this->outputChannels.clear();
+
+	// delete all buffers
+	for(auto const& [channel, buffer] : this->channelBuffers) {
+		delete[] buffer;
+	}
+
+	this->channelBuffers.clear();
 }
 
 /**
  * Fetches all channels and allocates buffers for them.
  */
-void EffectRunner::updateChannelBuffers() {
+void EffectRunner::updateChannels() {
 	// attempt to acquire the lock
     unique_lock<mutex> lk(this->channelBufferMutex);
 
@@ -246,7 +305,7 @@ void EffectRunner::updateChannelBuffers() {
 	}
 
 	// reset the update flag
-	this->channelBuffersNeedUpdate = false;
+	this->channelUpdatePending = false;
 
 	// unlock the lock
 	lk.unlock();
@@ -316,11 +375,9 @@ void EffectRunner::coordinatorRunEffects() {
 	{
         unique_lock<mutex> lk(this->effectLock);
         this->effectsCv.wait(lk, [this]{
-			return (this->outstandingEffects == 0);
+			return (this->outstandingEffects <= 0);
 		});
 	}
-
-	// allow the devices to output the data
 
 	// advance frame counter
 	this->frameCounter++;
@@ -353,7 +410,7 @@ void EffectRunner::coordinatorDoConversions() {
 	{
 		unique_lock<mutex> lk(this->effectLock);
 		this->conversionCv.wait(lk, [this]{
-			return (this->outstandingConversions == 0);
+			return (this->outstandingConversions <= 0);
 		});
 	}
 }
@@ -383,7 +440,16 @@ void EffectRunner::runEffect(OutputMapper::OutputGroup *group, Routine *routine)
  * channel.
  */
 void EffectRunner::convertPixelData(DbChannel *channel) {
+	// actually do the conversion lmao
+	switch(channel->format) {
+		case DbChannel::kPixelFormatRGB:
+			this->_convertToRgb(channel);
+			break;
 
+		case DbChannel::kPixelFormatRGBW:
+			this->_convertToRgbw(channel);
+			break;
+	}
 
 	// decrement the outstanding conversions
 	this->outstandingConversions--;
@@ -391,4 +457,34 @@ void EffectRunner::convertPixelData(DbChannel *channel) {
 	// notify the coordinator
 	this->effectLock.unlock();
 	this->conversionCv.notify_one();
+}
+
+/**
+ * Converts the channel's data to RGB pixels.
+ */
+void EffectRunner::_convertToRgb(DbChannel *channel) {
+	HSIPixel *fbPtr = this->fb->data.data();
+
+	uint8_t *channelBuffer = this->channelBuffers[channel];
+	CHECK(channelBuffer != nullptr) << "Don't have output buffer for channel " << channel;
+
+	for(int i = 0, j = channel->fbOffset; i < channel->numPixels; i++, j++) {
+		fbPtr[j].convertToRGB(channelBuffer);
+		channelBuffer += 3;
+	}
+}
+
+/**
+ * Converts the channel's data to RGBW pixels.
+ */
+void EffectRunner::_convertToRgbw(DbChannel *channel) {
+	HSIPixel *fbPtr = this->fb->data.data();
+
+	uint8_t *channelBuffer = this->channelBuffers[channel];
+	CHECK(channelBuffer != nullptr) << "Don't have output buffer for channel " << channel;
+
+	for(int i = 0, j = channel->fbOffset; i < channel->numPixels; i++, j++) {
+		fbPtr[j].convertToRGBW(channelBuffer);
+		channelBuffer += 4;
+	}
 }

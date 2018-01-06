@@ -391,6 +391,9 @@ void Routine::_setUpAngelscriptGlobals() {
 void Routine::execute(int frame) {
 	int err;
 
+	// acquire the execution lock
+	unique_lock<mutex> lk(this->executionLock);
+
 	// start of execution
 	this->_scriptExecStart();
 
@@ -419,7 +422,8 @@ void Routine::execute(int frame) {
 	// end of execution time
 	this->_scriptExecEnd();
 
-	// copy the buffers
+	// release the lock and copy buffers
+	lk.unlock();
 	this->_copyASBufferArrayData();
 }
 

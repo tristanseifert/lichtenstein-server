@@ -82,6 +82,11 @@ class DbNode {
 	friend std::ostream &operator<<(std::ostream& strm, const DbNode& obj);
 };
 
+inline std::ostream &operator<<(std::ostream& strm, const DbNode *obj) {
+	strm << *obj;
+	return strm;
+}
+
 #pragma mark - JSON Serialization
 /**
  * Converts a node object to a json representation.

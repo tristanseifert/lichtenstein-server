@@ -22,7 +22,7 @@ ostream &operator<<(ostream& strm, const HSIPixel& obj) {
  * More info on this conversion algorithm can be found at
  * http://blog.saikoled.com/post/43693602826
  */
-void convertPixelToRGB(const HSIPixel &in, uint8_t *out) {
+void HSIPixel::convertPixelToRGB(const HSIPixel &in, uint8_t *out) {
 	uint8_t r, g, b;
 
 	// get input values
@@ -67,7 +67,7 @@ void convertPixelToRGB(const HSIPixel &in, uint8_t *out) {
  * More info on this conversion algorithm can be found at
  * http://blog.saikoled.com/post/44677718712
  */
-void convertPixelToRGBW(const HSIPixel &in, uint8_t *out) {
+void HSIPixel::convertPixelToRGBW(const HSIPixel &in, uint8_t *out) {
 	uint8_t r, g, b, w;
 	double cos_h, cos_1047_h;
 

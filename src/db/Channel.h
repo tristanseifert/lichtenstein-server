@@ -29,7 +29,7 @@ class DbChannel {
 
 	private:
 		int id = 0;
-		int nodeId = 0;
+		int nodeId = -1;
 
 	public:
 		/// which one of the node's channel numbers this corresponds to
@@ -72,6 +72,11 @@ class DbChannel {
 	friend bool operator< (const DbChannel& lhs, const DbChannel& rhs);
 	friend std::ostream &operator<<(std::ostream& strm, const DbChannel& obj);
 };
+
+inline std::ostream &operator<<(std::ostream& strm, const DbChannel *obj) {
+	strm << *obj;
+	return strm;
+}
 
 #pragma mark - JSON Serialization
 /**

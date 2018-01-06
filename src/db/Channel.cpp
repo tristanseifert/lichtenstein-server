@@ -257,12 +257,12 @@ void DbChannel::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 		}
 		// is it the node column?
 		else if(colName == "node") {
-			this->nodeId = db->sqlGetColumnInt(statement, i);
+			// get the node id; compare it against what we've stored
+			int nodeId = db->sqlGetColumnInt(statement, i);
 
-			// fetch the appropriate routine from the database
-			if(this->node == nullptr || this->node->id != this->nodeId) {
-				VLOG(1) << "node is NULL or ID doesn't match, fetching again";
-
+			// it doesn't match, so update it and fetch the node
+			if(nodeId != this->nodeId) {
+				this->nodeId = nodeId;
 				this->node = db->findNodeWithId(this->nodeId);
 			}
 		}

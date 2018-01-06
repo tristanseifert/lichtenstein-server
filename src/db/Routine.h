@@ -58,6 +58,11 @@ class DbRoutine {
 	friend std::ostream &operator<<(std::ostream& strm, const DbRoutine& obj);
 };
 
+inline std::ostream &operator<<(std::ostream& strm, const DbRoutine *obj) {
+	strm << *obj;
+	return strm;
+}
+
 #pragma mark - JSON Serialization
 /**
  * Converts a routine object to a json representation.

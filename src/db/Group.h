@@ -63,6 +63,11 @@ class DbGroup {
 	friend std::ostream &operator<<(std::ostream& strm, const DbGroup& obj);
 };
 
+inline std::ostream &operator<<(std::ostream& strm, const DbGroup *obj) {
+	strm << *obj;
+	return strm;
+}
+
 #pragma mark - JSON Serialization
 /**
  * Converts a group object to a json representation.

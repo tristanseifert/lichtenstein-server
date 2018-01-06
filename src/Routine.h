@@ -12,6 +12,7 @@
 #include <string>
 #include <stdexcept>
 #include <chrono>
+#include <mutex>
 
 #include <angelscript.h>
 
@@ -114,6 +115,8 @@ class Routine {
 		CScriptDictionary *asParams = nullptr;
 
 		int frameCounter = 0;
+
+		std::mutex executionLock;
 
 	private:
 		double avgExecutionTime = 0;
