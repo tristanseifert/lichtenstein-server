@@ -12,7 +12,7 @@
 #include <signal.h>
 
 #include "CommandServer.h"
-#include "NodeDiscovery.h"
+#include "ProtocolHandler.h"
 #include "DataStore.h"
 #include "EffectRunner.h"
 #include "Routine.h"
@@ -27,8 +27,7 @@ static DataStore *store = nullptr;
 
 // various components of the server
 static CommandServer *cs = nullptr;
-static NodeDiscovery *nd = nullptr;
-
+static ProtocolHandler *protocol = nullptr;
 static EffectRunner *runner = nullptr;
 
 // define flags
@@ -95,11 +94,8 @@ int main(int argc, char *argv[]) {
 	cs = new CommandServer(store, configReader);
 	cs->start();
 
-	// star the node discovery
-	nd = new NodeDiscovery(store, configReader);
-	nd->start();
-
 	// start the protocol parser (binary lichtenstein protocol)
+	protocol = new ProtocolHandler(store, configReader);
 
 	// start the effect evaluator
 	runner = new EffectRunner(store, configReader);
@@ -158,11 +154,10 @@ int main(int argc, char *argv[]) {
 
 	// stop the servers
 	cs->stop();
-	nd->stop();
 
 	// clean up
 	delete cs;
-	delete nd;
+	delete protocol;
 
 	delete runner;
 

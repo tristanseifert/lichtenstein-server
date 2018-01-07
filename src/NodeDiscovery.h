@@ -12,30 +12,22 @@
 class DataStore;
 
 class NodeDiscovery {
+	friend class ProtocolHandler;
+
 	public:
-		NodeDiscovery(DataStore *store, INIReader *reader);
+		NodeDiscovery(DataStore *store, INIReader *reader, int sock);
 		~NodeDiscovery();
 
-		void start();
-		void stop();
-
 	private:
-		void threadEntry();
-
-		void createSocket();
+		void leaveMulticastGroup();
+		void setUpMulticast();
 
 		void handleMulticastPacket(void *data, size_t length);
 		void processNodeAnnouncement(void *data, size_t length);
 
 	private:
-		friend void NodeDiscoveryEntry(void *ctx);
-
-	private:
 		DataStore *store;
 		INIReader *config;
-
-		std::thread *worker = nullptr;
-		std::atomic_bool run;
 
 		int sock = 0;
 

@@ -17,151 +17,68 @@
 
 using namespace std;
 
-const char *kLichtensteinMulticastAddress = "239.42.0.69";
-
-/**
- * Main server entry point
- */
-void NodeDiscoveryEntry(void *ctx) {
-#ifdef __APPLE__
-	pthread_setname_np("Multicast Discovery");
-#else
-	pthread_setname_np(pthread_self(), "Multicast Discovery");
-#endif
-
-	NodeDiscovery *srv = static_cast<NodeDiscovery *>(ctx);
-	srv->threadEntry();
-}
-
 /**
  * Sets up the node discovery server.
  */
-NodeDiscovery::NodeDiscovery(DataStore *store, INIReader *reader) {
+NodeDiscovery::NodeDiscovery(DataStore *store, INIReader *reader, int sock) {
 	this->store = store;
 	this->config = reader;
+
+	// copy the socket and join multicast group
+	this->sock = sock;
+	this->setUpMulticast();
 }
 
 /**
- * Deallocates some structures that were created.
+ * De-associates us from the multicast group.
  */
 NodeDiscovery::~NodeDiscovery() {
-	delete this->worker;
+	this->leaveMulticastGroup();
 }
 
 /**
- * Starts the multicast receiver thread.
+ * Removes us from the multicast group.
  */
-void NodeDiscovery::start() {
-	this->run = true;
-
-	LOG(INFO) << "Starting multicast receiver thread";
-	this->worker = new thread(NodeDiscoveryEntry, this);
-}
-
-/**
- * Prepares the server to stop. This closes down the listening socket and kills
- * the thread.
- */
-void NodeDiscovery::stop() {
+void NodeDiscovery::leaveMulticastGroup() {
 	int err = 0;
+	struct ip_mreq mreq;
 
 	LOG(INFO) << "Shutting down multicast receiver";
 
-	// signal for the thread to stop, and force the socket to close
-	this->run = false;
+	// get the port and IP address used for multicast
+	string multiAddress = this->config->Get("server", "multicastGroup", "239.42.0.69");
+	string address = this->config->Get("server", "listen", "0.0.0.0");
+
+	err = inet_pton(AF_INET, multiAddress.c_str(), &mreq.imr_multiaddr.s_addr);
+	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
+
+	err = inet_pton(AF_INET, address.c_str(), &mreq.imr_interface.s_addr);
+	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
 
 	// request to drop the multicast group
-	struct ip_mreq mreq;
-	mreq.imr_multiaddr.s_addr = inet_addr(kLichtensteinMulticastAddress);
-	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-
 	err = setsockopt(this->sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
 	PLOG_IF(FATAL, err < 0) << "Couldn't drop multicast group";
-
-	// then close the socket; this terminates the read() call
-	err = close(this->sock);
-	LOG_IF(ERROR, err != 0) << "Couldn't close multicast socket: " << strerror(errno);
-
-	// wait for the thread to terminate
-	this->worker->join();
 }
 
 /**
- * Entry point for the multicast discovery thread.
+ * Joins the multicast group on the existing socket.
  */
-void NodeDiscovery::threadEntry() {
-	int err = 0, rsz;
-
-	// create the socket
-	this->createSocket();
-
-	// allocate the read buffer
-	char *buffer = new char[kClientBufferSz];
-
-	// listen on the socket
-	while(this->run) {
-		// clear the buffer, then read from the socket
-		std::fill(buffer, buffer + kClientBufferSz, 0);
-		rsz = read(this->sock, buffer, kClientBufferSz);
-
-		// if the read size was zero, the connection was closed
-		if(rsz == 0) {
-			LOG(WARNING) << "Connection " << this->sock << " closed by host";
-			break;
-		}
-		// handle error conditions
-		else if(rsz == -1) {
-			// ignore messages if we're shutting down
-			if(this->run == true) {
-				PLOG(WARNING) << "Couldn't read from multicast socket: ";
-				break;
-			}
-		}
-		// otherwise, try to parse the packet
-		else {
-			VLOG(1) << "Received " << rsz << " bytes via multicast";
-			this->handleMulticastPacket(buffer, rsz);
-		}
-	}
-
-	// clean up any resources we allocated
-	LOG(INFO) << "Closing multicast connection";
-
-	delete[] buffer;
-}
-
-/**
- * Creates the multicast socket.
- */
-void NodeDiscovery::createSocket() {
+void NodeDiscovery::setUpMulticast() {
 	int err = 0;
-	struct sockaddr_in addr;
-	int nbytes, addrlen;
 	struct ip_mreq mreq;
 
-	// create the socket
-	this->sock = socket(AF_INET, SOCK_DGRAM, 0);
-	PLOG_IF(FATAL, this->sock < 0) << "Couldn't create multicast socket";
+	// get the configuration
+	string multiAddress = this->config->Get("server", "multicastGroup", "239.42.0.69");
+	string address = this->config->Get("server", "listen", "0.0.0.0");
 
-	// allow re-use of the address
-	unsigned int yes = 1;
-	err = setsockopt(this->sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-	PLOG_IF(FATAL, err < 0) << "Couldn't set SO_REUSEADDR";
+	LOG(INFO) << "Joining multicast group " << multiAddress;
 
-	// set up the destination address
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	addr.sin_port = htons(kLichtensteinMulticastPort);
-
-	// bind to this address
-	err = ::bind(this->sock, (struct sockaddr *) &addr, sizeof(addr));
-	PLOG_IF(FATAL, err < 0) << "Couldn't bind multicast socket";
+	err = inet_pton(AF_INET, address.c_str(), &mreq.imr_interface.s_addr);
+	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
+	err = inet_pton(AF_INET, multiAddress.c_str(), &mreq.imr_multiaddr.s_addr);
+	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
 
 	// request to join the multicast group
-	mreq.imr_multiaddr.s_addr = inet_addr(kLichtensteinMulticastAddress);
-	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-
 	err = setsockopt(this->sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
 	PLOG_IF(FATAL, err < 0) << "Couldn't join multicast group";
 }
