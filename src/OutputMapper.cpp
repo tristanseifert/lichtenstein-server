@@ -47,18 +47,36 @@ void OutputMapper::addMapping(OutputMapper::OutputGroup *g, Routine *r) {
 
 	// we've removed any stale mappings so insert it
 	this->outputMap[g] = r;
+
+	VLOG(1) << "Added mapping for " << g;
 }
 
 /**
  * Removes an output mapping for the given group.
  */
 void OutputMapper::removeMappingForGroup(OutputGroup *g) {
+	// search for it in the groups itself
 	auto element = this->outputMap.find(g);
 
 	if(element != this->outputMap.end()) {
 		this->outputMap.erase(element);
 	} else {
-		LOG(INFO) << "Attempted to remove mapping for output group " << g
+		// we couldn't find it, so we have to check the ubergroups
+		for(auto [group, routine] : this->outputMap) {
+			auto ubergroup = dynamic_cast<OutputMapper::OutputUberGroup *>(group);
+
+			if(ubergroup != nullptr) {
+				// does this ubergroup contain this group?
+				if(ubergroup->containsMember(g)) {
+					// yee! so delete it
+					ubergroup->removeMember(g);
+					return;
+				}
+			}
+		}
+
+		// if we drop down here, it didn't exist :(
+		LOG(INFO) << "Attempted to remove mapping for " << g
 				  << ", but that group doesn't have any existing mappings";
 	}
 }
@@ -67,13 +85,37 @@ void OutputMapper::removeMappingForGroup(OutputGroup *g) {
  * Removes output mappings for any and all groups in the given ubergroup.
  */
 void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug) {
+	// check if there's any ubergroups and whether this is a member in it
+	for(auto [group, routine] : this->outputMap) {
+		auto ubergroup = dynamic_cast<OutputMapper::OutputUberGroup *>(group);
+
+		if(ubergroup != nullptr) {
+			// iterate over all groups in the ubergroup we've been passed
+			for(auto group : ug->groups) {
+				// is this in the ubergroup we found?
+				if(ubergroup->containsMember(group)) {
+					// remove it
+					ubergroup->removeMember(group);
+
+					// if the ubergroup is empty, remove its mapping
+					if(ubergroup->numMembers() == 0) {
+						this->removeMappingForGroup(ubergroup);
+					}
+				}
+			}
+		}
+	}
+
 	// iterate over all groups in the ubergroup
 	for(auto group : ug->groups) {
-		// find the group and remove it if it exists
+		// find the group and remove it if it exists by itself
 		auto element = this->outputMap.find(group);
 
 		if(element != this->outputMap.end()) {
 			this->outputMap.erase(element);
+
+			// delete the group
+			delete (*element).first;
 		}
 	}
 }
@@ -86,6 +128,11 @@ OutputMapper::OutputGroup::~OutputGroup() {
 	if(this->buffer) {
 		free(this->buffer);
 		this->buffer = nullptr;
+	}
+
+	// delete the group
+	if(this->group) {
+		delete this->group;
 	}
 }
 
@@ -172,6 +219,12 @@ bool operator>=(const OutputMapper::OutputGroup& lhs, const OutputMapper::Output
 	return !(lhs < rhs);
 }
 
+ostream &operator<<(ostream& strm, const OutputMapper::OutputGroup& obj) {
+	strm << "output group{group = " << obj.group << "}";
+
+	return strm;
+}
+
 #pragma mark - UberGroup Implementation
 /**
  * Creates an Ubergroup with no members.
@@ -198,7 +251,10 @@ OutputMapper::OutputUberGroup::OutputUberGroup(vector<OutputGroup *> &members) :
  * group framebuffer.
  */
 OutputMapper::OutputUberGroup::~OutputUberGroup() {
-
+	// delete all groups
+	for(auto group : this->groups) {
+		delete group;
+	}
 }
 
 /**
@@ -223,6 +279,9 @@ void OutputMapper::OutputUberGroup::removeMember(OutputGroup *group) {
 		for(auto i = this->groups.begin(); i != this->groups.end(); i++) {
 			if(**i == *group) {
 				this->groups.erase(*i);
+
+				// also deallocate the object
+				delete *i;
 			}
 		}
 	}
@@ -268,4 +327,16 @@ int OutputMapper::OutputUberGroup::numPixels() const {
 	}
 
 	return elements;
+}
+
+ostream &operator<<(ostream& strm, const OutputMapper::OutputUberGroup& obj) {
+	strm << "output ubergroup{groups = [";
+
+	for(auto group : obj.groups) {
+		strm << group << ", ";
+	}
+
+	strm << "]}";
+
+	return strm;
 }

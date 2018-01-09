@@ -62,6 +62,8 @@ class OutputMapper {
 
 				friend bool operator==(const OutputGroup& lhs, const OutputGroup& rhs);
 				friend bool operator< (const OutputGroup& lhs, const OutputGroup& rhs);
+
+				friend std::ostream &operator<<(std::ostream& strm, const OutputGroup& obj);
 		};
 
 		class OutputUberGroup: public OutputGroup {
@@ -78,6 +80,10 @@ class OutputMapper {
 
 				virtual void copyIntoFramebuffer(Framebuffer *fb);
 
+				int numMembers() const {
+					return this->groups.size();
+				}
+
 			private:
 				void addMember(OutputGroup *group);
 				void removeMember(OutputGroup *group);
@@ -85,6 +91,10 @@ class OutputMapper {
 
 			private:
 				std::set<OutputGroup *> groups;
+
+
+			// operators
+				friend std::ostream &operator<<(std::ostream& strm, const OutputUberGroup& obj);
 		};
 
 	public:
@@ -109,5 +119,15 @@ class OutputMapper {
 
 		std::map<OutputGroup *, Routine *> outputMap;
 };
+
+// operators
+inline std::ostream &operator<<(std::ostream& strm, const OutputMapper::OutputGroup *obj) {
+	strm << *obj;
+	return strm;
+}
+inline std::ostream &operator<<(std::ostream& strm, const OutputMapper::OutputUberGroup *obj) {
+	strm << *obj;
+	return strm;
+}
 
 #endif

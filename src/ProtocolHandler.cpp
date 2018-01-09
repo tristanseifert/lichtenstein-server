@@ -201,7 +201,7 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 			void *data = CMSG_DATA(cmhdr);
 			struct in_pktinfo *info = static_cast<struct in_pktinfo *>(data);
 
-			// check if it's multicast
+			// check if it's multicast (they're class D, i.e. 1110 MSB)
 			unsigned int addr = ntohl(info->ipi_addr.s_addr);
 			isMulticast = ((addr >> 28) == 0x0E);
 

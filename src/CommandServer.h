@@ -12,14 +12,15 @@
 #include <atomic>
 #include <vector>
 
-#include "INIReader.h"
 #include "json.hpp"
 
 class DataStore;
+class EffectRunner;
+class INIReader;
 
 class CommandServer {
 	public:
-		CommandServer(DataStore *store, INIReader *reader);
+		CommandServer(DataStore *store, INIReader *reader, EffectRunner *runner);
 		~CommandServer();
 
 		void start();
@@ -35,15 +36,26 @@ class CommandServer {
 
 		void processClientRequest(nlohmann::json &j, int fd);
 
-		void clientRequestStatus(nlohmann::json &response);
-		void clientRequestListNodes(nlohmann::json &response);
-		void clientRequestListGroups(nlohmann::json &response);
+		void clientRequestStatus(nlohmann::json &response, nlohmann::json &request);
+		void clientRequestListNodes(nlohmann::json &response, nlohmann::json &request);
+		void clientRequestListGroups(nlohmann::json &response, nlohmann::json &request);
+
+		void clientRequestAddMapping(nlohmann::json &response, nlohmann::json &request);
+		void clientRequestRemoveMapping(nlohmann::json &response, nlohmann::json &request);
 
 	private:
 		enum MessageType {
 			kMessageStatus = 0,
 			kMessageGetNodes = 1,
 			kMessageGetGroups = 2,
+			kMessageAddMapping = 3,
+			kMessageRemoveMapping = 4
+		};
+
+		enum Error {
+			kErrorSyscallError = 1000,
+			kErrorInvalidRoutineId,
+			kErrorInvalidGroupId,
 		};
 
 	private:
@@ -61,6 +73,7 @@ class CommandServer {
 	private:
 		DataStore *store;
 		INIReader *config;
+		EffectRunner *runner;
 
 		std::string socketPath;
 		std::thread *worker = nullptr;

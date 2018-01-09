@@ -1,11 +1,16 @@
 #include "CommandServer.h"
 
 #include "DataStore.h"
+#include "Routine.h"
+#include "EffectRunner.h"
+#include "OutputMapper.h"
 
 #include "json.hpp"
+#include "INIReader.h"
 #include <glog/logging.h>
 
 #include <thread>
+#include <sstream>
 
 #include <cstring>
 #include <unistd.h>
@@ -53,9 +58,10 @@ void CommandClientEntry(void *ctx) {
  * Initializes the command server. This creates some internal structures and
  * prepares for the thread to start.
  */
-CommandServer::CommandServer(DataStore *store, INIReader *reader) {
+CommandServer::CommandServer(DataStore *store, INIReader *reader, EffectRunner *runner) {
 	this->config = reader;
 	this->store = store;
+	this->runner = runner;
 
 	// get the path of the socket
 	this->socketPath = this->config->Get("command", "socketPath", "");
@@ -320,15 +326,22 @@ void CommandServer::processClientRequest(json &j, int fd) {
 
 	switch(msgType) {
 		case kMessageStatus:
-			this->clientRequestStatus(response);
+			this->clientRequestStatus(response, j);
 			break;
 
 		case kMessageGetNodes:
-			this->clientRequestListNodes(response);
+			this->clientRequestListNodes(response, j);
 			break;
 
 		case kMessageGetGroups:
-			this->clientRequestListGroups(response);
+			this->clientRequestListGroups(response, j);
+			break;
+
+		case kMessageAddMapping:
+			this->clientRequestAddMapping(response, j);
+			break;
+		case kMessageRemoveMapping:
+			this->clientRequestRemoveMapping(response, j);
 			break;
 	}
 
@@ -361,7 +374,7 @@ void CommandServer::processClientRequest(json &j, int fd) {
  * Processes the status request. This simply builds the response, and sends it
  * over the wire.
  */
-void CommandServer::clientRequestStatus(json &response) {
+void CommandServer::clientRequestStatus(json &response, json &request) {
 	int err = 0;
 
 	// get loadavg
@@ -376,7 +389,8 @@ void CommandServer::clientRequestStatus(json &response) {
 
 	if(err != 0) {
 		PLOG(ERROR) << "Couldn't get resource usage: ";
-		response["status"] = errno;
+		response["status"] = kErrorSyscallError;
+		response["error"] = string(strerror(errno));
 	} else {
 		response["status"] = 0;
 	}
@@ -393,7 +407,7 @@ void CommandServer::clientRequestStatus(json &response) {
 /**
  * Returns a listing of all nodes that are known to the server.
  */
-void CommandServer::clientRequestListNodes(json &response) {
+void CommandServer::clientRequestListNodes(json &response, json &request) {
 	response["status"] = 0;
 
 	// iterate over all nodes and insert them
@@ -411,7 +425,7 @@ void CommandServer::clientRequestListNodes(json &response) {
 /**
  * Returns a listing of all groups known to the server.
  */
-void CommandServer::clientRequestListGroups(nlohmann::json &response) {
+void CommandServer::clientRequestListGroups(nlohmann::json &response, json &request) {
 	response["status"] = 0;
 
 	// iterate over all groups and insert them
@@ -424,4 +438,113 @@ void CommandServer::clientRequestListGroups(nlohmann::json &response) {
 		// delete the groups in the vector; they're temporary
 		delete group;
 	}
+}
+
+/**
+ * Adds a mapping between one or more groups (creating an ubergroup if required)
+ * and a specified effect routine. An optional parameter array may be passed to
+ * the routine.
+ */
+void CommandServer::clientRequestAddMapping(json &response, json &request) {
+	// fetch the routine
+	int routineId = request["routine"]["id"];
+	DbRoutine *dbRoutine = this->store->findRoutineWithId(routineId);
+
+	if(dbRoutine == nullptr) {
+		response["status"] = kErrorInvalidRoutineId;
+		response["error"] = "Couldn't find routine with the specified ID";
+		response["id"] = routineId;
+
+		return;
+	}
+
+	// get the parameters as well
+	map<string, double> params = request["routine"]["params"];
+
+	// get each of the groups
+	vector<DbGroup *> groups;
+
+	for(int id : request["groups"]) {
+		DbGroup *group = this->store->findGroupWithId(id);
+
+		// couldn't find the group
+		if(group == nullptr) {
+			response["status"] = kErrorInvalidGroupId;
+			response["id"] = id;
+
+			stringstream s;
+			s << "Couldn't find group with id " << id;
+			response["error"] = s.str();
+
+			return;
+		}
+
+		groups.push_back(group);
+	}
+
+	// add the mapping
+	OutputMapper *mapper = this->runner->getMapper();
+	Routine *routine = new Routine(dbRoutine, params);
+
+	if(groups.size() == 1) {
+		// we've got a single group so add it directly
+		auto *og = new OutputMapper::OutputGroup(groups[0]);
+		mapper->addMapping(og, routine);
+	} else {
+		// create output groups for each group
+		vector<OutputMapper::OutputGroup *> outputGroups;
+
+		for(auto group : groups) {
+			outputGroups.push_back(new OutputMapper::OutputGroup(group));
+		}
+
+		// then create an ubergroup and add that
+		auto *ug = new OutputMapper::OutputUberGroup(outputGroups);
+		mapper->addMapping(ug, routine);
+	}
+
+	// if we get down here, there probably weren't any issues
+	response["status"] = 0;
+}
+
+/**
+ * Removes a mapping for the given group(s). If any of the given groups are in
+ * an ubergroup, they're removed from that group, with the mapping being deleted
+ * if that leaves an empty ubergroup.
+ */
+void CommandServer::clientRequestRemoveMapping(json &response, json &request) {
+	// get all of the groups
+	vector<DbGroup *> groups;
+
+	for(int id : request["groups"]) {
+		DbGroup *group = this->store->findGroupWithId(id);
+
+		// couldn't find the group
+		if(group == nullptr) {
+			response["status"] = kErrorInvalidGroupId;
+			response["id"] = id;
+
+			stringstream s;
+			s << "Couldn't find group with id " << id;
+			response["error"] = s.str();
+
+			return;
+		}
+
+		groups.push_back(group);
+	}
+
+	// for each group, request it be removed
+	OutputMapper *mapper = this->runner->getMapper();
+
+	for(auto group : groups) {
+		// delete the mapping
+		auto *og = new OutputMapper::OutputGroup(group);
+		mapper->removeMappingForGroup(og);
+
+		delete og;
+	}
+
+	// if we get down here, there probably weren't any issues
+	response["status"] = 0;
 }
