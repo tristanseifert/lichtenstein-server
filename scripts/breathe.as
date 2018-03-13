@@ -1,8 +1,8 @@
 /**
- * A simple "breathing" effect, akin to the power light on Apple computers in
+ * A simple breathing effect, akin to the power light on Apple computers in
  * sleep mode. The effect can be customized with several properties:
  *
- * - stepSize: How "fast" the effect runs. A good starting point is 0.01.
+ * - stepSize: How fast the effect runs. A good starting point is 0.01.
  * - maxIntensity: The maximum value assigned to intensity.
  * - hue: Hue of the pixels.
  * - saturation: Saturation of the pixels.

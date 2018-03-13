@@ -374,11 +374,12 @@ void Routine::_setUpAngelscriptGlobals() {
 
 	// set up a dictionary to hold properties
 	this->asParams = CScriptDictionary::Create(this->engine);
+	CHECK(this->asParams != nullptr) << "Couldn't create dictionary";
 
-	err = this->engine->RegisterGlobalProperty("dictionary @properties", &this->asBuffer);
+	err = this->engine->RegisterGlobalProperty("dictionary @properties", &this->asParams);
 	CHECK(err >= 0) << "Couldn't register properties global: " << err;
 
-	// copy all the properties from the params map
+	// copy all the properties to the params map
 	for(auto const& [key, val] : this->params) {
 		this->asParams->Set(key, val);
 	}
@@ -407,6 +408,7 @@ void Routine::execute(int frame) {
 	err = this->scriptCtx->Execute();
 
 	if(err != asEXECUTION_FINISHED) {
+		// handle exceptions
 		if(err == asEXECUTION_EXCEPTION) {
 			// get line number
 			int line, col;

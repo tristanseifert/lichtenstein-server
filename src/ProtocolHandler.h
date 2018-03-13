@@ -9,12 +9,14 @@
 #include <atomic>
 #include <vector>
 #include <tuple>
+#include <chrono>
 
 class DataStore;
 class INIReader;
 
 class NodeDiscovery;
 class DbNode;
+class DbChannel;
 
 class ProtocolHandler {
 	public:
@@ -38,8 +40,11 @@ class ProtocolHandler {
 	public:
 		void adoptNode(DbNode *node);
 
+		void sendDataToNode(DbChannel *channel, void *data, size_t numPixels, bool isRGBW);
+
 	private:
 		std::vector<std::tuple<uint32_t, DbNode *>> pendingAdoptions;
+		std::vector<std::tuple<uint32_t, DbNode *, std::chrono::time_point<std::chrono::high_resolution_clock>>> pendingFBDataWrites;
 
 	private:
 		DataStore *store;

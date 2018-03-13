@@ -1,5 +1,6 @@
 #include "EffectRunner.h"
 
+#include "ProtocolHandler.h"
 #include "DataStore.h"
 #include "OutputMapper.h"
 #include "Framebuffer.h"
@@ -17,7 +18,7 @@
 #include <ctime>
 
 // log FPS counters
-#define LOG_FPS							0
+#define LOG_FPS							1
 
 using namespace std;
 
@@ -25,9 +26,10 @@ using namespace std;
  * Initializes the effect runner, worker threads, and the framebuffer and output
  * mapper.
  */
-EffectRunner::EffectRunner(DataStore *store, INIReader *config) {
+EffectRunner::EffectRunner(DataStore *store, INIReader *config, ProtocolHandler *proto) {
 	this->config = config;
 	this->store = store;
+	this->proto = proto;
 
 	// allocate the framebuffer
 	this->fb = new Framebuffer(store, config);
@@ -201,6 +203,10 @@ void EffectRunner::coordinatorThreadEntry() {
 			if(this->coordinatorRunning == false) goto cleanup;
 			this->coordinatorDoConversions();
 
+			// send pixel data
+			if(this->coordinatorRunning == false) goto cleanup;
+			this->coordinatorSendData();
+
 			// explicitly unlock it (good practice; it'll get unlocked in the dtor)
 			lk.unlock();
 		}
@@ -316,6 +322,8 @@ void EffectRunner::updateChannels() {
 	lk.unlock();
 }
 
+
+
 /**
  * Calculates the "compensation factor" on the nanosleep() call. This calculates
  * a moving average of the difference between the actual and requested sleep
@@ -361,6 +369,8 @@ void EffectRunner::calculateActualFps() {
 	}
 }
 
+
+
 /**
  * Called whenever we actually have effects to run. This will push each output
  * group's routine onto the thread pool, wait for all of them to finish, then
@@ -373,22 +383,44 @@ void EffectRunner::coordinatorRunEffects() {
 
 	// run each effect
 	for(auto const& [group, routine] : this->mapper->outputMap) {
-		this->workPool->push([this, &group = group, &routine = routine] (int tid) {
+		// this->workPool->push([this, &group = group, &routine = routine] (int tid) {
 			this->runEffect(group, routine);
-		});
+		// });
 	}
 
 	// wait for the effects to complete
-	{
+/*	{
         unique_lock<mutex> lk(this->effectLock);
         this->effectsCv.wait(lk, [this]{
 			return (this->outstandingEffects <= 0);
 		});
 	}
+*/
 
 	// advance frame counter
 	this->frameCounter++;
 }
+
+/**
+ * Runs a single effect.
+ */
+void EffectRunner::runEffect(OutputMapper::OutputGroup *group, Routine *routine) {
+	// do boring effect running stuff
+	group->bindBufferToRoutine(routine);
+	routine->execute(this->frameCounter);
+
+	// copy the framebuffer data out of the group
+	group->copyIntoFramebuffer(this->fb);
+
+	// decrement the outstanding effects
+	this->outstandingEffects--;
+
+	// notify the coordinator
+    this->effectLock.unlock();
+    this->effectsCv.notify_one();
+}
+
+
 
 /**
  * Handles the conversion of each of the effects' outputs. This copies the data
@@ -420,25 +452,6 @@ void EffectRunner::coordinatorDoConversions() {
 			return (this->outstandingConversions <= 0);
 		});
 	}
-}
-
-/**
- * Runs a single effect.
- */
-void EffectRunner::runEffect(OutputMapper::OutputGroup *group, Routine *routine) {
-	// do boring effect running stuff
-	group->bindBufferToRoutine(routine);
-	routine->execute(this->frameCounter);
-
-	// copy the framebuffer data out of the group
-	group->copyIntoFramebuffer(this->fb);
-
-	// decrement the outstanding effects
-	this->outstandingEffects--;
-
-	// notify the coordinator
-    this->effectLock.unlock();
-    this->effectsCv.notify_one();
 }
 
 /**
@@ -494,4 +507,61 @@ void EffectRunner::_convertToRgbw(DbChannel *channel) {
 		fbPtr[j].convertToRGBW(channelBuffer);
 		channelBuffer += 4;
 	}
+}
+
+
+
+/**
+ * Sends pixel data from each framebuffer to the appropriate nodes.
+ */
+void EffectRunner::coordinatorSendData(void) {
+	// set up the condition variable
+	unsigned int outputChannels = this->outputChannels.size();
+	this->outstandingSends = outputChannels;
+
+	// handle the case of having zero configured output channels
+	if(outputChannels == 0) {
+		return;
+	}
+
+	// output each channel's data
+	for(auto channel : this->outputChannels) {
+		this->workPool->push([this, &channel = channel] (int tid) {
+			this->outputPixelData(channel);
+		});
+	}
+
+	// wait for the conversions to complete
+	{
+		unique_lock<mutex> lk(this->effectLock);
+		this->sendingCv.wait(lk, [this]{
+			return (this->outstandingSends <= 0);
+		});
+	}
+}
+
+/**
+ * Sends data for one channel.
+ */
+void EffectRunner::outputPixelData(DbChannel *channel) {
+	// validate that the node is ok
+	if(channel->node == nullptr) {
+		LOG(WARNING) << "Node may not be null!";
+		return;
+	}
+
+	// send the data
+	void *channelBuffer = this->channelBuffers[channel];
+	CHECK(channelBuffer != nullptr) << "Don't have output buffer for channel " << channel;
+
+	size_t numPixels = channel->numPixels;
+	bool isRGBW = (channel->format == DbChannel::kPixelFormatRGBW);
+
+	this->proto->sendDataToNode(channel, channelBuffer, numPixels, isRGBW);
+
+	// decrement the outstanding sends and notify coordinator
+	this->outstandingSends--;
+
+	this->effectLock.unlock();
+	this->sendingCv.notify_one();
 }

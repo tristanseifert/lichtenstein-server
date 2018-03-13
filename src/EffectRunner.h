@@ -22,10 +22,11 @@ class DataStore;
 class Framebuffer;
 class DbChannel;
 class Routine;
+class ProtocolHandler;
 
 class EffectRunner {
 	public:
-		EffectRunner(DataStore *store, INIReader *config);
+		EffectRunner(DataStore *store, INIReader *config, ProtocolHandler *proto);
 		~EffectRunner();
 
 	public:
@@ -71,6 +72,15 @@ class EffectRunner {
 		std::condition_variable conversionCv;
 		std::atomic_int outstandingConversions;
 
+	// data sending
+	private:
+		void coordinatorSendData(void);
+
+		void outputPixelData(DbChannel *channel);
+
+		std::condition_variable sendingCv;
+		std::atomic_int outstandingSends;
+
 	// nanosleep inaccuracy compensation
 	private:
 		double sleepInaccuracy = 0;
@@ -109,6 +119,7 @@ class EffectRunner {
 
 		Framebuffer *fb;
 		OutputMapper *mapper;
+		ProtocolHandler *proto;
 
 		ctpl::thread_pool *workPool;
 };

@@ -2,6 +2,8 @@
 
 #include "NodeDiscovery.h"
 
+#include <chrono>
+
 #include <glog/logging.h>
 #include <pthread/pthread.h>
 
@@ -17,6 +19,7 @@
 
 #include "db/DataStore.h"
 #include "db/Node.h"
+#include "db/Channel.h"
 
 /// packet buffer size
 static const size_t kClientBufferSz = (1024 * 8);
@@ -173,7 +176,7 @@ void ProtocolHandler::threadEntry() {
 		}
 		// otherwise, try to parse the packet
 		else {
-			VLOG(1) << "Received " << rsz << " bytes";
+			VLOG(3) << "Received " << rsz << " bytes";
 			this->handlePacket(buffer, rsz, &msg);
 		}
 	}
@@ -235,7 +238,7 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 		LichtensteinUtils::convertToHostByteOrder(packet, length);
 		lichtenstein_header_t *header = static_cast<lichtenstein_header_t *>(packet);
 
-		VLOG(2) << "Received unicast packet with opcode " << header->opcode;
+		VLOG(3) << "Received unicast packet with opcode " << header->opcode;
 
 		// is it an acknowledgement?
 		if((header->flags & kFlagAck)) {
@@ -270,6 +273,37 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 
 					// otherwise, if we get here, we couldn't find the node
 					LOG(WARNING) << "Received ack for adoption with txn " << txn;
+					break;
+				}
+
+				// is it a framebuffer write acknowledgement?
+				case kOpcodeFramebufferData: {
+					// find the transaction number in the pending writes vector
+					uint32_t txn = header->txn;
+
+					for(size_t i = 0; i < this->pendingFBDataWrites.size(); i++) {
+						// get the tuple
+						auto tuple = this->pendingFBDataWrites[i];
+
+						// does the transaction number match?
+						if(std::get<0>(tuple) == txn) {
+							// compute how long it took to get the acknowledgement
+							DbNode *node = std::get<1>(tuple);
+							auto sent = std::get<2>(tuple);
+
+							auto current = chrono::high_resolution_clock::now();
+							chrono::duration<double, std::milli> millis = (current - sent);
+
+							VLOG_EVERY_N(1, 100) << "Received write ack in " << millis.count() << " ms";
+
+							// remove it from the list
+							this->pendingFBDataWrites.erase(this->pendingFBDataWrites.begin() + i);
+							return;
+						}
+					}
+
+					// otherwise, if we get here, we couldn't find the node
+					LOG(WARNING) << "Received ack for fb write with txn " << txn;
 					break;
 				}
 			}
@@ -336,10 +370,72 @@ void ProtocolHandler::adoptNode(DbNode *node) {
 	sockAddr.sin_port = htons(7420); // TODO: nodes may have different port
 
 	if(sendto(this->sock, data, totalPacketLen, 0, (struct sockaddr *) &sockAddr, sizeof(sockAddr)) < 0) {
-		PLOG_IF(ERROR, errno != 0) << "Couldn't send announcement packet: ";
+		PLOG_IF(ERROR, errno != 0) << "Couldn't send adoption packet: ";
 	} else {
 		// write this node's info into the pending adoptions
 		this->pendingAdoptions.push_back(std::make_tuple(txn, node));
+	}
+
+	// delete memory
+	free(data);
+}
+
+
+/**
+ * Sends pixel data to the node.
+ */
+void ProtocolHandler::sendDataToNode(DbChannel *channel, void *pixelData, size_t numPixels, bool isRGBW) {
+	uint32_t txn;
+	int err;
+	LichtensteinUtils::PacketErrors pErr;
+
+	// allocate buffer for packet
+	size_t totalPacketLen = sizeof(lichtenstein_framebuffer_data_t);
+	totalPacketLen += ((isRGBW ? 4 : 3) * numPixels);
+
+	void *data = malloc(totalPacketLen);
+
+	// clear its memory
+	lichtenstein_framebuffer_data_t *fbPacket = static_cast<lichtenstein_framebuffer_data_t *>(data);
+	memset(data, 0, totalPacketLen);
+
+	// fill in header
+	LichtensteinUtils::populateHeader(&fbPacket->header, kOpcodeFramebufferData);
+	txn = fbPacket->header.txn;
+
+	fbPacket->header.payloadLength = totalPacketLen - sizeof(lichtenstein_header_t);
+
+
+	// write format and channel
+	fbPacket->destChannel = channel->nodeOffset;
+
+	fbPacket->dataFormat = (isRGBW ? kDataFormatRGBW : kDataFormatRGB);
+	fbPacket->dataElements = numPixels;
+
+	size_t numBytesToCopy = ((isRGBW ? 4 : 3) * numPixels);
+	memcpy(&fbPacket->data, pixelData, numBytesToCopy);
+
+	// byteswap, apply checksum
+	err = LichtensteinUtils::convertToNetworkByteOrder(data, totalPacketLen);
+	CHECK(err == 0) << "Couldn't convert byte order: " << err;
+
+	pErr = LichtensteinUtils::applyChecksum(data, totalPacketLen);
+	CHECK(pErr == LichtensteinUtils::kNoError) << "Error applying checksum: " << pErr;
+
+	// send it to the node
+	struct sockaddr_in sockAddr;
+
+	memset(&sockAddr, 0, sizeof(sockAddr));
+	sockAddr.sin_family = AF_INET;
+	sockAddr.sin_addr.s_addr = channel->node->ip;
+	sockAddr.sin_port = htons(7420); // TODO: nodes may have different port
+
+	if(sendto(this->sock, data, totalPacketLen, 0, (struct sockaddr *) &sockAddr, sizeof(sockAddr)) < 0) {
+		PLOG_IF(ERROR, errno != 0) << "Couldn't send FB data packet: ";
+	} else {
+		// write this node's info into the pending  writes buffer
+		auto start = chrono::high_resolution_clock::now();
+		this->pendingFBDataWrites.push_back(std::make_tuple(txn, channel->node, start));
 	}
 
 	// delete memory

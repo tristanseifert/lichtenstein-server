@@ -2,7 +2,7 @@
  * A loadable plugin for Wireshark that can dissect the lichtenstein protocol
  * on-the-wire and display information about it.
  *
- * Build using `clang wireshark_dissector.cpp -lstdc++ -shared -undefined dynamic_lookup -I"/usr/local/include/glib-2.0/" -I"/Users/tristan/Programming/wireshark/" -o wireshark_dissector.so`
+ * Build using `clang wireshark_dissector.cpp -lstdc++ -shared -undefined dynamic_lookup -I"/usr/local/include/glib-2.0/" -I"/Users/tristan/Programming/wireshark/" -o wireshark_dissector.dylib`
  *
  * This code is honestly a piece of shit and _really_ needs to be refactored,
  * but it was written pretty quckly and works, so meh.
@@ -84,8 +84,20 @@ static int dissect_lichtenstein(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "LICT");
     col_clear(pinfo->cinfo,COL_INFO);
-    col_add_fstr(pinfo->cinfo, COL_INFO, "Opcode: %s",
-             val_to_str(packet_type, opcodes, "Unknown (0x%04x)"));
+
+	// get flags
+    guint16 flags = tvb_get_guint16(tvb, 14, ENC_BIG_ENDIAN);
+
+	if((flags & (1 << 13))) {
+	    col_add_fstr(pinfo->cinfo, COL_INFO, "Opcode: %s (ACK)",
+	             val_to_str(packet_type, opcodes, "Unknown (0x%04x)"));
+	} else if((flags & (1 << 12))) {
+	    col_add_fstr(pinfo->cinfo, COL_INFO, "Opcode: %s (NACK)",
+	             val_to_str(packet_type, opcodes, "Unknown (0x%04x)"));
+	} else {
+	    col_add_fstr(pinfo->cinfo, COL_INFO, "Opcode: %s",
+	             val_to_str(packet_type, opcodes, "Unknown (0x%04x)"));
+	}
 
 	// root node
 	proto_item *ti = proto_tree_add_item(tree, proto_lichtenstein, tvb, 0, -1, ENC_NA);

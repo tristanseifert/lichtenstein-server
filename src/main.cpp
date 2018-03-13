@@ -90,15 +90,15 @@ int main(int argc, char *argv[]) {
 	// load the datastore from disk
 	store = new DataStore(configReader);
 
+	// start the protocol parser (binary lichtenstein protocol)
+	protocol = new ProtocolHandler(store, configReader);
+
 	// start the effect evaluator
-	runner = new EffectRunner(store, configReader);
+	runner = new EffectRunner(store, configReader, protocol);
 
 	// start the external command interpreter (JSON socket)
 	cs = new CommandServer(store, configReader, runner);
 	cs->start();
-
-	// start the protocol parser (binary lichtenstein protocol)
-	protocol = new ProtocolHandler(store, configReader);
 
 	// XXX: Test the routine code
 	/*vector<DbRoutine *> routines = store->getAllRoutines();

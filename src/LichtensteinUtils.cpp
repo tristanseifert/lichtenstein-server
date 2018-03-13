@@ -53,6 +53,10 @@ LichtensteinUtils::PacketErrors LichtensteinUtils::validatePacket(void *data, si
 
 /**
  * Adds a checksum to the packet.
+ *
+ * TODO: The CRC code is somehow broken, in that the table is wrong, because the
+ * embedded code (with the 1 byte table) gets a different result than the code
+ * we use that uses the whole table.
  */
 LichtensteinUtils::PacketErrors LichtensteinUtils::applyChecksum(void *data, size_t length) {
 	lichtenstein_header_t *header = static_cast<lichtenstein_header_t *>(data);
@@ -62,9 +66,6 @@ LichtensteinUtils::PacketErrors LichtensteinUtils::applyChecksum(void *data, siz
 		LOG(WARNING) << "attempted to convert a packet smaller than the header";
 		return kPacketTooSmall;
 	}
-
-	// extract some header info
-	size_t payloadLen = __builtin_bswap32(header->payloadLength);
 
 	// get CRC offset into the packet
 	size_t offset = offsetof(lichtenstein_header_t, opcode);

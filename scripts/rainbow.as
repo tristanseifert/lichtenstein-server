@@ -1,7 +1,7 @@
 /**
  * Renders a moving rainbow. Two properties are available:
  *
- * - size: Determines how many times the rainbow "repeats". Default 1.
+ * - size: Determines how many times the rainbow repeats. Default 1.
  * - speed: How many degrees the hue changes between frames. Default 1.
  */
 void effectStep() {
