@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	addr.sin_port = htons(kLichtensteinMulticastPort);
 
 	// test data
-	static const uint8_t testMac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00};
+	static const uint8_t testMac[6] = {0xd8, 0xde, 0xad, 0xbe, 0xef, 0x00};
 	static const char *name = "test-node";
 	static const size_t nameLen = strlen(name) + 1;
 

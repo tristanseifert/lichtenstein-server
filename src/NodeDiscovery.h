@@ -10,12 +10,13 @@
 #include "INIReader.h"
 
 class DataStore;
+class ProtocolHandler;
 
 class NodeDiscovery {
 	friend class ProtocolHandler;
 
 	public:
-		NodeDiscovery(DataStore *store, INIReader *reader, int sock);
+		NodeDiscovery(DataStore *store, INIReader *reader, ProtocolHandler *proto, int sock);
 		~NodeDiscovery();
 
 	private:
@@ -28,6 +29,8 @@ class NodeDiscovery {
 	private:
 		DataStore *store;
 		INIReader *config;
+
+		ProtocolHandler *proto;
 
 		int sock = 0;
 

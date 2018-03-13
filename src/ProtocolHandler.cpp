@@ -15,6 +15,9 @@
 #include "lichtenstein_proto.h"
 #include "LichtensteinUtils.h"
 
+#include "db/DataStore.h"
+#include "db/Node.h"
+
 /// packet buffer size
 static const size_t kClientBufferSz = (1024 * 8);
 /// control buffer size for recvfrom
@@ -136,7 +139,7 @@ void ProtocolHandler::threadEntry() {
 	this->createSocket();
 
 	// create multicast receiver
-	this->discovery = new NodeDiscovery(this->store, this->config, this->sock);
+	this->discovery = new NodeDiscovery(this->store, this->config, this, this->sock);
 
 	// listen on the socket
 	while(this->run) {
@@ -218,6 +221,127 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 	}
 	// it's not a multicast packet. neat
 	else {
+		LichtensteinUtils::PacketErrors pErr;
 
+		// check validity
+		pErr = LichtensteinUtils::validatePacket(packet, length);
+
+		if(err != LichtensteinUtils::kNoError) {
+			LOG(ERROR) << "Couldn't verify multicast packet: " << err;
+			return;
+		}
+
+		// check to see what type of packet it is
+		LichtensteinUtils::convertToHostByteOrder(packet, length);
+		lichtenstein_header_t *header = static_cast<lichtenstein_header_t *>(packet);
+
+		VLOG(2) << "Received unicast packet with opcode " << header->opcode;
+
+		// is it an acknowledgement?
+		if((header->flags & kFlagAck)) {
+			switch(header->opcode) {
+				// node adoption?
+				case kOpcodeNodeAdoption: {
+					// find the transaction number in the pending adoptions
+					uint32_t txn = header->txn;
+
+					for(size_t i = 0; i < this->pendingAdoptions.size(); i++) {
+						// get the tuple
+						auto tuple = this->pendingAdoptions[i];
+
+						// does the transaction number match?
+						if(std::get<0>(tuple) == txn) {
+							// set the node to be adopted and update it in the DB
+							DbNode *node = std::get<1>(tuple);
+							node->adopted = 1;
+
+							// update it in the DB, then delete it
+							this->store->update(node);
+							delete node;
+
+							// remove it from the list
+							this->pendingAdoptions.erase(this->pendingAdoptions.begin() + i);
+
+							// logging
+							VLOG(2) << "Successfully adopted " << node;
+							return;
+						}
+					}
+
+					// otherwise, if we get here, we couldn't find the node
+					LOG(WARNING) << "Received ack for adoption with txn " << txn;
+					break;
+				}
+			}
+		}
 	}
+}
+
+/**
+ * Sends an adoption packet to the given node.
+ */
+void ProtocolHandler::adoptNode(DbNode *node) {
+	uint32_t txn;
+	int err;
+	LichtensteinUtils::PacketErrors pErr;
+
+	// allocate buffer for packet
+	size_t totalPacketLen = sizeof(lichtenstein_node_adoption_t);
+	totalPacketLen += (sizeof(uint32_t) * node->numChannels);
+
+	void *data = malloc(totalPacketLen);
+
+	// clear its memory
+	lichtenstein_node_adoption_t *adopt = static_cast<lichtenstein_node_adoption_t *>(data);
+	memset(data, 0, totalPacketLen);
+
+	// fill in header
+	LichtensteinUtils::populateHeader(&adopt->header, kOpcodeNodeAdoption);
+	txn = adopt->header.txn;
+
+	adopt->header.payloadLength = sizeof(lichtenstein_node_adoption_t) - sizeof(lichtenstein_header_t);
+
+	// put in the server's port
+	adopt->port = this->config->GetInteger("server", "port", 7420);
+
+	// get IP and convert
+	string address = this->config->Get("server", "listen", "0.0.0.0");
+
+	struct in_addr addr;
+	err = inet_pton(AF_INET, address.c_str(), &addr);
+	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
+
+	adopt->ip = addr.s_addr;
+
+	// fill in the contents of the packet
+	adopt->numChannels = node->numChannels;
+
+	for(size_t i = 0; i < node->numChannels; i++) {
+		adopt->pixelsPerChannel[i] = 150;
+	}
+
+	// byteswap, apply checksum
+	err = LichtensteinUtils::convertToNetworkByteOrder(data, totalPacketLen);
+	CHECK(err == 0) << "Couldn't convert byte order: " << err;
+
+	pErr = LichtensteinUtils::applyChecksum(data, totalPacketLen);
+	CHECK(pErr == LichtensteinUtils::kNoError) << "Error applying checksum: " << pErr;
+
+	// send it to the node
+	struct sockaddr_in sockAddr;
+
+	memset(&sockAddr, 0, sizeof(sockAddr));
+	sockAddr.sin_family = AF_INET;
+	sockAddr.sin_addr.s_addr = node->ip;
+	sockAddr.sin_port = htons(7420); // TODO: nodes may have different port
+
+	if(sendto(this->sock, data, totalPacketLen, 0, (struct sockaddr *) &sockAddr, sizeof(sockAddr)) < 0) {
+		PLOG_IF(ERROR, errno != 0) << "Couldn't send announcement packet: ";
+	} else {
+		// write this node's info into the pending adoptions
+		this->pendingAdoptions.push_back(std::make_tuple(txn, node));
+	}
+
+	// delete memory
+	free(data);
 }

@@ -15,14 +15,17 @@
 #include "lichtenstein_proto.h"
 #include "LichtensteinUtils.h"
 
+#include "ProtocolHandler.h"
+
 using namespace std;
 
 /**
  * Sets up the node discovery server.
  */
-NodeDiscovery::NodeDiscovery(DataStore *store, INIReader *reader, int sock) {
+NodeDiscovery::NodeDiscovery(DataStore *store, INIReader *reader, ProtocolHandler *proto, int sock) {
 	this->store = store;
 	this->config = reader;
+	this->proto = proto;
 
 	// copy the socket and join multicast group
 	this->sock = sock;
@@ -164,8 +167,10 @@ void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
 	// update it in the db
 	this->store->update(node);
 
+	// adopt the node: they should only announce if not adopted
+	LOG(INFO) << "Adopting node " << DbNode::macToString(packet->macAddr);
+	this->proto->adoptNode(node);
+
 	// clean up
 	delete[] hostnameBuf;
-
-	delete node;
 }

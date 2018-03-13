@@ -1,7 +1,7 @@
 # Lichtenstein Protocol
 The lichtenstein protocol allows for a single central server to provision, control and otherwise interact with lichtenstein LED drivers over an IP network such as Ethernet.
 
-This protocol operates on port 7420 over the UDP transport, and makes use of multicast (on a configurable multicast address, `239.42.0.69` by default, on port 7419) for discovery of devices on the local network. Unicast is used for all other communications between the client devices and server. Messages are represented as binary packed (i.e. no padding between fields) structs, with multi-byte sequences sent in network byte order.
+This protocol operates on port 7420 over the UDP transport, and makes use of multicast (on a configurable multicast address, `239.42.0.69` by default, on port 7420) for discovery of devices on the local network. Unicast is used for all other communications between the client devices and server. Messages are represented as binary packed (i.e. no padding between fields) structs, with multi-byte sequences sent in network byte order.
 
 ## Packet Header
 Each packet starts with the following header:

@@ -16,6 +16,9 @@
 
 #include <ctime>
 
+// log FPS counters
+#define LOG_FPS							0
+
 using namespace std;
 
 /**
@@ -238,8 +241,10 @@ void EffectRunner::coordinatorThreadEntry() {
 		this->avgSleepTime = newAvg;
 		this->avgSleepTimeSamples++;
 
+#if LOG_FPS
 		LOG_EVERY_N(INFO, 60) << "Avg sleep time: " << this->avgSleepTime << " µS";
 		LOG_EVERY_N(INFO, 60) << "Actual fps: " << this->actualFps;
+#endif
 	}
 
 	cleanup: ;
@@ -333,7 +338,9 @@ void EffectRunner::compensateSleepInaccuracies(long requestedNs, long actualNs) 
 	this->sleepInaccuracySamples++;
 
 	// logging
+#if LOG_FPS
 	VLOG_EVERY_N(1, 60) << "nanosleep inaccuracy: " << this->sleepInaccuracy << " ns";
+#endif
 }
 
 /**

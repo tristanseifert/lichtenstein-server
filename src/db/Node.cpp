@@ -176,7 +176,7 @@ void DbNode::_create(DataStore *db) {
 	VLOG(1) << "Creating new node with MAC " << this->macToString();
 
 	// prepare an update query
-	err = db->sqlPrepare("INSERT INTO nodes (ip, mac, hostname, adopted, hwversion, swversion, lastSeen, numChannels, fbSize) VALUES (:ip, :mac, :hostname, :adopted, :hwversion, :swversion, :lastseen, numChannels, fbSize);", &statement);
+	err = db->sqlPrepare("INSERT INTO nodes (ip, mac, hostname, adopted, hwversion, swversion, lastSeen, numChannels, fbSize) VALUES (:ip, :mac, :hostname, :adopted, :hwversion, :swversion, :lastseen, :numChannels, :fbSize);", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties

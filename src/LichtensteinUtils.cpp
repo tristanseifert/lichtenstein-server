@@ -33,8 +33,8 @@ LichtensteinUtils::PacketErrors LichtensteinUtils::validatePacket(void *data, si
 		uint32_t packetCrc = ntohl(header->checksum);
 
 		LOG_IF(WARNING, crc != packetCrc) << "CRC mismatch on packet 0x" << data
-										  << "! Got " << packetCrc << ", expected"
-										  << crc;
+										  << "! Got " << hex << packetCrc
+										  << ", expected " << hex << crc;
 
 		if(crc != packetCrc) {
 			return kInvalidChecksum;
@@ -52,71 +52,279 @@ LichtensteinUtils::PacketErrors LichtensteinUtils::validatePacket(void *data, si
 }
 
 /**
- * Converts the packet to host byte order, in-place.
+ * Adds a checksum to the packet.
  */
-void LichtensteinUtils::convertToHostByteOrder(void *data, size_t length) {
+LichtensteinUtils::PacketErrors LichtensteinUtils::applyChecksum(void *data, size_t length) {
 	lichtenstein_header_t *header = static_cast<lichtenstein_header_t *>(data);
 
+	// validate packet length
 	if(length < sizeof(lichtenstein_header_t)) {
 		LOG(WARNING) << "attempted to convert a packet smaller than the header";
-		return;
+		return kPacketTooSmall;
 	}
 
-	// convert header fields
-	header->magic = ntohl(header->magic);
-	header->version = ntohl(header->version);
-	header->checksum = ntohl(header->checksum);
+	// extract some header info
+	size_t payloadLen = __builtin_bswap32(header->payloadLength);
 
-	header->opcode = ntohs(header->opcode);
-	header->flags = ntohs(header->flags);
+	// get CRC offset into the packet
+	size_t offset = offsetof(lichtenstein_header_t, opcode);
+	void *ptr = ((uint8_t *) header) + offset;
+	size_t len = (length - offset);
 
-	header->sequenceIndex = ntohs(header->sequenceIndex);
-	header->sequenceNumPackets = ntohs(header->sequenceNumPackets);
+	uint32_t crc = crc32_fast(ptr, len);
 
-	header->txn = ntohl(header->txn);
-	header->payloadLength = ntohl(header->payloadLength);
+	header->checksum = __builtin_bswap32(crc);
 
-	// now, convert the packet's values
-	switch(header->opcode) {
-		case kOpcodeNodeAnnouncement:
-			LichtensteinUtils::_convertToHostNodeAnnouncement(data, length);
-			break;
-	}
+	return kNoError;
 }
 
 /**
- * Converts the fields in the node announcement packet to the host byte order.
+ * Swaps all multibyte fields in a packet.
+ *
+ * TODO: Add error checking
+ *
+ * @param _packet Packet
+ * @param fromNetworkorder Set if the packet is in network order
+ * @param length Total number of bytes in packet
+ *
+ * @return 0 if the conversion was a success, error code otherwise.
  */
-void LichtensteinUtils::_convertToHostNodeAnnouncement(void *data, size_t length) {
-	lichtenstein_node_announcement_t *packet = static_cast<lichtenstein_node_announcement_t *>(data);
+int LichtensteinUtils::convertPacketByteOrder(void *_packet, bool fromNetworkOrder, size_t length) {
+	lichtenstein_header_opcode_t opcode;
 
-	// verify the minimum size
-	size_t minPayloadSz = sizeof(lichtenstein_node_announcement_t) - sizeof(lichtenstein_header_t);
+	// first, process the header
+	lichtenstein_header_t *header = (lichtenstein_header_t *) _packet;
 
-	if(minPayloadSz > packet->header.payloadLength) {
-		LOG(ERROR) << "node announcement packet is too small";
-		return;
+	header->magic = __builtin_bswap32(header->magic);
+	header->version = __builtin_bswap32(header->version);
+	header->checksum = __builtin_bswap32(header->checksum);
+
+	if(fromNetworkOrder) {
+		header->opcode = __builtin_bswap16(header->opcode);
+		opcode = (lichtenstein_header_opcode_t) header->opcode;
+	} else {
+		opcode = (lichtenstein_header_opcode_t) header->opcode;
+		header->opcode = __builtin_bswap16(header->opcode);
 	}
 
-	// convert the fields
-	packet->swVersion = ntohl(packet->swVersion);
-	packet->hwVersion = ntohl(packet->hwVersion);
+	header->flags = __builtin_bswap16(header->flags);
 
-	packet->port = ntohs(packet->port);
-	/*
-	 * don't byte-swap the IP address. this is because we'll probably use a
-	 * function like inet_ntop() on it, which requires it to be in network byte
-	 * order already.
- 	 */
-	// packet->ip = ntohl(packet->ip);
+	header->sequenceIndex = __builtin_bswap16(header->sequenceIndex);
+	header->sequenceNumPackets = __builtin_bswap16(header->sequenceNumPackets);
 
-	packet->fbSize = ntohl(packet->fbSize);
-	packet->channels = ntohs(packet->channels);
+	header->txn = __builtin_bswap32(header->txn);
+	header->payloadLength = __builtin_bswap32(header->payloadLength);
 
-	packet->numGpioDigitalIn = ntohs(packet->numGpioDigitalIn);
-	packet->numGpioDigitalOut = ntohs(packet->numGpioDigitalOut);
-	packet->numGpioAnalogIn = ntohs(packet->numGpioAnalogIn);
-	packet->numGpioAnalogOut = ntohs(packet->numGpioAnalogOut);
+	// return immediately if payload length is zero (its a request)
+	if(header->payloadLength == 0) {
+		return 0;
+	}
 
-	packet->hostnameLen = ntohs(packet->hostnameLen);
+	// handle each packet type individually
+	switch(opcode) {
+		// node announcement
+		case kOpcodeNodeAnnouncement: {
+			// ensure the length is correct
+			if(length < sizeof(lichtenstein_node_announcement_t)) {
+				LOG(WARNING) << "Node announcement packet too small!";
+				return -1;
+			}
+
+			lichtenstein_node_announcement_t *announce;
+			announce = (lichtenstein_node_announcement_t *) _packet;
+
+			// byteswap all fields
+			announce->swVersion = __builtin_bswap32(announce->swVersion);
+			announce->hwVersion = __builtin_bswap32(announce->hwVersion);
+
+			announce->port = __builtin_bswap16(announce->port);
+			// don't byteswap IP, it's already in network byte order
+
+			announce->fbSize = __builtin_bswap32(announce->fbSize);
+			announce->channels = __builtin_bswap16(announce->channels);
+
+			announce->numGpioDigitalIn = __builtin_bswap16(announce->numGpioDigitalIn);
+			announce->numGpioDigitalOut = __builtin_bswap16(announce->numGpioDigitalOut);
+			announce->numGpioAnalogIn = __builtin_bswap16(announce->numGpioAnalogIn);
+			announce->numGpioAnalogOut = __builtin_bswap16(announce->numGpioAnalogOut);
+
+			announce->hostnameLen = __builtin_bswap16(announce->hostnameLen);
+			break;
+		}
+		// server announcement
+		case kOpcodeServerAnnouncement: {
+			// ensure the length is correct
+			if(length < sizeof(lichtenstein_server_announcement_t)) {
+				LOG(WARNING) << "Server announcement packet too small!";
+				return -1;
+			}
+
+			lichtenstein_server_announcement_t *announce;
+			announce = (lichtenstein_server_announcement_t *) _packet;
+
+			// byteswap all fields
+			announce->swVersion = __builtin_bswap32(announce->swVersion);
+			announce->capabilities = __builtin_bswap32(announce->capabilities);
+
+			announce->port = __builtin_bswap16(announce->port);
+			announce->hostnameLen = __builtin_bswap16(announce->hostnameLen);
+
+			break;
+		}
+
+		// node status
+		case kOpcodeNodeStatusReq: {
+			// ensure the length is correct
+			if(length < sizeof(lichtenstein_node_status_t)) {
+				LOG(WARNING) << "Status request packet too small!";
+				return -1;
+			}
+
+			lichtenstein_node_status_t *status;
+			status = (lichtenstein_node_status_t *) _packet;
+
+			// byteswap all fields
+			status->uptime = __builtin_bswap32(status->uptime);
+
+			status->totalMem = __builtin_bswap32(status->totalMem);
+			status->freeMem = __builtin_bswap32(status->freeMem);
+
+			status->rxPackets = __builtin_bswap32(status->rxPackets);
+			status->txPackets = __builtin_bswap32(status->txPackets);
+			status->packetsWithInvalidCRC = __builtin_bswap32(status->packetsWithInvalidCRC);
+
+			status->framesOutput = __builtin_bswap32(status->framesOutput);
+
+			status->outputState = __builtin_bswap16(status->outputState);
+			status->cpuUsagePercent = __builtin_bswap16(status->cpuUsagePercent);
+
+			status->avgConversionTimeUs = __builtin_bswap32(status->avgConversionTimeUs);
+
+			status->rxBytes = __builtin_bswap32(status->rxBytes);
+			status->txBytes = __builtin_bswap32(status->txBytes);
+
+			status->rxSymbolErrors = __builtin_bswap32(status->rxSymbolErrors);
+
+			status->mediumSpeed = __builtin_bswap32(status->mediumSpeed);
+			status->mediumDuplex = __builtin_bswap32(status->mediumDuplex);
+
+			break;
+		}
+
+
+		// framebuffer data
+		case kOpcodeFramebufferData: {
+			// ensure the length is correct
+			if(length < sizeof(lichtenstein_framebuffer_data_t)) {
+				LOG(WARNING) << "Framebuffer data packet too small!";
+				return -1;
+			}
+
+			lichtenstein_framebuffer_data_t *fb;
+			fb = (lichtenstein_framebuffer_data_t *) _packet;
+
+			fb->destChannel = __builtin_bswap32(fb->destChannel);
+
+			fb->dataFormat = __builtin_bswap32(fb->dataFormat);
+			fb->dataElements = __builtin_bswap32(fb->dataElements);
+			break;
+		}
+		// output command
+		case kOpcodeSyncOutput: {
+			// ensure the length is correct
+			if(length < sizeof(lichtenstein_sync_output_t)) {
+				LOG(WARNING) << "Sync output packet too small!";
+				return -1;
+			}
+
+			lichtenstein_sync_output_t *out;
+			out = (lichtenstein_sync_output_t *) _packet;
+
+			out->channel = __builtin_bswap32(out->channel);
+			break;
+		}
+
+		// node adoption
+		case kOpcodeNodeAdoption: {
+			size_t numChannels = 0;
+
+			// ensure the length is correct
+			if(length < sizeof(lichtenstein_node_adoption_t)) {
+				LOG(WARNING) << "Node adoption packet too small!";
+				return -1;
+			}
+
+			lichtenstein_node_adoption_t *adopt;
+			adopt = (lichtenstein_node_adoption_t *) _packet;
+
+			// byteswap regular fields
+			adopt->port = __builtin_bswap16(adopt->port);
+			adopt->flags = __builtin_bswap16(adopt->flags);
+
+			if(fromNetworkOrder) {
+				adopt->numChannels = __builtin_bswap32(adopt->numChannels);
+				numChannels = adopt->numChannels;
+			} else {
+				numChannels = adopt->numChannels;
+				adopt->numChannels = __builtin_bswap32(adopt->numChannels);
+			}
+
+			// byteswap the pixels per channel array
+			for(size_t i = 0; i < numChannels; i++) {
+				adopt->pixelsPerChannel[i] = __builtin_bswap32(adopt->pixelsPerChannel[i]);
+			}
+
+			break;
+		}
+
+		// reconfig
+		case kOpcodeNodeReconfig: {
+			// ensure the length is correct
+			if(length < sizeof(lichtenstein_node_adoption_t)) {
+				LOG(WARNING) << "Node reconfig packet too small!";
+				return -1;
+			}
+
+			lichtenstein_reconfig_t *adopt;
+			adopt = (lichtenstein_reconfig_t *) _packet;
+
+			break;
+		}
+
+		// should never get here
+		default: {
+			LOG(ERROR) << "Unknown packet type " << opcode;
+			return -1;
+		}
+	}
+
+	// if we get down here, conversion was a success
+	return 0;
+}
+
+/**
+ * Populates the header of a Lichtenstein packet.
+ *
+ * @param header Pointer to either lichtenstein_header_t or another packet struct
+ * that has the header as its first element.
+ * @param opcode Opcode to insert into the packet.
+ */
+void LichtensteinUtils::populateHeader(void *data, uint16_t opcode) {
+	lichtenstein_header_t *header = static_cast<lichtenstein_header_t *>(data);
+
+	// insert magic, version, and opcode
+	header->magic = kLichtensteinMagic;
+	header->version = kLichtensteinVersion10;
+
+	header->opcode = opcode;
+
+	// we don't really care about sequences
+	header->sequenceIndex = 0;
+	header->sequenceNumPackets = 0;
+
+	header->txn = std::rand();
+
+	// set a checksum flag
+	header->flags |= kFlagChecksummed;
+	header->checksum = 0;
 }

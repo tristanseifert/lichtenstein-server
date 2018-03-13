@@ -7,11 +7,14 @@
 
 #include <thread>
 #include <atomic>
+#include <vector>
+#include <tuple>
 
 class DataStore;
 class INIReader;
 
 class NodeDiscovery;
+class DbNode;
 
 class ProtocolHandler {
 	public:
@@ -31,6 +34,12 @@ class ProtocolHandler {
 
 		void threadEntry();
 		void handlePacket(void *packet, size_t length, struct msghdr *msg);
+
+	public:
+		void adoptNode(DbNode *node);
+
+	private:
+		std::vector<std::tuple<uint32_t, DbNode *>> pendingAdoptions;
 
 	private:
 		DataStore *store;
