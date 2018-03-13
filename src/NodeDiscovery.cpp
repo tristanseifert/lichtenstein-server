@@ -84,6 +84,10 @@ void NodeDiscovery::setUpMulticast() {
 	// request to join the multicast group
 	err = setsockopt(this->sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
 	PLOG_IF(FATAL, err < 0) << "Couldn't join multicast group";
+
+	// disable multicast loopback
+	int no = 0;
+	setsockopt(this->sock, IPPROTO_IP, IP_MULTICAST_LOOP, &no, sizeof(no));
 }
 
 /**

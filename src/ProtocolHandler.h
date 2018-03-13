@@ -10,6 +10,7 @@
 #include <vector>
 #include <tuple>
 #include <chrono>
+#include <mutex>
 
 class DataStore;
 class INIReader;
@@ -41,6 +42,13 @@ class ProtocolHandler {
 		void adoptNode(DbNode *node);
 
 		void sendDataToNode(DbChannel *channel, void *data, size_t numPixels, bool isRGBW);
+		void waitForOutstandingFramebufferWrites(void);
+
+		void sendOutputEnableForAllNodes(void);
+
+	private:
+		std::atomic_int numPendingFBWrites;
+		std::mutex pendingOutputMutex;
 
 	private:
 		std::vector<std::tuple<uint32_t, DbNode *>> pendingAdoptions;

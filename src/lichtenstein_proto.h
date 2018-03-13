@@ -227,6 +227,9 @@ typedef struct {
  * Sync output packet: When a node receives this packet, it will begin the
  * output of the previously received data. This is used to synchronize output
  * across multiple nodes, and will usually be sent multicast.
+ *
+ * Note that channel in this case is a bitfield: bit 0 (the least significant
+ * bit) indicates channel 0, and so forth up to channel 31.
  */
 typedef struct {
 	lichtenstein_header_t header;

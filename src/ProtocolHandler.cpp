@@ -49,6 +49,8 @@ ProtocolHandler::ProtocolHandler(DataStore *store, INIReader *reader) {
 	this->store = store;
 	this->config = reader;
 
+	this->numPendingFBWrites = 0;
+	
 	// create the background thread
 	this->run = true;
 
@@ -296,8 +298,12 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 
 							VLOG_EVERY_N(1, 100) << "Received write ack in " << millis.count() << " ms";
 
-							// remove it from the list
+							// remove it from the list and decrement counter
 							this->pendingFBDataWrites.erase(this->pendingFBDataWrites.begin() + i);
+
+							// decrement counter and unlock the mutex
+							this->numPendingFBWrites--;
+							this->pendingOutputMutex.unlock();
 							return;
 						}
 					}
@@ -433,11 +439,92 @@ void ProtocolHandler::sendDataToNode(DbChannel *channel, void *pixelData, size_t
 	if(sendto(this->sock, data, totalPacketLen, 0, (struct sockaddr *) &sockAddr, sizeof(sockAddr)) < 0) {
 		PLOG_IF(ERROR, errno != 0) << "Couldn't send FB data packet: ";
 	} else {
-		// write this node's info into the pending  writes buffer
+		// write this node's info into the pending writes buffer
 		auto start = chrono::high_resolution_clock::now();
 		this->pendingFBDataWrites.push_back(std::make_tuple(txn, channel->node, start));
+
+		// increment the number of pending writes
+		this->numPendingFBWrites++;
 	}
 
 	// delete memory
 	free(data);
+}
+
+/**
+ * Waits for all pixel data frames to be sent to the nodes, or for a timeout on
+ * waiting for a response, in case a node is unreachable.
+ *
+ * TODO: implement timeouts
+ */
+void ProtocolHandler::waitForOutstandingFramebufferWrites(void) {
+	// wait to take the lock
+	do {
+		// exit if the pending framebuffer writes is zero
+		if(this->numPendingFBWrites == 0) {
+			return;
+		}
+
+		// attempt to take the lock (unlocked by acknowledgements)
+		this->pendingOutputMutex.lock();
+	} while(1);
+}
+
+/**
+ * Multicasts the "output enable" command.
+ */
+void ProtocolHandler::sendOutputEnableForAllNodes(void) {
+	uint32_t txn;
+	int err;
+	LichtensteinUtils::PacketErrors pErr;
+
+	// allocate buffer for packet
+	const size_t totalPacketLen = sizeof(lichtenstein_sync_output_t);
+
+	void *data = malloc(totalPacketLen);
+
+	// clear its memory
+	lichtenstein_sync_output_t *out = static_cast<lichtenstein_sync_output_t *>(data);
+	memset(data, 0, totalPacketLen);
+
+	// fill in header
+	LichtensteinUtils::populateHeader(&out->header, kOpcodeSyncOutput);
+	txn = out->header.txn;
+
+	out->header.payloadLength = sizeof(lichtenstein_sync_output_t) - sizeof(lichtenstein_header_t);
+
+	// output all channels
+	out->channel = 0xFFFFFFFF;
+
+
+	// byteswap, apply checksum
+	err = LichtensteinUtils::convertToNetworkByteOrder(data, totalPacketLen);
+	CHECK(err == 0) << "Couldn't convert byte order: " << err;
+
+	pErr = LichtensteinUtils::applyChecksum(data, totalPacketLen);
+	CHECK(pErr == LichtensteinUtils::kNoError) << "Error applying checksum: " << pErr;
+
+
+	// set up for the multicast send
+	struct sockaddr_in sockAddr;
+	memset(&sockAddr, 0, sizeof(sockAddr));
+
+	// get multicast IP
+	string multiAddress = this->config->Get("server", "multicastGroup", "239.42.0.69");
+
+	err = inet_pton(AF_INET, multiAddress.c_str(), &sockAddr.sin_addr.s_addr);
+	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
+
+	// get server port
+	int port = this->config->GetInteger("server", "port", 7420);
+	sockAddr.sin_port = htons(port);
+
+	// send to node
+	if(sendto(this->sock, data, totalPacketLen, 0, (struct sockaddr *) &sockAddr, sizeof(sockAddr)) < 0) {
+		PLOG_IF(ERROR, errno != 0) << "Couldn't send output enable packet: ";
+	}
+
+	// delete memory
+	free(data);
+
 }
