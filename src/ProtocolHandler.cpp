@@ -50,12 +50,15 @@ ProtocolHandler::ProtocolHandler(DataStore *store, INIReader *reader) {
 	this->config = reader;
 
 	this->numPendingFBWrites = 0;
-	
+
 	// create the background thread
 	this->run = true;
 
 	LOG(INFO) << "Starting protocol handler thread";
 	this->worker = new thread(ProtocolHandlerEntry, this);
+
+	// unlock mutex
+	this->pendingOutputMutex.unlock();
 }
 
 /**
@@ -298,6 +301,9 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 
 							VLOG_EVERY_N(1, 100) << "Received write ack in " << millis.count() << " ms";
 
+							// cancel timer
+							this->timer.remove(std::get<3>(tuple));
+
 							// remove it from the list and decrement counter
 							this->pendingFBDataWrites.erase(this->pendingFBDataWrites.begin() + i);
 
@@ -439,9 +445,19 @@ void ProtocolHandler::sendDataToNode(DbChannel *channel, void *pixelData, size_t
 	if(sendto(this->sock, data, totalPacketLen, 0, (struct sockaddr *) &sockAddr, sizeof(sockAddr)) < 0) {
 		PLOG_IF(ERROR, errno != 0) << "Couldn't send FB data packet: ";
 	} else {
+		// get interval in ms
+		int timeout = this->config->GetInteger("proto", "writeTimeout", 7420);
+
+		// set up a timer for acknowledgements
+		CppTime::timer_id id;
+
+		id = this->timer.add(std::chrono::milliseconds(timeout), [this, &channel = channel, txn](CppTime::timer_id) {
+			this->fbSendTimeoutExpired(channel, txn);
+		});
+
 		// write this node's info into the pending writes buffer
 		auto start = chrono::high_resolution_clock::now();
-		this->pendingFBDataWrites.push_back(std::make_tuple(txn, channel->node, start));
+		this->pendingFBDataWrites.push_back(std::make_tuple(txn, channel->node, start, id));
 
 		// increment the number of pending writes
 		this->numPendingFBWrites++;
@@ -452,22 +468,50 @@ void ProtocolHandler::sendDataToNode(DbChannel *channel, void *pixelData, size_t
 }
 
 /**
+ * Called when the timeout for a particular framebuffer expired. =
+ */
+void ProtocolHandler::fbSendTimeoutExpired(DbChannel *ch, uint32_t txn) {
+	// LOG(INFO) << "Node didn't respond in time for " << ch << " (txn " << txn << ")";
+
+	// remove it from the array
+	for(size_t i = 0; i < this->pendingFBDataWrites.size(); i++) {
+		// get the tuple
+		auto tuple = this->pendingFBDataWrites[i];
+
+		// does the transaction number match?
+		if(std::get<0>(tuple) == txn) {
+			// remove it from the array
+			this->pendingFBDataWrites.erase(this->pendingFBDataWrites.begin() + i);
+
+			// decrement counter and unlock the mutex
+			this->numPendingFBWrites--;
+			this->pendingOutputMutex.unlock();
+			return;
+		}
+	}
+}
+
+/**
  * Waits for all pixel data frames to be sent to the nodes, or for a timeout on
  * waiting for a response, in case a node is unreachable.
- *
- * TODO: implement timeouts
  */
 void ProtocolHandler::waitForOutstandingFramebufferWrites(void) {
+	// exit if the pending framebuffer writes is zero
+	if(this->numPendingFBWrites == 0) {
+		return;
+	}
+
 	// wait to take the lock
-	do {
-		// exit if the pending framebuffer writes is zero
+	while(this->numPendingFBWrites != 0) {
+/*		// exit if the pending framebuffer writes is zero
 		if(this->numPendingFBWrites == 0) {
 			return;
 		}
+*/
 
 		// attempt to take the lock (unlocked by acknowledgements)
 		this->pendingOutputMutex.lock();
-	} while(1);
+	};
 }
 
 /**

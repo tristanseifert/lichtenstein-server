@@ -144,6 +144,7 @@ void Routine::_cleanUpAngelscriptState() {
 	if(this->scriptCtx) {
 		this->scriptCtx->Abort();
 
+		this->scriptCtx->Unprepare();
 		this->scriptCtx->Release();
 		this->scriptCtx = nullptr;
 	}

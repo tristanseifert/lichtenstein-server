@@ -440,18 +440,19 @@ void EffectRunner::coordinatorDoConversions() {
 
 	// perform the copying from framebuffers to channels and conversion
 	for(auto channel : this->outputChannels) {
-		this->workPool->push([this, &channel = channel] (int tid) {
+		// this->workPool->push([this, &channel = channel] (int tid) {
 			this->convertPixelData(channel);
-		});
+		// });
 	}
 
-	// wait for the conversions to complete
+/*	// wait for the conversions to complete
 	{
 		unique_lock<mutex> lk(this->effectLock);
 		this->conversionCv.wait(lk, [this]{
 			return (this->outstandingConversions <= 0);
 		});
 	}
+*/
 }
 
 /**
@@ -526,18 +527,19 @@ void EffectRunner::coordinatorSendData(void) {
 
 	// send each channel's data
 	for(auto channel : this->outputChannels) {
-		this->workPool->push([this, &channel = channel] (int tid) {
+		// this->workPool->push([this, &channel = channel] (int tid) {
 			this->outputPixelData(channel);
-		});
+		// });
 	}
 
 	// wait for the sends to complete
-	{
+/*	{
 		unique_lock<mutex> lk(this->effectLock);
 		this->sendingCv.wait(lk, [this]{
 			return (this->outstandingSends <= 0);
 		});
 	}
+*/
 
 	// wait for any outstanding sends to complete/get acknowledged
 	this->proto->waitForOutstandingFramebufferWrites();

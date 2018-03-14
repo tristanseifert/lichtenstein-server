@@ -12,6 +12,8 @@
 #include <chrono>
 #include <mutex>
 
+#include <cpptime.h>
+
 class DataStore;
 class INIReader;
 
@@ -42,6 +44,7 @@ class ProtocolHandler {
 		void adoptNode(DbNode *node);
 
 		void sendDataToNode(DbChannel *channel, void *data, size_t numPixels, bool isRGBW);
+		void fbSendTimeoutExpired(DbChannel *ch, uint32_t txn);
 		void waitForOutstandingFramebufferWrites(void);
 
 		void sendOutputEnableForAllNodes(void);
@@ -51,8 +54,13 @@ class ProtocolHandler {
 		std::mutex pendingOutputMutex;
 
 	private:
+		// adoptions we're waiting on to complete
 		std::vector<std::tuple<uint32_t, DbNode *>> pendingAdoptions;
-		std::vector<std::tuple<uint32_t, DbNode *, std::chrono::time_point<std::chrono::high_resolution_clock>>> pendingFBDataWrites;
+		// nodes we're waiting on to acknowledge a framebuffer write
+		std::vector<std::tuple<uint32_t, DbNode *, std::chrono::time_point<std::chrono::high_resolution_clock>, CppTime::timer_id>> pendingFBDataWrites;
+
+		// timer used for timeouts
+		CppTime::Timer timer;
 
 	private:
 		DataStore *store;

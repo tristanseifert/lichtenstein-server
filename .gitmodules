@@ -7,3 +7,6 @@
 [submodule "libs/CTPL"]
 	path = libs/CTPL
 	url = git@github.com:vit-vit/CTPL.git
+[submodule "libs/cpptime"]
+	path = libs/cpptime
+	url = git@github.com:eglimi/cpptime.git
