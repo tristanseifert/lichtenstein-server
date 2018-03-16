@@ -63,6 +63,12 @@ class ProtocolHandler {
 		CppTime::Timer timer;
 
 	private:
+		// after how many packets with errors we assume the node died
+		static const size_t MaxPacketsWithErrors = 15;
+		// how many packet "sends" to wait before sending more data
+		static const size_t NumPacketsToWaitAfterError = 60;
+
+	private:
 		DataStore *store;
 		INIReader *config;
 

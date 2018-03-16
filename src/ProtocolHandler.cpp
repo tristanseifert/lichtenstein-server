@@ -401,6 +401,12 @@ void ProtocolHandler::sendDataToNode(DbChannel *channel, void *pixelData, size_t
 	int err;
 	LichtensteinUtils::PacketErrors pErr;
 
+	// exit if the error timer is nonzero
+	if(channel->node->errorTimer != 0) {
+		channel->node->errorTimer--;
+		return;
+	}
+
 	// allocate buffer for packet
 	size_t totalPacketLen = sizeof(lichtenstein_framebuffer_data_t);
 	totalPacketLen += ((isRGBW ? 4 : 3) * numPixels);
@@ -443,8 +449,18 @@ void ProtocolHandler::sendDataToNode(DbChannel *channel, void *pixelData, size_t
 	sockAddr.sin_port = htons(7420); // TODO: nodes may have different port
 
 	if(sendto(this->sock, data, totalPacketLen, 0, (struct sockaddr *) &sockAddr, sizeof(sockAddr)) < 0) {
-		PLOG_IF(ERROR, errno != 0) << "Couldn't send FB data packet: ";
+		PLOG_IF(WARNING, errno != 0) << "Couldn't send data packet to node " << channel->node << ": ";
+
+		// increment the error packets
+		if(channel->node->errorPackets++ >= ProtocolHandler::MaxPacketsWithErrors) {
+			// if 10 packets couldn't be sent, set the timer
+			channel->node->errorTimer = ProtocolHandler::NumPacketsToWaitAfterError;
+		}
 	} else {
+		// clear the error timer
+		channel->node->errorPackets = 0;
+		channel->node->errorTimer = 0;
+
 		// get interval in ms
 		int timeout = this->config->GetInteger("proto", "writeTimeout", 7420);
 

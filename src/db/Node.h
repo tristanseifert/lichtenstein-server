@@ -48,6 +48,12 @@ class DbNode {
 		int fbSize = 0;
 
 	public:
+		// used to wait a certain number of packets if node is unrechable
+		size_t errorTimer = 0;
+		// packets with an error
+		size_t errorPackets = 0;
+
+	public:
 		// Node() = delete;
 		DbNode() {}
 		~DbNode();
