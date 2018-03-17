@@ -444,8 +444,12 @@ void CommandServer::clientRequestListGroups(nlohmann::json &response, json &requ
  * Adds a mapping between one or more groups (creating an ubergroup if required)
  * and a specified effect routine. An optional parameter array may be passed to
  * the routine.
+ *
+ * {"type": 3, "routine": {"id": 27}, "groups": [1]}
  */
 void CommandServer::clientRequestAddMapping(json &response, json &request) {
+	Routine *routine = nullptr;
+
 	// fetch the routine
 	int routineId = request["routine"]["id"];
 	DbRoutine *dbRoutine = this->store->findRoutineWithId(routineId);
@@ -458,8 +462,9 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 		return;
 	}
 
-	// get the parameters as well
-	map<string, double> params = request["routine"]["params"];
+	// do we have any parameters?
+	bool hasParams = (request["routine"].count("params") > 0);
+
 
 	// get each of the groups
 	vector<DbGroup *> groups;
@@ -482,10 +487,18 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 		groups.push_back(group);
 	}
 
-	// add the mapping
-	OutputMapper *mapper = this->runner->getMapper();
-	Routine *routine = new Routine(dbRoutine, params);
 
+	// create the routine
+	OutputMapper *mapper = this->runner->getMapper();
+
+	if(hasParams) {
+		map<string, double> params = request["routine"]["params"];
+		routine = new Routine(dbRoutine, params);
+	} else {
+		routine = new Routine(dbRoutine);
+	}
+
+	// add the mapping
 	if(groups.size() == 1) {
 		// we've got a single group so add it directly
 		auto *og = new OutputMapper::OutputGroup(groups[0]);

@@ -11,6 +11,8 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <mutex>
+#include <exception>
 
 #include "INIReader.h"
 
@@ -21,6 +23,13 @@ class Framebuffer;
 
 class OutputMapper {
 	friend class EffectRunner;
+
+	public:
+		struct invalid_ubergroup : public std::exception {
+			const char *what() const throw () {
+		    	return "Invalid ubergroup";
+		    }
+		};
 
 	public:
 		class OutputGroup {
@@ -38,12 +47,7 @@ class OutputMapper {
 					return this->buffer;
 				}
 
-				/**
-				 * Returns the number of pixels in the group.
-				 */
-				virtual int numPixels() const {
-					return this->group->numPixels();
-				}
+				virtual int numPixels();
 
 				virtual void bindBufferToRoutine(Routine *r);
 				virtual void copyIntoFramebuffer(Framebuffer *fb);
@@ -76,24 +80,31 @@ class OutputMapper {
 
 			public:
 				// overrides from OutputGroup
-				virtual int numPixels() const;
+				virtual int numPixels();
 
 				virtual void copyIntoFramebuffer(Framebuffer *fb);
 
-				int numMembers() const {
+				int numMembers() {
 					return this->groups.size();
 				}
 
 			private:
+				// virtual void _resizeBuffer();
+
 				void addMember(OutputGroup *group);
 				void removeMember(OutputGroup *group);
 				bool containsMember(OutputGroup *group);
 
 			private:
+				// std::recursive_mutex groupsLock;
+
 				std::set<OutputGroup *> groups;
 
 
 			// operators
+				friend bool operator==(const OutputUberGroup& lhs, const OutputUberGroup& rhs);
+				friend bool operator< (const OutputUberGroup& lhs, const OutputUberGroup& rhs);
+
 				friend std::ostream &operator<<(std::ostream& strm, const OutputUberGroup& obj);
 		};
 
@@ -112,11 +123,18 @@ class OutputMapper {
 	private:
 		void _removeMappingsInUbergroup(OutputUberGroup *ug);
 
+		void removeEmptyUbergroups(void);
+
+		void printMap(void);
+
 	private:
 		DataStore *store;
 		Framebuffer *fb;
 		INIReader *config;
 
+		// TODO: indicate if the output config was changed
+
+		std::recursive_mutex outputMapLock;
 		std::map<OutputGroup *, Routine *> outputMap;
 };
 

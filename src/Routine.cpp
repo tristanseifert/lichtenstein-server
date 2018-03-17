@@ -308,7 +308,7 @@ void Routine::_setUpAngelscriptGlobals() {
 	err = this->engine->RegisterGlobalFunction("int random_range(int min, int max)",
 											   asFUNCTION(ASRandomIntInRange),
 											   asCALL_CDECL);
-   	CHECK(err >= 0) << "Couldn't register debug_print: " << err;
+   	CHECK(err >= 0) << "Couldn't register random_range: " << err;
 
 	// register the HSIPixel type
 	err = this->engine->RegisterObjectType("HSIPixel", sizeof(HSIPixel),

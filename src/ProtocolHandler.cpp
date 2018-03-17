@@ -277,7 +277,7 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 					}
 
 					// otherwise, if we get here, we couldn't find the node
-					LOG(WARNING) << "Received ack for adoption with txn " << txn;
+					LOG(WARNING) << "Received unexpected ack for adoption with txn " << txn;
 					break;
 				}
 
@@ -315,7 +315,7 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 					}
 
 					// otherwise, if we get here, we couldn't find the node
-					LOG(WARNING) << "Received ack for fb write with txn " << txn;
+					LOG(WARNING) << "Received unexpected ack for fb write with txn " << txn;
 					break;
 				}
 			}

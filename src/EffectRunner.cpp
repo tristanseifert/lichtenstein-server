@@ -382,11 +382,15 @@ void EffectRunner::coordinatorRunEffects() {
 	this->outstandingEffects = this->mapper->outputMap.size();
 
 	// run each effect
+	this->mapper->outputMapLock.lock();
+
 	for(auto const& [group, routine] : this->mapper->outputMap) {
 		// this->workPool->push([this, &group = group, &routine = routine] (int tid) {
 			this->runEffect(group, routine);
 		// });
 	}
+
+	this->mapper->outputMapLock.unlock();
 
 	// wait for the effects to complete
 /*	{

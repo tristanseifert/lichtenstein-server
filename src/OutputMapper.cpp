@@ -29,6 +29,19 @@ OutputMapper::~OutputMapper() {
 }
 
 /**
+ * Prints the output map.
+ */
+void OutputMapper::printMap(void) {
+	stringstream str;
+
+	for(auto elem : this->outputMap) {
+		str << elem.first << ": " << elem.second << std::endl;
+	}
+
+	LOG(INFO) << "Output map: " << str.str();
+}
+
+/**
  * Adds a mapping between the specified output group and routine state.
  *
  * If the group has already been mapped to, that mapping is removed. If the
@@ -36,31 +49,86 @@ OutputMapper::~OutputMapper() {
  * be removed.
  */
 void OutputMapper::addMapping(OutputMapper::OutputGroup *g, Routine *r) {
+	// check that iput is not null
+	if(g == nullptr || r == nullptr) {
+		LOG(ERROR) << "addMapping called with null group or routine!";
+		return;
+	}
+
+	VLOG(1) << "Adding mapping for " << g;
+
+	// take the lock for this scope
+	std::lock_guard<std::recursive_mutex>(this->outputMapLock);
+
 	// check if it's an ubergroup
 	OutputMapper::OutputUberGroup *ug = dynamic_cast<OutputMapper::OutputUberGroup *>(g);
 
-	if(ug) {
+	if(ug != nullptr) {
+		VLOG(1) << "Is ubergroup, removing mappings for it";
+
+		// make sure it's not empty (wtf)
+		if(ug->groups.size() == 0) {
+			throw OutputMapper::invalid_ubergroup();
+		}
+
 		this->_removeMappingsInUbergroup(ug);
 	} else {
 		this->removeMappingForGroup(g);
 	}
 
+	// remove any empty ubergroups
+	this->removeEmptyUbergroups();
+
 	// we've removed any stale mappings so insert it
 	this->outputMap[g] = r;
 
-	VLOG(1) << "Added mapping for " << g;
+	this->printMap();
 }
 
 /**
  * Removes an output mapping for the given group.
  */
 void OutputMapper::removeMappingForGroup(OutputGroup *g) {
-	// search for it in the groups itself
-	auto element = this->outputMap.find(g);
+	// check that iput is not null
+	if(g == nullptr) {
+		LOG(ERROR) << "removeMappingForGroup called with null group!";
+		return;
+	}
 
-	if(element != this->outputMap.end()) {
-		this->outputMap.erase(element);
-	} else {
+	// take the lock for this scope
+	std::lock_guard<std::recursive_mutex>(this->outputMapLock);
+
+	VLOG(1) << "Removing mapping for " << g;
+	this->printMap();
+
+	bool deleted = false;
+
+	// search for it in the groups themselves
+	for(auto it = this->outputMap.cbegin(); it != this->outputMap.cend();) {
+		// make sure the group is not null
+		if(it->first != nullptr) {
+			VLOG(1) << "Group: " << it->first;
+
+			// if the groups are equal
+			if(*std::get<0>(*it) == *g) {
+				// delete it
+				it = this->outputMap.erase(it);
+				deleted = true;
+			} else {
+				// otherwise, check the next one.
+				++it;
+			}
+		}
+		// group is null: this should never happen.
+		else {
+			++it;
+		}
+	}
+
+	LOG(INFO) << "Deleted: " << deleted;
+
+	// search for it in the groups itself
+	if(!deleted) {
 		// we couldn't find it, so we have to check the ubergroups
 		for(auto [group, routine] : this->outputMap) {
 			auto ubergroup = dynamic_cast<OutputMapper::OutputUberGroup *>(group);
@@ -79,12 +147,78 @@ void OutputMapper::removeMappingForGroup(OutputGroup *g) {
 		LOG(INFO) << "Attempted to remove mapping for " << g
 				  << ", but that group doesn't have any existing mappings";
 	}
+
+	// remove any empty ubergroups
+	this->removeEmptyUbergroups();
+
+	this->printMap();
+}
+
+/**
+ * Removes any empty ubergroups.
+ */
+void OutputMapper::removeEmptyUbergroups(void) {
+	// take the lock for this scope
+	std::lock_guard<std::recursive_mutex>(this->outputMapLock);
+
+	// check if there's any empty ubergroups
+	for (auto it = this->outputMap.cbegin(); it != this->outputMap.cend();) {
+		// attempt to cast it
+		auto mapUg = dynamic_cast<OutputMapper::OutputUberGroup *>(it->first);
+
+		if(mapUg) {
+			// is its groups set empty?
+			if(mapUg->numMembers() == 0) {
+				// if so, remove it
+				it = this->outputMap.erase(it);
+			} else {
+				++it;
+			}
+		} else {
+			++it;
+		}
+	}
 }
 
 /**
  * Removes output mappings for any and all groups in the given ubergroup.
  */
 void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug) {
+	// check that iput is not null
+	if(ug == nullptr) {
+		LOG(ERROR) << "_removeMappingsInUbergroup called with null ug!";
+		return;
+	}
+
+	VLOG(1) << "Removing any conflicting mappings in ubergroup " << ug;
+
+	// take the lock for this scope
+	std::lock_guard<std::recursive_mutex>(this->outputMapLock);
+
+	// check if there's any identical ubergroups
+	for (auto it = this->outputMap.cbegin(); it != this->outputMap.cend();) {
+		// attempt to cast it
+		auto mapUg = dynamic_cast<OutputMapper::OutputUberGroup *>(it->first);
+
+		if(mapUg) {
+			// is it equal?
+			if(*ug == *mapUg) {
+				// if so, remove it
+				it = this->outputMap.erase(it);
+			} else {
+				++it;
+			}
+		} else {
+			++it;
+		}
+	}
+
+	// TODO: the shits below are broken, but here's what we need to do:
+	// 1. check through all other ubergroups. if any groups in the passed in
+	//		ubergroup are in that group, remove those mappings from that group.
+	// 2. check whether there's any standalone groups in the output map that are
+	//		also in this ubergroup, and if so, remove them.
+
 	// check if there's any ubergroups and whether this is a member in it
 	for(auto [group, routine] : this->outputMap) {
 		auto ubergroup = dynamic_cast<OutputMapper::OutputUberGroup *>(group);
@@ -97,10 +231,11 @@ void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug)
 					// remove it
 					ubergroup->removeMember(group);
 
-					// if the ubergroup is empty, remove its mapping
+					/*// if the ubergroup is empty, remove its mapping
 					if(ubergroup->numMembers() == 0) {
+						// XXX: infinite loop?
 						this->removeMappingForGroup(ubergroup);
-					}
+					}*/
 				}
 			}
 		}
@@ -108,14 +243,16 @@ void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug)
 
 	// iterate over all groups in the ubergroup
 	for(auto group : ug->groups) {
-		// find the group and remove it if it exists by itself
-		auto element = this->outputMap.find(group);
-
-		if(element != this->outputMap.end()) {
-			this->outputMap.erase(element);
-
-			// delete the group
-			delete (*element).first;
+		// search for it in the groups themselves
+		for (auto it = this->outputMap.cbegin(); it != this->outputMap.cend();) {
+			// if the groups are equal
+			if(*it->first == *group) {
+				// delete it
+				it = this->outputMap.erase(it);
+				// delete (*it).first; // TODO: memory leak?
+			} else {
+				++it;
+			}
 		}
 	}
 }
@@ -132,7 +269,7 @@ OutputMapper::OutputGroup::~OutputGroup() {
 
 	// delete the group
 	if(this->group) {
-		delete this->group;
+		// delete this->group; TODO: memory leak?
 	}
 }
 
@@ -144,7 +281,9 @@ OutputMapper::OutputGroup::OutputGroup(DbGroup *g) {
 	this->group = g;
 
 	// allocate the buffer
-	this->_resizeBuffer();
+	if(g != nullptr) {
+		this->_resizeBuffer();
+	}
 }
 
 /**
@@ -159,11 +298,23 @@ void OutputMapper::OutputGroup::_resizeBuffer() {
 
 	// allocate the buffer
 	this->bufferSz = this->numPixels();
-	this->buffer = static_cast<HSIPixel *>(calloc(this->bufferSz,
-												  sizeof(HSIPixel)));
 
-	// marks the buffer as having changed
-	this->bufferChanged = true;
+	if(this->bufferSz > 0) {
+		this->buffer = static_cast<HSIPixel *>(calloc(this->bufferSz,
+												  sizeof(HSIPixel)));
+		// marks the buffer as having changed
+		this->bufferChanged = true;
+	} else {
+		LOG(ERROR) << "Allocated buffer size 0";
+		this->buffer = nullptr;
+	}
+}
+
+/**
+ * Returns the number of pixels in the group.
+ */
+int OutputMapper::OutputGroup::numPixels() {
+	return this->group->numPixels();
 }
 
 /**
@@ -200,7 +351,11 @@ void OutputMapper::OutputGroup::copyIntoFramebuffer(Framebuffer *fb) {
  * from the datastore has the same ID.
  */
 bool operator==(const OutputMapper::OutputGroup& lhs, const OutputMapper::OutputGroup& rhs) {
-	return (lhs.group == rhs.group);
+	// if either is an ubergroup, they're inequal
+	if(typeid(lhs) == typeid(const OutputMapper::OutputUberGroup)) return false;
+	else if(typeid(rhs) == typeid(const OutputMapper::OutputUberGroup)) return false;
+
+	return (*lhs.group == *rhs.group);
 }
 bool operator!=(const OutputMapper::OutputGroup& lhs, const OutputMapper::OutputGroup& rhs) {
 	return !(lhs == rhs);
@@ -220,7 +375,12 @@ bool operator>=(const OutputMapper::OutputGroup& lhs, const OutputMapper::Output
 }
 
 ostream &operator<<(ostream& strm, const OutputMapper::OutputGroup& obj) {
-	strm << "output group{group = " << obj.group << "}";
+	// can we cast it to an ubergroup?
+	try {
+		strm << dynamic_cast<const OutputMapper::OutputUberGroup&>(obj);
+	} catch(std::bad_cast e) {
+		strm << "output group{group = " << obj.group << "}";
+	}
 
 	return strm;
 }
@@ -253,7 +413,7 @@ OutputMapper::OutputUberGroup::OutputUberGroup(vector<OutputGroup *> &members) :
 OutputMapper::OutputUberGroup::~OutputUberGroup() {
 	// delete all groups
 	for(auto group : this->groups) {
-		delete group;
+		// delete group; // TODO: memory leak
 	}
 }
 
@@ -274,14 +434,19 @@ void OutputMapper::OutputUberGroup::addMember(OutputGroup *group) {
  * Removes the specified group from the ubergroup.
  */
 void OutputMapper::OutputUberGroup::removeMember(OutputGroup *group) {
+	// take the lock to modify the groups set
+	// std::lock_guard<std::recursive_mutex>(this->groupsLock);
+
 	// check whether the group even contains this group
 	if(this->containsMember(group)) {
-		for(auto i = this->groups.begin(); i != this->groups.end(); i++) {
-			if(**i == *group) {
-				this->groups.erase(*i);
-
-				// also deallocate the object
-				delete *i;
+		for (auto it = this->groups.cbegin(); it != this->groups.cend();) {
+			// if the groups are equal
+			if(**it == *group) {
+				// delete it
+				it = this->groups.erase(it);
+				// delete *it;
+			} else {
+				++it;
 			}
 		}
 	}
@@ -294,6 +459,9 @@ void OutputMapper::OutputUberGroup::removeMember(OutputGroup *group) {
  * Checks whether the ubergroup contains the given member.
  */
 bool OutputMapper::OutputUberGroup::containsMember(OutputGroup *inGroup) {
+	// take the lock to modify the groups set
+	// std::lock_guard<std::recursive_mutex>(this->groupsLock);
+
 	// iterate over all elements and compare them
 	for(auto group : this->groups) {
 		if(*group == *inGroup) {
@@ -310,6 +478,9 @@ bool OutputMapper::OutputUberGroup::containsMember(OutputGroup *inGroup) {
  * the appropriate places of the framebuffer.
  */
 void OutputMapper::OutputUberGroup::copyIntoFramebuffer(Framebuffer *fb) {
+	// take the lock to modify the groups set
+	// std::lock_guard<std::recursive_mutex>(this->groupsLock);
+
 	for(auto group : this->groups) {
 		group->copyIntoFramebuffer(fb);
 	}
@@ -318,7 +489,10 @@ void OutputMapper::OutputUberGroup::copyIntoFramebuffer(Framebuffer *fb) {
 /**
  * Returns the number of pixels in the group.
  */
-int OutputMapper::OutputUberGroup::numPixels() const {
+int OutputMapper::OutputUberGroup::numPixels() {
+	// take the lock to modify the groups set
+	// std::lock_guard<std::recursive_mutex>(this->groupsLock);
+
 	int elements = 0;
 
 	// sum up all of the groups' pixels
@@ -327,6 +501,17 @@ int OutputMapper::OutputUberGroup::numPixels() const {
 	}
 
 	return elements;
+}
+
+/**
+ * Compares two groups. They are considered equivalent if all output groups are
+ * identical.
+ */
+bool operator==(const OutputMapper::OutputUberGroup& lhs, const OutputMapper::OutputUberGroup& rhs) {
+   return (lhs.groups == rhs.groups);
+}
+bool operator!=(const OutputMapper::OutputUberGroup& lhs, const OutputMapper::OutputUberGroup& rhs) {
+   return !(lhs == rhs);
 }
 
 ostream &operator<<(ostream& strm, const OutputMapper::OutputUberGroup& obj) {
