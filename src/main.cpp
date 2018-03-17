@@ -157,9 +157,8 @@ int main(int argc, char *argv[]) {
 
 	// clean up
 	delete cs;
-	delete protocol;
-
 	delete runner;
+	delete protocol;
 
 	// delete the datastore last
 	delete store;

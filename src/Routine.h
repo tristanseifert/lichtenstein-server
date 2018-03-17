@@ -123,6 +123,9 @@ class Routine {
 		double avgExecutionTimeSamples = 0;
 
 		std::chrono::time_point<std::chrono::high_resolution_clock> lastStart;
+
+	private:
+		friend std::ostream &operator<<(std::ostream& strm, const Routine& obj);
 };
 
 #endif

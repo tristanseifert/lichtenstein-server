@@ -586,5 +586,15 @@ void ProtocolHandler::sendOutputEnableForAllNodes(void) {
 
 	// delete memory
 	free(data);
+}
 
+/**
+ * Prepares for a shutdown of the effect thread. This really just signals the
+ * lock that thread might be waiting on.
+ */
+void ProtocolHandler::prepareForShutDown(void) {
+	for(size_t i = 0; i < 5; i++) {
+		this->numPendingFBWrites = 0;
+		this->pendingOutputMutex.unlock();
+	}
 }

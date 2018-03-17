@@ -80,6 +80,9 @@ EffectRunner::~EffectRunner() {
     this->effectLock.unlock();
     this->conversionCv.notify_one();
 
+	// signal the output handler
+	this->proto->prepareForShutDown();
+
 	// Wait for the coordinator to finish
 	VLOG(1) << "Waiting for coordinator to terminate";
 	this->coordinator->join();
@@ -386,6 +389,7 @@ void EffectRunner::coordinatorRunEffects() {
 
 	for(auto const& [group, routine] : this->mapper->outputMap) {
 		// this->workPool->push([this, &group = group, &routine = routine] (int tid) {
+			// VLOG_EVERY_N(2, 60) << "Executing routine " << *routine << " with group " << group;
 			this->runEffect(group, routine);
 		// });
 	}

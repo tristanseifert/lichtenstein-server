@@ -50,7 +50,7 @@ class OutputMapper {
 				virtual int numPixels();
 
 				virtual void bindBufferToRoutine(Routine *r);
-				virtual void copyIntoFramebuffer(Framebuffer *fb);
+				virtual void copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer = nullptr);
 
 			private:
 				virtual void _resizeBuffer();
@@ -82,7 +82,7 @@ class OutputMapper {
 				// overrides from OutputGroup
 				virtual int numPixels();
 
-				virtual void copyIntoFramebuffer(Framebuffer *fb);
+				virtual void copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer = nullptr);
 
 				int numMembers() {
 					return this->groups.size();

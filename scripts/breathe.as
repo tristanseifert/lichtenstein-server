@@ -7,6 +7,8 @@
  * - hue: Hue of the pixels.
  * - saturation: Saturation of the pixels.
  */
+double step = 0;
+
 void effectStep() {
 	double stepSize = double(properties['stepSize']);
 	double maxIntensity = double(properties['maxIntensity']);
@@ -21,4 +23,4 @@ void effectStep() {
 	}
 
 	step = stepSize * double(frameCounter);
- }
+}

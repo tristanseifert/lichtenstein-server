@@ -308,6 +308,9 @@ void OutputMapper::OutputGroup::_resizeBuffer() {
 		LOG(ERROR) << "Allocated buffer size 0";
 		this->buffer = nullptr;
 	}
+
+	// VLOG(2) << "New buffer for " << *this << ": 0x" << this->buffer
+			// << ", size " << this->bufferSz;
 }
 
 /**
@@ -335,15 +338,29 @@ void OutputMapper::OutputGroup::bindBufferToRoutine(Routine *r) {
  * Copies the pixel data for this group into the framebuffer at the correct
  * offsets.
  */
-void OutputMapper::OutputGroup::copyIntoFramebuffer(Framebuffer *fb) {
+void OutputMapper::OutputGroup::copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer) {
+	// if buffer is nullptr, use the buffer we've been allocated previously
+	if(buffer == nullptr) {
+		buffer = this->buffer;
+	}
+
+	// get pointers
 	auto fbPointer = fb->getDataPointer();
 
 	int fbStart = this->group->start;
 	int fbEnd = this->group->end;
 
+	// VLOG_EVERY_N(1, 60) << "Buffer address: 0x" << this->buffer;
+
+	// VLOG(1) << "Copying " << *this << " to " << fbStart << " to " << fbEnd;
+
 	for(int i = fbStart, j = 0; i <= fbEnd; i++, j++) {
-		fbPointer[i] = this->buffer[j];
+		// const HSIPixel p(double(i), 1, 1);
+		// fbPointer[i] = p;
+		fbPointer[i] = buffer[j];
 	}
+
+	// VLOG(1) << fbPointer[1] << "; " << this->buffer[1];
 }
 
 /**
@@ -477,12 +494,12 @@ bool OutputMapper::OutputUberGroup::containsMember(OutputGroup *inGroup) {
  * Copies the pixel data for each of the groups that make up this ubergroup into
  * the appropriate places of the framebuffer.
  */
-void OutputMapper::OutputUberGroup::copyIntoFramebuffer(Framebuffer *fb) {
+void OutputMapper::OutputUberGroup::copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer) {
 	// take the lock to modify the groups set
 	// std::lock_guard<std::recursive_mutex>(this->groupsLock);
 
 	for(auto group : this->groups) {
-		group->copyIntoFramebuffer(fb);
+		group->copyIntoFramebuffer(fb, this->buffer);
 	}
 }
 

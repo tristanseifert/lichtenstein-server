@@ -49,6 +49,8 @@ class ProtocolHandler {
 
 		void sendOutputEnableForAllNodes(void);
 
+		void prepareForShutDown(void);
+
 	private:
 		std::atomic_int numPendingFBWrites;
 		std::mutex pendingOutputMutex;

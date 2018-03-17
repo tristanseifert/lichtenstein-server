@@ -37,12 +37,12 @@ const char *testScript = R"(/**
  */
 
 void effectStep() {
-	debug_print("hello world from test.as!");
+	// debug_print("hello world from test.as!");
 
 	double intensityStep = 1.0 / double(buffer.length() - 1);
 
 	for(uint i = 0; i < buffer.length(); i++) {
-		buffer[i].h = 0;
+		buffer[i].h = 74;
 		buffer[i].s = 1;
 		buffer[i].i = intensityStep * double(i);
 	}
@@ -255,7 +255,7 @@ void Routine::_updateASBufferArray() {
 	this->asBuffer = CScriptArray::Create(type, this->bufferSz);
 
 	VLOG(2) << "Bound new CScriptArray size " << this->bufferSz << " for "
-			<< this->routine->name;
+			<< this->routine->name << "; buffer is 0x" << this->buffer;
 }
 
 /**
@@ -280,6 +280,11 @@ void Routine::_copyASBufferArrayData() {
 		HSIPixel *pixel = static_cast<HSIPixel *>(this->asBuffer->At(i));
 		this->buffer[i] = *pixel;
 	}
+
+	// VLOG(2) << this->buffer[0];
+	// VLOG(2) << this->buffer[30];
+
+	// VLOG_EVERY_N(1, 60) << "Buffer address: 0x" << this->buffer;
 
 #if PROFILE_BUFCOPY
 	auto elapsed = std::chrono::high_resolution_clock::now() - start;
@@ -528,4 +533,13 @@ void Routine::_scriptExecEnd() {
 void Routine::LoadError::_createWhatString() {
 	snprintf(this->whatBuf, this->whatBufSz,
 			 "AngelScript error: stage %u, error %i", this->stage, this->errCode);
+}
+
+/**
+ * Output operator
+ */
+std::ostream &operator<<(std::ostream& strm, const Routine& obj) {
+	strm << "Routine {" << obj.routine->name << "}";
+
+	return strm;
 }
