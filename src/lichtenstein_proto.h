@@ -21,7 +21,7 @@ const uint32_t kLichtensteinMagic		= 0x4c494348;
  * Maximum number of supported channels per node; this affects the size of some
  * arrays in packets.
  */
-const uint32_t kLichtensteinMaxChannels	= 16;
+const uint32_t kLichtensteinMaxChannels	= 128;
 
 /**
  * Defined flags. The "flags" field in the packet header may only contain a

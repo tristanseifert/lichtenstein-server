@@ -92,6 +92,9 @@ void ProtocolHandler::createSocket() {
 
 	unsigned int yes = 1;
 
+	// clear the address
+	memset(&addr, 0, sizeof(addr));
+
 	// get the port and IP address to listen on
 	int port = this->config->GetInteger("server", "port", 7420);
 	string address = this->config->Get("server", "listen", "0.0.0.0");
@@ -112,7 +115,6 @@ void ProtocolHandler::createSocket() {
 	PLOG_IF(FATAL, err < 0) << "Couldn't set SO_REUSEADDR";
 
 	// set up the destination address
-	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	// addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons(port);
@@ -593,6 +595,11 @@ void ProtocolHandler::sendOutputEnableForAllNodes(void) {
  * lock that thread might be waiting on.
  */
 void ProtocolHandler::prepareForShutDown(void) {
+	if(this->numPendingFBWrites != 0) {
+		LOG(INFO) << "Still have " << this->numPendingFBWrites << " pending "
+				  << "framebuffer writes at shutdown time";
+	}
+
 	for(size_t i = 0; i < 5; i++) {
 		this->numPendingFBWrites = 0;
 		this->pendingOutputMutex.unlock();
