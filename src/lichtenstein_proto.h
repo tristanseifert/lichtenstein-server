@@ -99,7 +99,7 @@ typedef struct {
 	uint16_t numGpioAnalogOut;
 
 	uint16_t hostnameLen;
-	char *hostname[];
+	char hostname[];
 } lichtenstein_node_announcement_t;
 
 
@@ -120,7 +120,7 @@ typedef struct {
 	uint16_t status;
 
 	uint16_t hostnameLen;
-	char *hostname[];
+	char hostname[];
 } lichtenstein_server_announcement_t;
 
 
@@ -246,7 +246,7 @@ typedef struct {
 	lichtenstein_header_t header;
 
 	uint16_t hostnameLen;
-	char *hostname[];
+	char hostname[];
 } lichtenstein_reconfig_t;
 
 
