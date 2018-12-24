@@ -9,18 +9,16 @@
 
 #include "json.hpp"
 
-using namespace std;
-
 
 #pragma mark - Public Query Interface
 /**
  * Returns all channels in the datastore in a vector.
  */
-vector<DbChannel *> DataStore::getAllChannels() {
+std::vector<DbChannel *> DataStore::getAllChannels() {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	vector<DbChannel *> groups;
+	std::vector<DbChannel *> groups;
 
 	// execute the query
 	err = this->sqlPrepare("SELECT * FROM channels;", &statement);
@@ -44,11 +42,11 @@ vector<DbChannel *> DataStore::getAllChannels() {
  * Returns all channels associated with the given node in the datastore in a
  * vector.
  */
-vector<DbChannel *> DataStore::getChannelsForNode(DbNode *node) {
+std::vector<DbChannel *> DataStore::getChannelsForNode(DbNode *node) {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	vector<DbChannel *> channels;
+	std::vector<DbChannel *> channels;
 
 	// execute the query
 	err = this->sqlPrepare("SELECT * FROM channels WHERE node = :nodeId;", &statement);
@@ -338,7 +336,7 @@ bool operator>=(const DbChannel& lhs, const DbChannel& rhs) {
 /**
  * Outputs the some info about the channel to the output stream.
  */
-ostream &operator<<(ostream& strm, const DbChannel& obj) {
+std::ostream &operator<<(std::ostream& strm, const DbChannel& obj) {
 	strm << "channel id " << obj.id << "{index = " << obj.nodeOffset << ", "
 		 << "size = " << obj.numPixels << ", node = " << obj.nodeId << "}";
 

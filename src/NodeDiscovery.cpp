@@ -17,8 +17,6 @@
 
 #include "ProtocolHandler.h"
 
-using namespace std;
-
 /**
  * Sets up the node discovery server.
  */

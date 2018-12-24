@@ -17,10 +17,8 @@
 #include "EffectRunner.h"
 #include "Routine.h"
 
-using namespace std;
-
 // when set to false, the server terminates
-atomic_bool keepRunning;
+std::atomic_bool keepRunning;
 
 // data store
 static DataStore *store = nullptr;
@@ -101,7 +99,7 @@ int main(int argc, char *argv[]) {
 	cs->start();
 
 	// XXX: Test the routine code
-	/*vector<DbRoutine *> routines = store->getAllRoutines();
+	/*std::vector<DbRoutine *> routines = store->getAllRoutines();
 	DataStore::Routine *r = routines[0];
 	LOG(INFO) << "Found routines: " << *r;
 
@@ -113,7 +111,7 @@ int main(int argc, char *argv[]) {
 		LOG(ERROR) << "Error loading script: " << e.what();
 	}
 
-	vector<HSIPixel> buf;
+	std::vector<HSIPixel> buf;
 	buf.resize(300, {0, 0, 0});
 	rout->attachBuffer(&buf);
 
@@ -125,8 +123,8 @@ int main(int argc, char *argv[]) {
 	*/
 
 	// XXX: Test the effect evaluation code
-	vector<DbGroup *> groups = store->getAllGroups();
-	vector<DbRoutine *> routines = store->getAllRoutines();
+	std::vector<DbGroup *> groups = store->getAllGroups();
+	std::vector<DbRoutine *> routines = store->getAllRoutines();
 
 	auto mapper = runner->getMapper();
 
@@ -196,7 +194,7 @@ void parseConfigFile(string path) {
 		FLAGS_v = 0;
 
 		// ALWAYS log FATAL errors
-		FLAGS_minloglevel = min(verbosity, 2);
+		FLAGS_minloglevel = std::min(verbosity, 2);
 	}
 
 	FLAGS_logtostderr = configReader->GetBoolean("logging", "stderr", true);

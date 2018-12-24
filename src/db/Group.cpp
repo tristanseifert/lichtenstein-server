@@ -9,18 +9,16 @@
 
 #include "json.hpp"
 
-using namespace std;
-
 
 #pragma mark - Public Query Interface
 /**
  * Returns all groups in the datastore in a vector.
  */
-vector<DbGroup *> DataStore::getAllGroups() {
+std::vector<DbGroup *> DataStore::getAllGroups() {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	vector<DbGroup *> groups;
+	std::vector<DbGroup *> groups;
 
 	// execute the query
 	err = this->sqlPrepare("SELECT * FROM groups;", &statement);
@@ -302,7 +300,7 @@ bool operator>=(const DbGroup& lhs, const DbGroup& rhs) {
 /**
  * Outputs the some info about the group to the output stream.
  */
-ostream &operator<<(ostream& strm, const DbGroup& obj) {
+std::ostream &operator<<(std::ostream& strm, const DbGroup& obj) {
 	strm << "group id " << obj.id << "{name = " << obj.name << ", range = ["
 		 << obj.start << ", " << obj.end << "]}";
 

@@ -3,12 +3,10 @@
 #include <iostream>
 #include <cmath>
 
-using namespace std;
-
 /**
  * Output an HSIPixel struct.
  */
-ostream &operator<<(ostream& strm, const HSIPixel& obj) {
+std::ostream &operator<<(std::ostream& strm, const HSIPixel& obj) {
 	strm << "{h = " << obj.h << ", s = " << obj.s << ", i = " << obj.i << "}";
 
 	return strm;

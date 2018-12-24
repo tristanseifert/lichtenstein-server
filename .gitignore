@@ -1,4 +1,7 @@
+# ignore build files
 *.dSYM
-store
 build/
 *.d
+
+# ignore database dir (for testing)
+store/

@@ -9,8 +9,6 @@
 #include <map>
 #include <set>
 
-using namespace std;
-
 /**
  * Initializes the output mapper.
  */
@@ -32,7 +30,7 @@ OutputMapper::~OutputMapper() {
  * Prints the output map.
  */
 void OutputMapper::printMap(void) {
-	stringstream str;
+	std::stringstream str;
 
 	for(auto elem : this->outputMap) {
 		str << elem.first << ": " << elem.second << std::endl;
@@ -391,7 +389,7 @@ bool operator>=(const OutputMapper::OutputGroup& lhs, const OutputMapper::Output
 	return !(lhs < rhs);
 }
 
-ostream &operator<<(ostream& strm, const OutputMapper::OutputGroup& obj) {
+std::ostream &operator<<(std::ostream& strm, const OutputMapper::OutputGroup& obj) {
 	// can we cast it to an ubergroup?
 	try {
 		strm << dynamic_cast<const OutputMapper::OutputUberGroup&>(obj);
@@ -413,7 +411,7 @@ OutputMapper::OutputUberGroup::OutputUberGroup() : OutputMapper::OutputGroup(nul
 /**
  * Creates an Ubergroup with the specified members.
  */
-OutputMapper::OutputUberGroup::OutputUberGroup(vector<OutputGroup *> &members) :
+OutputMapper::OutputUberGroup::OutputUberGroup(std::vector<OutputGroup *> &members) :
 				 OutputMapper::OutputGroup(nullptr) {
 	for(auto group : members) {
 		this->groups.insert(group);
@@ -531,7 +529,7 @@ bool operator!=(const OutputMapper::OutputUberGroup& lhs, const OutputMapper::Ou
    return !(lhs == rhs);
 }
 
-ostream &operator<<(ostream& strm, const OutputMapper::OutputUberGroup& obj) {
+std::ostream &operator<<(std::ostream& strm, const OutputMapper::OutputUberGroup& obj) {
 	strm << "output ubergroup{groups = [";
 
 	for(auto group : obj.groups) {

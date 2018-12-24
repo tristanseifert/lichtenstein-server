@@ -22,7 +22,6 @@
 #include <sys/resource.h>
 #include <arpa/inet.h>
 
-using namespace std;
 using json = nlohmann::json;
 
 /**
@@ -79,7 +78,7 @@ CommandServer::~CommandServer() {
  */
 void CommandServer::start() {
 	LOG(INFO) << "Starting command server thread";
-	this->worker = new thread(CommandServerEntry, this);
+	this->worker = new std::thread(CommandServerEntry, this);
 }
 
 /**
@@ -106,15 +105,15 @@ void CommandServer::stop() {
 		LOG(INFO) << "Closing " << this->clients.size() << " client connections";
 
 		for(auto value : this->clients) {
-			int fd = get<0>(value);
-			thread *t = get<1>(value);
+			int fd = std::get<0>(value);
+			std::thread *t = std::get<1>(value);
 
 			// check if the fd is closed already
-		   	if(fcntl(fd, F_GETFD) != -1) {
+	   	if(fcntl(fd, F_GETFD) != -1) {
 				// if not, close it
-		   		err = close(fd);
-		   		PLOG_IF(ERROR, err != 0) << "Couldn't close client socket: ";
-		   	}
+	   		err = close(fd);
+	   		PLOG_IF(ERROR, err != 0) << "Couldn't close client socket: ";
+	   	}
 
 			// now, wait for the thread to terminate
 			t->join();
@@ -185,7 +184,7 @@ void CommandServer::createSocket() {
 	strcpy(server.sun_path, this->socketPath.c_str()); // TODO: length checking
 
 	// bind the socket
-	err = ::bind(this->sock, (struct sockaddr *) &server, (socklen_t) sizeof(struct sockaddr_un));
+	err = bind(this->sock, (struct sockaddr *) &server, (socklen_t) sizeof(struct sockaddr_un));
 	PCHECK(err == 0) << "Binding command server socket failed on " << this->socketPath;
 
 	// accept connections
@@ -204,7 +203,7 @@ void CommandServer::createSocket() {
 void CommandServer::acceptClient(int fd) {
 	// allocate context and pass it to the new thread
 	ClientThreadCtx *ctx = new ClientThreadCtx(this, fd);
-	thread *t = new thread(CommandClientEntry, ctx);
+	std::thread *t = new std::thread(CommandClientEntry, ctx);
 
 	// store this info for later so we can cleanly terminate connections
 	this->clients.push_back(make_tuple(fd, t));
@@ -350,7 +349,7 @@ void CommandServer::processClientRequest(json &j, int fd) {
 		if(j.at("txn")) {
 			response["txn"] = j["txn"];
 		}
-	} catch(exception e) {}
+	} catch(std::exception e) {}
 
 	// serialize it to a string and send it
 	bool humanReadable = this->config->GetBoolean("command", "humanReadableResponses", false);
@@ -411,9 +410,9 @@ void CommandServer::clientRequestListNodes(json &response, json &request) {
 	response["status"] = 0;
 
 	// iterate over all nodes and insert them
-	response["nodes"] = vector<DbNode>();
+	response["nodes"] = std::vector<DbNode>();
 
-	vector<DbNode *> nodes = this->store->getAllNodes();
+	std::vector<DbNode *> nodes = this->store->getAllNodes();
 	for(auto node : nodes) {
 		response["nodes"].push_back(json(*node));
 
@@ -429,9 +428,9 @@ void CommandServer::clientRequestListGroups(nlohmann::json &response, json &requ
 	response["status"] = 0;
 
 	// iterate over all groups and insert them
-	response["groups"] = vector<DbGroup>();
+	response["groups"] = std::vector<DbGroup>();
 
-	vector<DbGroup *> groups = this->store->getAllGroups();
+	std::vector<DbGroup *> groups = this->store->getAllGroups();
 	for(auto group : groups) {
 		response["groups"].push_back(json(*group));
 
@@ -467,7 +466,7 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 
 
 	// get each of the groups
-	vector<DbGroup *> groups;
+	std::vector<DbGroup *> groups;
 
 	for(int id : request["groups"]) {
 		DbGroup *group = this->store->findGroupWithId(id);
@@ -477,7 +476,7 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 			response["status"] = kErrorInvalidGroupId;
 			response["id"] = id;
 
-			stringstream s;
+			std::stringstream s;
 			s << "Couldn't find group with id " << id;
 			response["error"] = s.str();
 
@@ -492,7 +491,7 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 	OutputMapper *mapper = this->runner->getMapper();
 
 	if(hasParams) {
-		map<string, double> params = request["routine"]["params"];
+		std::map<string, double> params = request["routine"]["params"];
 		routine = new Routine(dbRoutine, params);
 	} else {
 		routine = new Routine(dbRoutine);
@@ -505,7 +504,7 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 		mapper->addMapping(og, routine);
 	} else {
 		// create output groups for each group
-		vector<OutputMapper::OutputGroup *> outputGroups;
+		std::vector<OutputMapper::OutputGroup *> outputGroups;
 
 		for(auto group : groups) {
 			outputGroups.push_back(new OutputMapper::OutputGroup(group));
@@ -527,7 +526,7 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
  */
 void CommandServer::clientRequestRemoveMapping(json &response, json &request) {
 	// get all of the groups
-	vector<DbGroup *> groups;
+	std::vector<DbGroup *> groups;
 
 	for(int id : request["groups"]) {
 		DbGroup *group = this->store->findGroupWithId(id);
@@ -537,7 +536,7 @@ void CommandServer::clientRequestRemoveMapping(json &response, json &request) {
 			response["status"] = kErrorInvalidGroupId;
 			response["id"] = id;
 
-			stringstream s;
+			std::stringstream s;
 			s << "Couldn't find group with id " << id;
 			response["error"] = s.str();
 

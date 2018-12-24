@@ -20,8 +20,6 @@
 #include <datetime/datetime.h>
 #include <debugger/debugger.h>
 
-using namespace std;
-
 // turn on to profile how long it takes to copy the pixel buffers
 #define PROFILE_BUFCOPY 0
 
@@ -63,7 +61,7 @@ int ASRandomIntInRange(int min, int max);
  * Initializes a new routine object with the given database routine (that's how
  * we get our AngelScript code) and properties to pass to that code.
  */
-Routine::Routine(DbRoutine *r, map<string, double> &params) {
+Routine::Routine(DbRoutine *r, std::map<string, double> &params) {
 	this->routine = r;
 	this->params = params;
 
@@ -102,7 +100,7 @@ void Routine::attachBuffer(HSIPixel *buf, size_t elements) {
 /**
  * Updates the parameters.
  */
-void Routine::changeParams(map<string, double> &newParams) {
+void Routine::changeParams(std::map<string, double> &newParams) {
 	this->params = newParams;
 
 	// merge the default parameters
@@ -399,7 +397,7 @@ void Routine::execute(int frame) {
 	int err;
 
 	// acquire the execution lock
-	unique_lock<mutex> lk(this->executionLock);
+	std::unique_lock<std::mutex> lk(this->executionLock);
 
 	// start of execution
 	this->_scriptExecStart();
@@ -460,9 +458,9 @@ void ASHSIPixelListConstructor(double *list, HSIPixel *self) {
  * Returns a random number in the given range.
  */
 int ASRandomIntInRange(int min, int max) {
-    random_device rd; // obtain a random number from hardware
-    mt19937 eng(rd()); // seed the generator
-    uniform_int_distribution<> distr(min, max); // define the range
+  std::random_device rd; // obtain a random number from hardware
+  std::mt19937 eng(rd()); // seed the generator
+  std::uniform_int_distribution<> distr(min, max); // define the range
 
 	return distr(eng);
 }

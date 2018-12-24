@@ -8,8 +8,6 @@
 #include <tuple>
 #include <iostream>
 
-using namespace std;
-
 /**
  * Allocates the framebuffer memory.
  */
@@ -36,7 +34,7 @@ void Framebuffer::recalculateMinSize() {
 	int minSize = 0;
 
 	// fetch all groups, then iterate over them
-	vector<DbGroup *> groups = this->store->getAllGroups();
+	std::vector<DbGroup *> groups = this->store->getAllGroups();
 
 	for(auto group : groups) {
 		minSize += group->numPixels();
@@ -55,7 +53,7 @@ void Framebuffer::recalculateMinSize() {
 /**
  * Returns a pointer to the framebuffer's pixel data.
  */
-vector<HSIPixel>::iterator Framebuffer::getDataPointer() {
+std::vector<HSIPixel>::iterator Framebuffer::getDataPointer() {
 	return this->data.begin();
 }
 

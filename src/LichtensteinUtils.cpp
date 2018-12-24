@@ -7,8 +7,6 @@
 #include "lichtenstein_proto.h"
 #include "crc32/crc32.h"
 
-using namespace std;
-
 /**
  * Validates the given packet. If the packet cannot be verified, an error is
  * returned. This assumes that the packet is right off the wire, i.e. that all
@@ -33,8 +31,8 @@ LichtensteinUtils::PacketErrors LichtensteinUtils::validatePacket(void *data, si
 		uint32_t packetCrc = ntohl(header->checksum);
 
 		LOG_IF(WARNING, crc != packetCrc) << "CRC mismatch on packet 0x" << data
-										  << "! Got " << hex << packetCrc
-										  << ", expected " << hex << crc;
+										  << "! Got " << std::hex << packetCrc
+										  << ", expected " << std::hex << crc;
 
 		if(crc != packetCrc) {
 			return kInvalidChecksum;
@@ -43,7 +41,7 @@ LichtensteinUtils::PacketErrors LichtensteinUtils::validatePacket(void *data, si
 
 	// validate the header magic value
 	if(header->magic != htonl(kLichtensteinMagic)) {
-		LOG(WARNING) << "invalid magic value, got 0x" << hex << ntohl(header->magic);
+		LOG(WARNING) << "invalid magic value, got 0x" << std::hex << ntohl(header->magic);
 		return kInvalidMagic;
 	}
 

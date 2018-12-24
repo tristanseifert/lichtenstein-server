@@ -8,7 +8,6 @@
 
 #include <vector>
 
-using namespace std;
 using json = nlohmann::json;
 
 
@@ -16,11 +15,11 @@ using json = nlohmann::json;
 /**
  * Returns all routines in the datastore in a vector.
  */
-vector<DbRoutine *> DataStore::getAllRoutines() {
+std::vector<DbRoutine *> DataStore::getAllRoutines() {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	vector<DbRoutine *> routines;
+	std::vector<DbRoutine *> routines;
 
 	// execute the query
 	err = this->sqlPrepare("SELECT * FROM routines;", &statement);
@@ -315,7 +314,7 @@ bool operator>=(const DbRoutine& lhs, const DbRoutine& rhs) {
 /**
  * Outputs the some info about the routine to the output stream.
  */
-ostream &operator<<(ostream& strm, const DbRoutine& obj) {
+std::ostream &operator<<(std::ostream& strm, const DbRoutine& obj) {
 	strm << "routine id " << obj.id << "{name = " << obj.name << ", "
 		 << obj.code.size() << " bytes of code}";
 

@@ -20,8 +20,6 @@
 // log FPS counters
 #define LOG_FPS							0
 
-using namespace std;
-
 /**
  * Initializes the effect runner, worker threads, and the framebuffer and output
  * mapper.
@@ -77,8 +75,8 @@ EffectRunner::~EffectRunner() {
 	this->effectLock.unlock();
 	this->effectsCv.notify_one();
 
-    this->effectLock.unlock();
-    this->conversionCv.notify_one();
+  this->effectLock.unlock();
+  this->conversionCv.notify_one();
 
 	// signal the output handler
 	this->proto->prepareForShutDown();
@@ -116,10 +114,10 @@ void EffectRunner::setUpThreadPool() {
 
 	// if zero, create half as many threads as we have cores
 	if(numThreads == 0) {
-		numThreads = thread::hardware_concurrency();
+		numThreads = std::thread::hardware_concurrency();
 		CHECK(numThreads > 0) << "Couldn't get number of cores!";
 
-		numThreads = max((numThreads / 2), 1);
+		numThreads = std::max((numThreads / 2), 1);
 	}
 
 	LOG(INFO) << "Using " << numThreads << " threads for thread pool";
@@ -161,7 +159,7 @@ void EffectRunner::setUpCoordinatorThread() {
 	this->coordinatorRunning = true;
 
 	// lastly, start the thread
-	this->coordinator = new thread(CoordinatorEntryPoint, this);
+	this->coordinator = new std::thread(CoordinatorEntryPoint, this);
 }
 
 /**
@@ -183,8 +181,8 @@ void EffectRunner::coordinatorThreadEntry() {
 	this->updateChannels();
 
 	// starting time
-	auto start = chrono::high_resolution_clock::now();
-	this->fpsStart = chrono::high_resolution_clock::now();
+	auto start = std::chrono::high_resolution_clock::now();
+	this->fpsStart = std::chrono::high_resolution_clock::now();
 
 	// run as long as the main thread is still alive
 	while(this->coordinatorRunning) {
@@ -200,7 +198,7 @@ void EffectRunner::coordinatorThreadEntry() {
 			this->coordinatorRunEffects();
 
 			// acquire the buffer lock (so they don't get modified)
-	        unique_lock<mutex> lk(this->channelBufferMutex);
+      std::unique_lock<std::mutex> lk(this->channelBufferMutex);
 
 			// do the framebuffer conversions
 			if(this->coordinatorRunning == false) goto cleanup;
@@ -215,8 +213,8 @@ void EffectRunner::coordinatorThreadEntry() {
 		}
 
 		// determine how long it took to do all that, sleep for the remainder
-		auto end = chrono::high_resolution_clock::now();
-		chrono::duration<double, std::nano> difference = (end - start);
+		auto end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::nano> difference = (end - start);
 		long differenceNanos = difference.count();
 
 		sleep.tv_nsec = (sleepTimeNs - differenceNanos);
@@ -224,7 +222,7 @@ void EffectRunner::coordinatorThreadEntry() {
 		nanosleep(&sleep, nullptr);
 
 		// immediately after we wake up, get the new starting time
-		start = chrono::high_resolution_clock::now();
+		start = std::chrono::high_resolution_clock::now();
 
 		// VLOG(1) << "Slept for " <<  sleep.tv_nsec << " ns";
 
@@ -232,11 +230,11 @@ void EffectRunner::coordinatorThreadEntry() {
 		this->calculateActualFps();
 
 		// how long did we sleep for?
-		auto sleepTime = chrono::high_resolution_clock::now() - end;
-		chrono::duration<double, std::micro> micros = sleepTime;
+		auto sleepTime = std::chrono::high_resolution_clock::now() - end;
+		std::chrono::duration<double, std::micro> micros = sleepTime;
 
 		double sleepTimeUs = micros.count();
-		double sleepTimeNs = chrono::duration<double, std::nano>(sleepTime).count();
+		double sleepTimeNs = std::chrono::duration<double, std::nano>(sleepTime).count();
 
 		// calculate the compensation factor
 		this->compensateSleepInaccuracies(sleep.tv_nsec, sleepTimeNs);
@@ -280,7 +278,7 @@ void EffectRunner::coordinatorThreadEntry() {
  */
 void EffectRunner::updateChannels() {
 	// attempt to acquire the lock
-    unique_lock<mutex> lk(this->channelBufferMutex);
+  std::unique_lock<std::mutex> lk(this->channelBufferMutex);
 
 	// delete all buffers
 	for(auto const& [channel, buffer] : this->channelBuffers) {
@@ -360,15 +358,15 @@ void EffectRunner::compensateSleepInaccuracies(long requestedNs, long actualNs) 
 void EffectRunner::calculateActualFps() {
 	this->actualFramesCounter++;
 
-	auto current = chrono::high_resolution_clock::now();
-	chrono::duration<double, std::milli> fpsDifference = (current - this->fpsStart);
+	auto current = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> fpsDifference = (current - this->fpsStart);
 
 	if(fpsDifference.count() >= 1000.f) {
 		this->actualFps = double(this->actualFramesCounter) / (fpsDifference.count() / 1000.f);
 
 		// reset the frame counter and timer
 		this->actualFramesCounter = 0;
-		this->fpsStart = chrono::high_resolution_clock::now();
+		this->fpsStart = std::chrono::high_resolution_clock::now();
 	}
 }
 

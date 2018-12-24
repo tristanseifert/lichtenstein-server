@@ -26,8 +26,6 @@ static const size_t kClientBufferSz = (1024 * 8);
 /// control buffer size for recvfrom
 static const size_t kControlBufSz = (1024);
 
-using namespace std;
-
 /**
  * Main server entry point
  */
@@ -55,7 +53,7 @@ ProtocolHandler::ProtocolHandler(DataStore *store, INIReader *reader) {
 	this->run = true;
 
 	LOG(INFO) << "Starting protocol handler thread";
-	this->worker = new thread(ProtocolHandlerEntry, this);
+	this->worker = new std::thread(ProtocolHandlerEntry, this);
 
 	// unlock mutex
 	this->pendingOutputMutex.unlock();
@@ -298,8 +296,8 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 							DbNode *node = std::get<1>(tuple);
 							auto sent = std::get<2>(tuple);
 
-							auto current = chrono::high_resolution_clock::now();
-							chrono::duration<double, std::milli> millis = (current - sent);
+							auto current = std::chrono::high_resolution_clock::now();
+							std::chrono::duration<double, std::milli> millis = (current - sent);
 
 							VLOG_EVERY_N(1, 100) << "Received write ack in " << millis.count() << " ms";
 
@@ -474,7 +472,7 @@ void ProtocolHandler::sendDataToNode(DbChannel *channel, void *pixelData, size_t
 		});
 
 		// write this node's info into the pending writes buffer
-		auto start = chrono::high_resolution_clock::now();
+		auto start = std::chrono::high_resolution_clock::now();
 		this->pendingFBDataWrites.push_back(std::make_tuple(txn, channel->node, start, id));
 
 		// increment the number of pending writes

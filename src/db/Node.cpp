@@ -7,18 +7,16 @@
 #include <vector>
 #include <iostream>
 
-using namespace std;
-
 
 #pragma mark - Public Query Interface
 /**
  * Returns all nodes in the datastore in a vector.
  */
-vector<DbNode *> DataStore::getAllNodes() {
+std::vector<DbNode *> DataStore::getAllNodes() {
 	int err = 0, result, count;
 	sqlite3_stmt *statement = nullptr;
 
-	vector<DbNode *> nodes;
+	std::vector<DbNode *> nodes;
 
 	// execute the query
 	err = this->sqlPrepare("SELECT * FROM nodes;", &statement);
@@ -412,7 +410,7 @@ bool operator>=(const DbNode& lhs, const DbNode& rhs) {
 /**
  * Outputs the some info about the node to the output stream.
  */
-ostream &operator<<(ostream& strm, const DbNode& obj) {
+std::ostream &operator<<(std::ostream& strm, const DbNode& obj) {
 	strm << "node id " << obj.id << "{hostname = " << obj.hostname << ", mac = "
 	 	 << obj.macToString() << "}";
 

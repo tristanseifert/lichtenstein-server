@@ -4,7 +4,6 @@
 
 #include <glog/logging.h>
 
-using namespace std;
 using json = nlohmann::json;
 
 /**
@@ -29,9 +28,9 @@ static const bool lockLogging = false;
 	#define LOCK_IS_ENABLED() (this->useDbLock)
 
 	// acquires the db lock
-	#define LOCK_START() unique_lock<mutex> lk; \
+	#define LOCK_START() std::unique_lock<std::mutex> lk; \
 		if(LOCK_IS_ENABLED()) { \
-			lk = unique_lock<mutex>(this->dbLock); \
+			lk = std::unique_lock<std::mutex>(this->dbLock); \
 			{ \
 				LOCK_GET_THREAD_NAME(); \
 				if(lockLogging) VLOG(2) << "Acquired db lock from thread: " << threadName; \
@@ -135,8 +134,14 @@ int DataStore::sqlPrepare(const char *sql, sqlite3_stmt **stmt) {
 	LOCK_START();
 	err = sqlite3_prepare_v2(this->db, sql, -1, stmt, 0);
 
-	VLOG(2) << "Created statement 0x" << hex << *stmt << dec << " with SQL `"
-			<< sql << "`, err: " << sqlite3_errstr(err);
+
+	if(err != SQLITE_OK) {
+		VLOG(2) << "Created statement " << std::hex << *stmt << std::dec << " with SQL `"
+				<< sql << "`, err: " << sqlite3_errstr(err);
+	} else {
+		VLOG(2) << "Created statement " << std::hex << *stmt << std::dec << " with SQL `"
+				<< sql << "`, success";
+	}
 
 	LOCK_END();
 
@@ -151,7 +156,7 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, string value, bool
 
 	LOCK_START();
 	VLOG(2) << "Binding string `" << value << "` to parameter `" << param << '`'
-			<< " on statement 0x" << hex << stmt;
+			<< " on statement " << std::hex << stmt;
 
 	// resolve the parameter
 	idx = sqlite3_bind_parameter_index(stmt, param);
@@ -178,9 +183,9 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, void *data, int le
 	int err, idx;
 
 	LOCK_START();
-	VLOG(2) << "Binding blob 0x" << hex << data << ", length " << dec << len
+	VLOG(2) << "Binding blob " << std::hex << data << ", length " << std::dec << len
 			<< " bytes to parameter `" << param << '`'
-			<< " on statement 0x" << hex << stmt;
+			<< " on statement " << std::hex << stmt;
 
 	// resolve the parameter
 	idx = sqlite3_bind_parameter_index(stmt, param);
@@ -208,7 +213,7 @@ int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, int value, bool op
 
 	LOCK_START();
 	VLOG(2) << "Binding integer `" << value << "` to parameter `" << param << '`'
-			<< " on statement 0x" << hex << stmt;
+			<< " on statement " << std::hex << stmt;
 
 	// resolve the parameter
 	idx = sqlite3_bind_parameter_index(stmt, param);
@@ -237,7 +242,7 @@ int DataStore::sqlStep(sqlite3_stmt *stmt) {
 	LOCK_START();
 	result = sqlite3_step(stmt);
 
-	VLOG(2) << "Stepping through statement 0x" << hex << stmt << dec << ": "
+	VLOG(2) << "Stepping through statement " << std::hex << stmt << std::dec << ": "
 			<< result;
 
 	LOCK_END();
@@ -253,7 +258,7 @@ int DataStore::sqlFinalize(sqlite3_stmt *stmt) {
 	LOCK_START();
 	result = sqlite3_finalize(stmt);
 
-	VLOG(2) << "Finalized statement 0x" << hex << stmt << dec << ": " << result;
+	VLOG(2) << "Finalized statement " << std::hex << stmt << std::dec << ": " << result;
 
 	LOCK_END();
 	return result;
@@ -393,7 +398,7 @@ void DataStore::createCheckpointThread() {
 	}
 
 	// we're good to create the thread
-	this->checkpointThread = new thread(BackgroundCheckpointThreadEntry, this);
+	this->checkpointThread = new std::thread(BackgroundCheckpointThreadEntry, this);
 }
 
 /**
@@ -407,7 +412,7 @@ void DataStore::_checkpointThreadEntry() {
 
 	// enter a while loop: not ideal, but we can just kill the thread off
 	while(1) {
-		this_thread::sleep_until(chrono::system_clock::now() + chrono::seconds(duration));
+		std::this_thread::sleep_until(std::chrono::system_clock::now() + std::chrono::seconds(duration));
 
 		LOG(INFO) << "Performing background checkpoint";
 		this->commit();
@@ -428,7 +433,7 @@ void DataStore::terminateCheckpointThread() {
 	LOG(INFO) << "Terminating checkpoint thread";
 
 	// get the checkpoint lock; this waits until any checkpoints are done
-	unique_lock<mutex> checkpointLk(this->checkpointLock);
+	std::unique_lock<std::mutex> checkpointLk(this->checkpointLock);
 
 	// platform-specific hax: get the pthread_t handle
 	pthread_cancel(this->checkpointThread->native_handle());
@@ -454,7 +459,7 @@ void DataStore::commit() {
 	int status = 0;
 
 	// we need to acquire the lock
-	unique_lock<mutex> checkpointLk(this->checkpointLock);
+	std::unique_lock<std::mutex> checkpointLk(this->checkpointLock);
 
 	// perform the checkpoint
 	LOG(INFO) << "Performing database checkpoint";
