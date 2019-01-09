@@ -291,6 +291,22 @@ void CommandServer::clientThreadEntry(int fd) {
 				close(fd);
 				break;
 			}
+      // JSON type errors
+      catch(json::type_error e) {
+				LOG(WARNING) << "Type error processing command: " << e.what();
+
+				// close the connection to tell the client to sod off
+				close(fd);
+				break;
+      }
+      // handle all other types of exceptions
+      catch(std::exception e) {
+        LOG(WARNING) << "Error executing command (" << jsonStr << "): " << e.what();
+
+				// close the connection to tell the client to sod off
+				close(fd);
+				break;
+      }
 		}
 	}
 
@@ -331,10 +347,16 @@ void CommandServer::processClientRequest(json &j, int fd) {
 		case kMessageGetNodes:
 			this->clientRequestListNodes(response, j);
 			break;
+    case kMessageUpdateNode:
+      this->clientRequestUpdateNode(response, j);
+      break;
 
 		case kMessageGetGroups:
 			this->clientRequestListGroups(response, j);
 			break;
+    case kMessageUpdateGroup:
+      this->clientRequestUpdateGroup(response, j);
+      break;
 
 		case kMessageAddMapping:
 			this->clientRequestAddMapping(response, j);
@@ -342,6 +364,27 @@ void CommandServer::processClientRequest(json &j, int fd) {
 		case kMessageRemoveMapping:
 			this->clientRequestRemoveMapping(response, j);
 			break;
+
+    case kMessageGetBrightness:
+      // TODO: implememnt
+      break;
+    case kMessageSetBrightness:
+      this->clientRequestSetBrightness(response, j);
+      break;
+
+    case kMessageGetRoutines:
+      this->clientRequesListRoutines(response, j);
+      break;
+    case kMessageUpdateRoutine:
+      this->clientRequestUpdateRoutine(response, j);
+      break;
+
+    case kMessageGetChannels:
+      this->clientRequesListChannels(response, j);
+      break;
+    case kMessageUpdateChannel:
+      this->clientRequesUpdateChannel(response, j);
+      break;
 	}
 
 	// add the txn field if it exists
@@ -368,6 +411,8 @@ void CommandServer::processClientRequest(json &j, int fd) {
 		LOG(WARNING) << "Wrote " << err << " bytes, buffer was " << length << "!";
 	}
 }
+
+
 
 /**
  * Processes the status request. This simply builds the response, and sends it
@@ -403,6 +448,8 @@ void CommandServer::clientRequestStatus(json &response, json &request) {
 	response["mem"] = usage.ru_maxrss;
 }
 
+
+
 /**
  * Returns a listing of all nodes that are known to the server.
  */
@@ -420,6 +467,41 @@ void CommandServer::clientRequestListNodes(json &response, json &request) {
 		delete node;
 	}
 }
+/**
+ * Updates one or more properties on an existing node.
+ *
+ * Parameters:
+ * - id: ID of node to update.
+ * - set: Key/value array of keys to update: TODO: figure out keys
+ *
+ * TODO: find a way to propagate this to all existing instances of the node
+ * so that code changes are reflected immediately?
+ */
+void CommandServer::clientRequestUpdateNode(nlohmann::json &response, nlohmann::json &request) {
+  int nodeId = request["id"];
+
+  // try to find routine
+  DbNode *node = this->store->findNodeWithId(nodeId);
+
+  if(node == nullptr) {
+		response["status"] = kErrorInvalidNodeId;
+		response["error"] = "Couldn't find node with the specified ID";
+		response["id"] = nodeId;
+
+    return;
+  }
+
+  // TODO: what keys can we update?
+
+  // we need to save this node now
+  this->store->update(node);
+  delete node;
+
+  // done!
+  response["status"] = 0;
+}
+
+
 
 /**
  * Returns a listing of all groups known to the server.
@@ -438,6 +520,205 @@ void CommandServer::clientRequestListGroups(nlohmann::json &response, json &requ
 		delete group;
 	}
 }
+/**
+ * Updates one or more properties on an existing group.
+ *
+ * Parameters:
+ * - id: ID of group to update.
+ * - set: Key/value array of keys to update: enabled, start, end, name.
+ *
+ * TODO: find a way to propagate this to all existing instances of the group
+ * so that code changes are reflected immediately?
+ */
+void CommandServer::clientRequestUpdateGroup(nlohmann::json &response, nlohmann::json &request) {
+  int groupId = request["id"];
+
+  // try to find routine
+  DbGroup *group = this->store->findGroupWithId(groupId);
+
+  if(group == nullptr) {
+		response["status"] = kErrorInvalidGroupId;
+		response["error"] = "Couldn't find group with the specified ID";
+		response["id"] = groupId;
+
+    return;
+  }
+
+  // update keys
+  if(request.count("enabled") == 1) {
+    group->enabled = request["enabled"];
+  }
+
+  if(request.count("start") == 1) {
+    group->start = request["start"];
+  }
+  if(request.count("end") == 1) {
+    group->end = request["end"];
+  }
+
+  if(request.count("name") == 1) {
+    group->name = request["name"];
+  }
+
+  // we need to save this group now
+  this->store->update(group);
+  delete group;
+
+  // done!
+  response["status"] = 0;
+}
+
+
+
+/**
+ * Returns a listing of all routines on the server.
+ */
+void CommandServer::clientRequesListRoutines(nlohmann::json &response, nlohmann::json &request) {
+	response["status"] = 0;
+
+	// iterate over all routines and insert them
+	response["routines"] = std::vector<DbRoutine>();
+
+	std::vector<DbRoutine *> routines = this->store->getAllRoutines();
+	for(auto routine : routines) {
+		response["routines"].push_back(json(*routine));
+
+		// delete the routines in the vector; they're temporary
+		delete routine;
+	}
+}
+/**
+ * Updates one or more properties on an existing routine.
+ *
+ * Parameters:
+ * - id: ID of routine to update.
+ * - set: Key/value array of keys to update: can be name, code, or defaults.
+ *
+ * TODO: find a way to propagate this to all existing instances of the routine
+ * so that code changes are reflected immediately?
+ */
+void CommandServer::clientRequestUpdateRoutine(nlohmann::json &response, nlohmann::json &request) {
+  int routineId = request["id"];
+
+  // try to find routine
+  DbRoutine *routine = this->store->findRoutineWithId(routineId);
+
+  if(routine == nullptr) {
+		response["status"] = kErrorInvalidRoutineId;
+		response["error"] = "Couldn't find routine with the specified ID";
+		response["id"] = routineId;
+
+    return;
+  }
+
+  // update keys
+  if(request.count("name") == 1) {
+    routine->name = request["name"];
+  }
+
+  if(request.count("code") == 1) {
+    routine->code = request["code"];
+  }
+
+  if(response.count("defaults") == 1) {
+		std::map<string, double> params = request["defaults"];
+    routine->defaultParams = params;
+  }
+
+  // we need to save this routine now
+  this->store->update(routine);
+  delete routine;
+
+  // done!
+  response["status"] = 0;
+}
+
+
+
+/**
+ * Returns a listing of all channels on the server.
+ */
+void CommandServer::clientRequesListChannels(nlohmann::json &response, nlohmann::json &request) {
+	response["status"] = 0;
+
+	// iterate over all routines and insert them
+	response["channels"] = std::vector<DbChannel>();
+
+	std::vector<DbChannel *> channels = this->store->getAllChannels();
+	for(auto channel : channels) {
+		response["channels"].push_back(json(*channel));
+
+		// delete the channels in the vector; they're temporary
+		delete channel;
+	}
+}
+/**
+ * Updates one or more properties on an existing channel.
+ *
+ * Parameters:
+ * - id: ID of the channel to update.
+ * - set: Key/value array of keys to update: can be fbOffset, node, nodeIndex, size.
+ *
+ * TODO: find a way to propagate this to all existing instances of the channel
+ * so all changes are reflected immediately?
+ */
+void CommandServer::clientRequesUpdateChannel(nlohmann::json &response, nlohmann::json &request) {
+  int channelId = request["id"];
+
+  // try to find channel
+  DbChannel *channel = this->store->findChannelWithId(channelId);
+
+  if(channel == nullptr) {
+		response["status"] = kErrorInvalidChannelId;
+		response["error"] = "Couldn't find channel with the specified ID";
+		response["id"] = channelId;
+
+    return;
+  }
+
+  // update keys
+  if(request.count("fbOffset") == 1) {
+    // offset into internal computed framebuffer
+    channel->fbOffset = request["fbOffset"];
+  }
+
+  if(request.count("node") == 1) {
+    // find node
+    DbNode *node = this->store->findNodeWithId(request["node"]);
+
+    if(node == nullptr) {
+  		response["status"] = kErrorInvalidNodeId;
+  		response["error"] = "Couldn't find node with the specified ID";
+  		response["id"] = channelId;
+
+      // be sure to clean up the channel
+      delete channel;
+      return;
+    }
+
+    // assign the found node
+    channel->node = node;
+  }
+
+  if(request.count("nodeIndex") == 1) {
+    // channel number on node
+    channel->nodeOffset = request["nodeIndex"];
+  }
+
+  if(request.count("size") == 1) {
+    // size (number of pixels)
+    channel->numPixels = request["size"];
+  }
+
+  // we need to save this routine now
+  this->store->update(channel);
+  delete channel;
+
+  // done!
+  response["status"] = 0;
+}
+
+
 
 /**
  * Adds a mapping between one or more groups (creating an ubergroup if required)
@@ -473,12 +754,9 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 
 		// couldn't find the group
 		if(group == nullptr) {
-			response["status"] = kErrorInvalidGroupId;
-			response["id"] = id;
-
-			std::stringstream s;
-			s << "Couldn't find group with id " << id;
-			response["error"] = s.str();
+      response["status"] = kErrorInvalidGroupId;
+      response["error"] = "Couldn't find group with the specified ID";
+      response["id"] = id;
 
 			return;
 		}
@@ -518,7 +796,6 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 	// if we get down here, there probably weren't any issues
 	response["status"] = 0;
 }
-
 /**
  * Removes a mapping for the given group(s). If any of the given groups are in
  * an ubergroup, they're removed from that group, with the mapping being deleted
@@ -533,12 +810,9 @@ void CommandServer::clientRequestRemoveMapping(json &response, json &request) {
 
 		// couldn't find the group
 		if(group == nullptr) {
-			response["status"] = kErrorInvalidGroupId;
-			response["id"] = id;
-
-			std::stringstream s;
-			s << "Couldn't find group with id " << id;
-			response["error"] = s.str();
+      response["status"] = kErrorInvalidGroupId;
+      response["error"] = "Couldn't find group with the specified ID";
+      response["id"] = id;
 
 			return;
 		}
@@ -559,4 +833,75 @@ void CommandServer::clientRequestRemoveMapping(json &response, json &request) {
 
 	// if we get down here, there probably weren't any issues
 	response["status"] = 0;
+}
+
+
+
+/**
+ * Returns the brightness of a given group.
+ *
+ * Input variables:
+ * - group: Group id
+ */
+void CommandServer::clientRequestGetBrightness(nlohmann::json &response, nlohmann::json &request) {
+  // group id
+  int groupId = request["group"];
+  double brightness = request["brightness"];
+
+  // get groups
+	OutputMapper *mapper = this->runner->getMapper();
+
+  std::vector<OutputMapper::OutputGroup *> groups;
+  mapper->getAllGroups(groups);
+
+  // find the output group
+  for(auto group : groups) {
+    // does the id match?
+    if(group->getGroupId() == groupId) {
+      response["brightness"] = group->getBrightness();
+      response["status"] = 0;
+
+      return;
+    }
+  }
+
+  // if we get down here, the group could not be found
+  response["status"] = kErrorInvalidGroupId;
+  response["error"] = "Couldn't find group with the specified ID";
+  response["id"] = groupId;
+}
+/**
+ * Sets the brightness of a given group.
+ *
+ * Input variables:
+ * - group: Group id
+ * - brightness: Brightness value
+ */
+void CommandServer::clientRequestSetBrightness(nlohmann::json &response, nlohmann::json &request) {
+  // group id
+  int groupId = request["group"];
+  double brightness = request["brightness"];
+
+  // get groups
+	OutputMapper *mapper = this->runner->getMapper();
+
+  std::vector<OutputMapper::OutputGroup *> groups;
+  mapper->getAllGroups(groups);
+
+  // find the output group
+  for(auto group : groups) {
+    // does the id match?
+    if(group->getGroupId() == groupId) {
+      group->setBrightness(brightness);
+
+      response["status"] = 0;
+
+      return;
+    }
+  }
+
+  // if we get down here, the group could not be found
+	response["status"] = kErrorInvalidGroupId;
+	response["error"] = "Couldn't find group with the specified ID";
+	response["id"] = groupId;
 }

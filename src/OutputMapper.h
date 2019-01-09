@@ -40,12 +40,35 @@ class OutputMapper {
 				OutputGroup(DbGroup *g);
 				virtual ~OutputGroup();
 
+        /**
+         * Returns the group ID.
+         */
+        int getGroupId() const {
+          return this->group->getId();
+        }
+
 				/**
 				 * Returns an iterator into the group's framebuffer.
 				 */
 				HSIPixel *getDataPointer() {
 					return this->buffer;
 				}
+
+        /**
+         * Sets the brightness of this group.
+         */
+        virtual void setBrightness(double brightness) {
+          // bounds checking: [0, 1]
+          if(brightness >= 0.0 && brightness <= 1.0) {
+            this->brightness = brightness;
+          }
+        }
+        /**
+         * Returns the brightness of the group.
+         */
+        double getBrightness() const {
+          return this->brightness;
+        }
 
 				virtual int numPixels();
 
@@ -60,6 +83,9 @@ class OutputMapper {
 
 				HSIPixel *buffer = nullptr;
 				size_t bufferSz = 0;
+
+        /// brightness to scale each output pixel by
+        double brightness = 1.0;
 
 			private:
 				DbGroup *group = nullptr;
@@ -119,6 +145,8 @@ class OutputMapper {
 		inline Routine *routineForMapping(OutputGroup *g) {
 			return this->outputMap[g];
 		}
+
+    void getAllGroups(std::vector<OutputGroup *> &groups);
 
 	private:
 		void _removeMappingsInUbergroup(OutputUberGroup *ug);

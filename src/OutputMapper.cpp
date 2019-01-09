@@ -255,6 +255,33 @@ void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug)
 	}
 }
 
+
+/**
+ * Gets a reference to all real groups (aka groups that reference a single group
+ * rather than an ubergroup)
+ */
+void OutputMapper::getAllGroups(std::vector<OutputGroup *> &groups) {
+  // search for it in the groups themselves
+	for(auto [group, routine] : this->outputMap) {
+    // make sure the group is not null
+    if(group != nullptr) {
+      // is it an ubergroup?
+      auto ubergroup = dynamic_cast<OutputMapper::OutputUberGroup *>(group);
+
+      if(ubergroup) {
+        // extract all groups in the ubergroup
+        for(auto member : ubergroup->groups) {
+          groups.push_back(member);
+        }
+      } else {
+        groups.push_back(group);
+      }
+    }
+    // group is null: this should never happen.
+    else { }
+  }
+}
+
 #pragma mark - Group Implementation
 /**
  * Destroys the allocated buffer.
@@ -356,6 +383,9 @@ void OutputMapper::OutputGroup::copyIntoFramebuffer(Framebuffer *fb, HSIPixel *b
 		// const HSIPixel p(double(i), 1, 1);
 		// fbPointer[i] = p;
 		fbPointer[i] = buffer[j];
+
+    // scale for brightness
+    fbPointer[i].i *= this->brightness;
 	}
 
 	// VLOG(1) << fbPointer[1] << "; " << this->buffer[1];
@@ -491,6 +521,9 @@ bool OutputMapper::OutputUberGroup::containsMember(OutputGroup *inGroup) {
 /**
  * Copies the pixel data for each of the groups that make up this ubergroup into
  * the appropriate places of the framebuffer.
+ *
+ * @note Stuff like brightness changes aren't handled here since we just call
+ * into the groups' copy functions, which eventually will call into the base.
  */
 void OutputMapper::OutputUberGroup::copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer) {
 	// take the lock to modify the groups set

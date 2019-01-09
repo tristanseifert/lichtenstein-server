@@ -41,6 +41,13 @@ class DbGroup {
 			return (this->end - this->start) + 1;
 		}
 
+    /**
+     * Returns the id
+     */
+    inline int getId(void) {
+      return this->id;
+    }
+
 	public:
 		// Group() = delete;
 

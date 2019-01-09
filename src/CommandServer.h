@@ -36,26 +36,54 @@ class CommandServer {
 
 		void processClientRequest(nlohmann::json &j, int fd);
 
-		void clientRequestStatus(nlohmann::json &response, nlohmann::json &request);
-		void clientRequestListNodes(nlohmann::json &response, nlohmann::json &request);
-		void clientRequestListGroups(nlohmann::json &response, nlohmann::json &request);
-
 		void clientRequestAddMapping(nlohmann::json &response, nlohmann::json &request);
-		void clientRequestRemoveMapping(nlohmann::json &response, nlohmann::json &request);
+    void clientRequestRemoveMapping(nlohmann::json &response, nlohmann::json &request);
 
+    void clientRequestGetBrightness(nlohmann::json &response, nlohmann::json &request);
+		void clientRequestSetBrightness(nlohmann::json &response, nlohmann::json &request);
+
+		void clientRequestStatus(nlohmann::json &response, nlohmann::json &request);
+
+    void clientRequestListNodes(nlohmann::json &response, nlohmann::json &request);
+		void clientRequestUpdateNode(nlohmann::json &response, nlohmann::json &request);
+
+    void clientRequestListGroups(nlohmann::json &response, nlohmann::json &request);
+		void clientRequestUpdateGroup(nlohmann::json &response, nlohmann::json &request);
+
+    void clientRequesListRoutines(nlohmann::json &response, nlohmann::json &request);
+    void clientRequestUpdateRoutine(nlohmann::json &response, nlohmann::json &request);
+
+    void clientRequesListChannels(nlohmann::json &response, nlohmann::json &request);
+    void clientRequesUpdateChannel(nlohmann::json &response, nlohmann::json &request);
 	private:
 		enum MessageType {
 			kMessageStatus = 0,
-			kMessageGetNodes = 1,
-			kMessageGetGroups = 2,
-			kMessageAddMapping = 3,
-			kMessageRemoveMapping = 4
+
+      kMessageAddMapping = 1,
+			kMessageRemoveMapping = 2,
+
+      kMessageGetBrightness = 3,
+      kMessageSetBrightness = 4,
+
+			kMessageGetNodes = 5,
+      kMessageUpdateNode = 6,
+
+      kMessageGetGroups = 7,
+      kMessageUpdateGroup = 8,
+
+      kMessageGetRoutines = 9,
+      kMessageUpdateRoutine = 10,
+
+      kMessageGetChannels = 11,
+      kMessageUpdateChannel = 12,
 		};
 
 		enum Error {
 			kErrorSyscallError = 1000,
 			kErrorInvalidRoutineId,
-			kErrorInvalidGroupId,
+      kErrorInvalidGroupId,
+			kErrorInvalidNodeId,
+      kErrorInvalidChannelId,
 		};
 
 	private:
