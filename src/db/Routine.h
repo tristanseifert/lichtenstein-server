@@ -34,7 +34,15 @@ class DbRoutine {
 		std::map<std::string, double> defaultParams;
 
 	public:
-		// Routine() = delete;
+    // default constructor to make a new routine
+    DbRoutine() {}
+
+    /**
+     * Returns the id
+     */
+    inline int getId(void) {
+      return this->id;
+    }
 
 	private:
 		inline DbRoutine(sqlite3_stmt *statement, DataStore *db) {

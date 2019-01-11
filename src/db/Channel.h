@@ -1,5 +1,9 @@
 /**
  * Defines the data store type representing channels.
+ *
+ * Channels describe physical output channels on nodes. They have an offset into
+ * the master framebuffer, and a number of pixels to copy. Channels are the
+ * read counterpart to groups.
  */
 #ifndef DB_CHANNEL_H
 #define DB_CHANNEL_H
@@ -45,7 +49,14 @@ class DbChannel {
 		DbNode *node;
 
 	public:
-		// DbChannel() = delete;
+    DbChannel() {}
+
+    /**
+     * Returns the id
+     */
+    inline int getId(void) {
+      return this->id;
+    }
 
 	private:
 		inline DbChannel(sqlite3_stmt *statement, DataStore *db, DbNode *node = nullptr) {

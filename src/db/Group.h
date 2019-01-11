@@ -1,5 +1,10 @@
 /**
  * Defines the data store type representing groups.
+ *
+ * A group's start and end refers to the location of its data in the master
+ * framebuffer where its pixel data is written. Thus, groups can be used as an
+ * "overlay" for one or more physical channels on nodes. This makes groups the
+ * write counterpart to channels.
  */
 #ifndef DB_GROUP_H
 #define DB_GROUP_H
@@ -49,7 +54,7 @@ class DbGroup {
     }
 
 	public:
-		// Group() = delete;
+    DbGroup() {}
 
 	private:
 		inline DbGroup(sqlite3_stmt *statement, DataStore *db) {

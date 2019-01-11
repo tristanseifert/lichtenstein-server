@@ -48,34 +48,41 @@ class CommandServer {
 		void clientRequestUpdateNode(nlohmann::json &response, nlohmann::json &request);
 
     void clientRequestListGroups(nlohmann::json &response, nlohmann::json &request);
-		void clientRequestUpdateGroup(nlohmann::json &response, nlohmann::json &request);
+    void clientRequestUpdateGroup(nlohmann::json &response, nlohmann::json &request);
+		void clientRequestNewGroup(nlohmann::json &response, nlohmann::json &request);
 
     void clientRequesListRoutines(nlohmann::json &response, nlohmann::json &request);
     void clientRequestUpdateRoutine(nlohmann::json &response, nlohmann::json &request);
+    void clientRequestNewRoutine(nlohmann::json &response, nlohmann::json &request);
 
     void clientRequesListChannels(nlohmann::json &response, nlohmann::json &request);
     void clientRequesUpdateChannel(nlohmann::json &response, nlohmann::json &request);
+    void clientRequesNewChannel(nlohmann::json &response, nlohmann::json &request);
 	private:
 		enum MessageType {
 			kMessageStatus = 0,
 
       kMessageAddMapping = 1,
-			kMessageRemoveMapping = 2,
+			kMessageRemoveMapping = (kMessageAddMapping + 1),
 
       kMessageGetBrightness = 3,
-      kMessageSetBrightness = 4,
+      kMessageSetBrightness = (kMessageGetBrightness + 1),
 
 			kMessageGetNodes = 5,
-      kMessageUpdateNode = 6,
+      kMessageUpdateNode = (kMessageGetNodes + 1),
+
 
       kMessageGetGroups = 7,
-      kMessageUpdateGroup = 8,
+      kMessageUpdateGroup = (kMessageGetGroups + 1),
+      kMessageNewGroup = (kMessageGetGroups + 2),
 
-      kMessageGetRoutines = 9,
-      kMessageUpdateRoutine = 10,
+      kMessageGetRoutines = 10,
+      kMessageUpdateRoutine = (kMessageGetRoutines + 1),
+      kMessageNewRoutine = (kMessageGetRoutines + 2),
 
-      kMessageGetChannels = 11,
-      kMessageUpdateChannel = 12,
+      kMessageGetChannels = 13,
+      kMessageUpdateChannel = (kMessageGetChannels + 1),
+      kMessageNewChannel = (kMessageGetChannels + 2)
 		};
 
 		enum Error {
@@ -84,6 +91,7 @@ class CommandServer {
       kErrorInvalidGroupId,
 			kErrorInvalidNodeId,
       kErrorInvalidChannelId,
+      kErrorInvalidArguments
 		};
 
 	private:

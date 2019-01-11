@@ -357,6 +357,9 @@ void CommandServer::processClientRequest(json &j, int fd) {
     case kMessageUpdateGroup:
       this->clientRequestUpdateGroup(response, j);
       break;
+    case kMessageNewGroup:
+      this->clientRequestNewGroup(response, j);
+      break;
 
 		case kMessageAddMapping:
 			this->clientRequestAddMapping(response, j);
@@ -378,12 +381,18 @@ void CommandServer::processClientRequest(json &j, int fd) {
     case kMessageUpdateRoutine:
       this->clientRequestUpdateRoutine(response, j);
       break;
+    case kMessageNewRoutine:
+      this->clientRequestNewRoutine(response, j);
+      break;
 
     case kMessageGetChannels:
       this->clientRequesListChannels(response, j);
       break;
     case kMessageUpdateChannel:
       this->clientRequesUpdateChannel(response, j);
+      break;
+    case kMessageNewChannel:
+      this->clientRequesNewChannel(response, j);
       break;
 	}
 
@@ -567,6 +576,51 @@ void CommandServer::clientRequestUpdateGroup(nlohmann::json &response, nlohmann:
   // done!
   response["status"] = 0;
 }
+/**
+ * Creates a new group.
+ *
+ * A group's start and end refers to the location of its data in the master
+ * framebuffer. Thus, groups can be used as an "overlay" for one or more
+ * physical channels on nodes.
+ *
+ * Parameters:
+ * - keys: Properties to set: name, enabled, start, end. All must be specified.
+ *
+ * Returns:
+ * - id: ID of the newly created group.
+ */
+void CommandServer::clientRequestNewGroup(nlohmann::json &response, nlohmann::json &request) {
+  // make sure all keys exist
+  auto keys = request["keys"];
+
+  if(keys.count("name") == 0 || keys.count("enabled") == 0 ||
+     keys.count("start") == 0 || keys.count("end") == 0) {
+		response["status"] = kErrorInvalidArguments;
+		response["error"] = "The keys name, enabled, start, and end are required";
+
+    return;
+  }
+
+  // create a new group
+  DbGroup *group = new DbGroup();
+
+  // set its properties
+  group->name = keys["name"];
+  group->enabled = keys["enabled"];
+  group->start = keys["start"];
+  group->end = keys["end"];
+
+
+  // save the group
+  this->store->update(group);
+
+  // done!
+  response["status"] = 0;
+  response["id"] = group->getId();
+
+  // clean up
+  delete group;
+}
 
 
 
@@ -632,6 +686,46 @@ void CommandServer::clientRequestUpdateRoutine(nlohmann::json &response, nlohman
   // done!
   response["status"] = 0;
 }
+/**
+ * Creates a new routine.
+ *
+ * Parameters:
+ * - keys: Properties to set: name, code, and defaults. All must be specified.
+ *
+ * Returns:
+ * - id: ID of the newly created routine.
+ */
+void CommandServer::clientRequestNewRoutine(nlohmann::json &response, nlohmann::json &request) {
+  // make sure all keys exist
+  auto keys = request["keys"];
+
+  if(keys.count("name") == 0 || keys.count("code") == 0 || keys.count("defaults") == 0) {
+		response["status"] = kErrorInvalidArguments;
+		response["error"] = "The keys name, code, and defaults are required";
+
+    return;
+  }
+
+  // create a new routine
+  DbRoutine *routine = new DbRoutine();
+
+  // set its properties
+  routine->name = keys["name"];
+  routine->code = keys["code"];
+
+  std::map<string, double> params = keys["defaults"];
+  routine->defaultParams = params;
+
+  // save the routine
+  this->store->update(routine);
+
+  // done!
+  response["status"] = 0;
+  response["id"] = routine->getId();
+
+  // clean up
+  delete routine;
+}
 
 
 
@@ -689,7 +783,7 @@ void CommandServer::clientRequesUpdateChannel(nlohmann::json &response, nlohmann
     if(node == nullptr) {
   		response["status"] = kErrorInvalidNodeId;
   		response["error"] = "Couldn't find node with the specified ID";
-  		response["id"] = channelId;
+  		response["id"] = request["node"];
 
       // be sure to clean up the channel
       delete channel;
@@ -716,6 +810,75 @@ void CommandServer::clientRequesUpdateChannel(nlohmann::json &response, nlohmann
 
   // done!
   response["status"] = 0;
+}
+/**
+ * Creates a new channel.
+ *
+ * Parameters:
+ * - props: Properties to set: fbOffset, node, nodeIndex, size, format. All must be specified.
+ *
+ * Returns:
+ * - id: ID of the newly created channel.
+ */
+void CommandServer::clientRequesNewChannel(nlohmann::json &response, nlohmann::json &request) {
+  // make sure all keys exist
+  auto keys = request["keys"];
+
+  if(keys.count("fbOffset") == 0 || keys.count("node") == 0 ||
+     keys.count("nodeIndex") == 0 || keys.count("size") == 0 ||
+     keys.count("format") == 0) {
+		response["status"] = kErrorInvalidArguments;
+		response["error"] = "The keys fbOffset, node, nodeIndex, size, and format are required";
+
+    return;
+  }
+
+  // validate format parameter
+  int format = keys["format"];
+
+  if(format != DbChannel::kPixelFormatRGB && format != DbChannel::kPixelFormatRGBW) {
+    response["status"] = kErrorInvalidArguments;
+    response["error"] = "Format must be 0 (RGBW) or 1 (RGB)";
+
+    return;
+  }
+
+
+
+  // create a new channel
+  DbChannel *channel = new DbChannel();
+
+  // find node
+  int nodeId = keys["node"];
+  DbNode *node = this->store->findNodeWithId(nodeId);
+
+  if(node == nullptr) {
+		response["status"] = kErrorInvalidNodeId;
+		response["error"] = "Couldn't find node with the specified ID";
+		response["id"] = nodeId;
+
+    // be sure to clean up the channel
+    delete channel;
+    return;
+  }
+
+  // set its properties
+  channel->fbOffset = keys["fbOffset"];
+  channel->nodeOffset = keys["nodeIndex"];
+  channel->numPixels = keys["size"];
+  channel->format = keys["format"];
+
+
+
+  // save the channel
+  this->store->update(channel);
+
+  // done!
+  response["status"] = 0;
+  response["id"] = channel->getId();
+
+  // clean up
+  delete channel;
 }
 
 
