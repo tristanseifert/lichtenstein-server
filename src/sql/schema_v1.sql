@@ -31,10 +31,7 @@ CREATE TABLE groups (
 	enabled integer,
 	start integer,
 	end integer,
-	currentRoutine integer,
-
-	-- enforce foreign keys
-	FOREIGN KEY(currentRoutine) REFERENCES routines(id)
+	currentRoutine integer
 );
 
 CREATE TABLE channels (
@@ -43,10 +40,7 @@ CREATE TABLE channels (
 	nodeOffset integer,
 	numPixels integer,
 	fbOffset integer,
-	format integer,
-
-	-- enforce foreign keys
-	FOREIGN KEY(node) REFERENCES nodes(id)
+	format integer
 );
 
 -- create indices

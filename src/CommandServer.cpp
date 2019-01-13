@@ -461,20 +461,55 @@ void CommandServer::clientRequestStatus(json &response, json &request) {
 
 /**
  * Returns a listing of all nodes that are known to the server.
+ *
+ * Parameters:
+ * -id: If specified, returns a single node with that ID.
+ *
+ * Returns:
+ * - nodes: An array of nodes, if more id is not specified.
+ * - node: A single node, if id was specified.
  */
 void CommandServer::clientRequestListNodes(json &response, json &request) {
+  // is the ID argument specified?
+  if(request.count("id") == 1) {
+    int nodeId = request["id"];
+
+    // find the node
+    DbNode *node = this->store->findNodeWithId(nodeId);
+
+    // no group found?
+    if(node == nullptr) {
+      response["status"] = kErrorInvalidNodeId;
+      response["error"] = "Couldn't find node with the specified ID";
+      response["id"] = nodeId;
+
+      return;
+    }
+    // we found the node
+    else {
+      response["node"] = json(*node);
+    }
+
+    // delete node pls
+    delete node;
+  }
+  // if not, return all node
+  else {
+    // create nodes array
+    response["nodes"] = std::vector<DbNode>();
+
+    // get all node and add them
+    std::vector<DbNode *> nodes = this->store->getAllNodes();
+    for(auto node : nodes) {
+      response["nodes"].push_back(json(*node));
+
+      // delete the nodes in the vector; they're temporary
+      delete node;
+    }
+  }
+
+  // success!
 	response["status"] = 0;
-
-	// iterate over all nodes and insert them
-	response["nodes"] = std::vector<DbNode>();
-
-	std::vector<DbNode *> nodes = this->store->getAllNodes();
-	for(auto node : nodes) {
-		response["nodes"].push_back(json(*node));
-
-		// delete the nodes in the vector; they're temporary
-		delete node;
-	}
 }
 /**
  * Updates one or more properties on an existing node.
@@ -514,20 +549,55 @@ void CommandServer::clientRequestUpdateNode(nlohmann::json &response, nlohmann::
 
 /**
  * Returns a listing of all groups known to the server.
+ *
+ * Parameters:
+ * -id: If specified, returns a single group with that ID.
+ *
+ * Returns:
+ * - groups: An array of groups, if more id is not specified.
+ * - group: A single group, if id was specified.
  */
 void CommandServer::clientRequestListGroups(nlohmann::json &response, json &request) {
+  // is the ID argument specified?
+  if(request.count("id") == 1) {
+    int groupId = request["id"];
+
+    // find the group
+    DbGroup *group = this->store->findGroupWithId(groupId);
+
+    // no group found?
+    if(group == nullptr) {
+      response["status"] = kErrorInvalidGroupId;
+      response["error"] = "Couldn't find group with the specified ID";
+      response["id"] = groupId;
+
+      return;
+    }
+    // we found the group
+    else {
+      response["group"] = json(*group);
+    }
+
+    // delete group pls
+    delete group;
+  }
+  // if not, return all groups
+  else {
+    // create groups array
+    response["groups"] = std::vector<DbGroup>();
+
+    // get all groups and add them
+    std::vector<DbGroup *> groups = this->store->getAllGroups();
+    for(auto group : groups) {
+      response["groups"].push_back(json(*group));
+
+      // delete the groups in the vector; they're temporary
+      delete group;
+    }
+  }
+
+  // success!
 	response["status"] = 0;
-
-	// iterate over all groups and insert them
-	response["groups"] = std::vector<DbGroup>();
-
-	std::vector<DbGroup *> groups = this->store->getAllGroups();
-	for(auto group : groups) {
-		response["groups"].push_back(json(*group));
-
-		// delete the groups in the vector; they're temporary
-		delete group;
-	}
 }
 /**
  * Updates one or more properties on an existing group.
@@ -579,10 +649,6 @@ void CommandServer::clientRequestUpdateGroup(nlohmann::json &response, nlohmann:
 /**
  * Creates a new group.
  *
- * A group's start and end refers to the location of its data in the master
- * framebuffer. Thus, groups can be used as an "overlay" for one or more
- * physical channels on nodes.
- *
  * Parameters:
  * - keys: Properties to set: name, enabled, start, end. All must be specified.
  *
@@ -626,20 +692,55 @@ void CommandServer::clientRequestNewGroup(nlohmann::json &response, nlohmann::js
 
 /**
  * Returns a listing of all routines on the server.
+ *
+ * Parameters:
+ * -id: If specified, returns a single routine with that ID.
+ *
+ * Returns:
+ * - routines: An array of routines, if more id is not specified.
+ * - routine: A single routine, if id was specified.
  */
 void CommandServer::clientRequesListRoutines(nlohmann::json &response, nlohmann::json &request) {
+  // is the ID argument specified?
+  if(request.count("id") == 1) {
+    int routineId = request["id"];
+
+    // find the routine
+    DbRoutine *routine = this->store->findRoutineWithId(routineId);
+
+    // no routine found?
+    if(routine == nullptr) {
+      response["status"] = kErrorInvalidRoutineId;
+      response["error"] = "Couldn't find routine with the specified ID";
+      response["id"] = routineId;
+
+      return;
+    }
+    // we found the routine
+    else {
+      response["routine"] = json(*routine);
+    }
+
+    // delete routine pls
+    delete routine;
+  }
+  // if not, return all routines
+  else {
+    // create routines array
+    response["routines"] = std::vector<DbRoutine>();
+
+    // get all routines and add them
+    std::vector<DbRoutine *> routines = this->store->getAllRoutines();
+    for(auto routine : routines) {
+      response["routines"].push_back(json(*routine));
+
+      // delete the routines in the vector; they're temporary
+      delete routine;
+    }
+  }
+
+  // success!
 	response["status"] = 0;
-
-	// iterate over all routines and insert them
-	response["routines"] = std::vector<DbRoutine>();
-
-	std::vector<DbRoutine *> routines = this->store->getAllRoutines();
-	for(auto routine : routines) {
-		response["routines"].push_back(json(*routine));
-
-		// delete the routines in the vector; they're temporary
-		delete routine;
-	}
 }
 /**
  * Updates one or more properties on an existing routine.
@@ -731,20 +832,55 @@ void CommandServer::clientRequestNewRoutine(nlohmann::json &response, nlohmann::
 
 /**
  * Returns a listing of all channels on the server.
+ *
+ * Parameters:
+ * -id: If specified, returns a single channel with that ID.
+ *
+ * Returns:
+ * - channels: An array of channels, if more id is not specified.
+ * - channel: A single channel, if id was specified.
  */
 void CommandServer::clientRequesListChannels(nlohmann::json &response, nlohmann::json &request) {
+  // is the ID argument specified?
+  if(request.count("id") == 1) {
+    int channelId = request["id"];
+
+    // find the channel
+    DbChannel *channel = this->store->findChannelWithId(channelId);
+
+    // no routine found?
+    if(channel == nullptr) {
+      response["status"] = kErrorInvalidChannelId;
+      response["error"] = "Couldn't find channel with the specified ID";
+      response["id"] = channelId;
+
+      return;
+    }
+    // we found the channel
+    else {
+      response["channel"] = json(*channel);
+    }
+
+    // delete channel pls
+    delete channel;
+  }
+  // if not, return all channels
+  else {
+    // create channels array
+    response["channels"] = std::vector<DbChannel>();
+
+    // get all channels and add them
+    std::vector<DbChannel *> channels = this->store->getAllChannels();
+    for(auto channel : channels) {
+      response["channels"].push_back(json(*channel));
+
+      // delete the channels in the vector; they're temporary
+      delete channel;
+    }
+  }
+
+  // success!
 	response["status"] = 0;
-
-	// iterate over all routines and insert them
-	response["channels"] = std::vector<DbChannel>();
-
-	std::vector<DbChannel *> channels = this->store->getAllChannels();
-	for(auto channel : channels) {
-		response["channels"].push_back(json(*channel));
-
-		// delete the channels in the vector; they're temporary
-		delete channel;
-	}
 }
 /**
  * Updates one or more properties on an existing channel.
@@ -815,7 +951,7 @@ void CommandServer::clientRequesUpdateChannel(nlohmann::json &response, nlohmann
  * Creates a new channel.
  *
  * Parameters:
- * - props: Properties to set: fbOffset, node, nodeIndex, size, format. All must be specified.
+ * - keys: Properties to set: fbOffset, node, nodeIndex, size, format. All must be specified.
  *
  * Returns:
  * - id: ID of the newly created channel.
@@ -861,6 +997,9 @@ void CommandServer::clientRequesNewChannel(nlohmann::json &response, nlohmann::j
     delete channel;
     return;
   }
+
+  // if we get here, node is non-null: so set it
+  channel->node = node;
 
   // set its properties
   channel->fbOffset = keys["fbOffset"];

@@ -140,11 +140,14 @@ void DbChannel::_create(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
+  // make sure node is set
+  CHECK(node != nullptr) << "Attempting to create channel with null node";
+
 	// logging
 	VLOG(1) << "Creating new channel for node " << this->node;
 
 	// prepare an update query
-	err = db->sqlPrepare("INSERT INTO channels (node, nodeOffset, numPixels, fbOffset) VALUES (:node, :nodeOffset, :numPixels, :fbOffset, format = :format);", &statement);
+	err = db->sqlPrepare("INSERT INTO channels (node, nodeOffset, numPixels, fbOffset, format) VALUES (:node, :nodeOffset, :numPixels, :fbOffset, :format);", &statement);
 	CHECK(err == SQLITE_OK) << "Couldn't prepare statement: " << sqlite3_errstr(err);
 
 	// bind the properties
@@ -171,6 +174,9 @@ void DbChannel::_create(DataStore *db) {
 void DbChannel::_update(DataStore *db) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
+
+  // make sure node is set
+  CHECK(node != nullptr) << "Attempting to update channel with null node";
 
 	// logging
 	VLOG(1) << "Updating existing channel with id " << this->id;
