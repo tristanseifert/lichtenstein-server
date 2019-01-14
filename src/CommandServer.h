@@ -29,7 +29,11 @@ class CommandServer {
 	private:
 		void threadEntry();
 
-		void createSocket();
+		void cleanUpSocket(void);
+		void createSocket(void);
+
+		void createSocketUnix(void);
+		void createSocketTcp(void);
 
 		void acceptClient(int fd);
 		void clientThreadEntry(int fd);
@@ -94,6 +98,11 @@ class CommandServer {
       kErrorInvalidArguments
 		};
 
+		enum SocketMode {
+			kSocketModeTcp,
+			kSocketModeUnix
+		};
+
 	private:
 		friend void CommandServerEntry(void *ctx);
 		friend void CommandClientEntry(void *ctx);
@@ -111,14 +120,16 @@ class CommandServer {
 		INIReader *config;
 		EffectRunner *runner;
 
+		SocketMode socketMode;
 		std::string socketPath;
+
+		int sock = 0;
+
 		std::thread *worker = nullptr;
 
 		std::atomic_bool run;
 
 		std::vector<std::tuple<int, std::thread *>> clients;
-
-		int sock = 0;
 
 	private:
 		static const size_t kClientBufferSz = (1024 * 32);

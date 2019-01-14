@@ -61,9 +61,6 @@ CommandServer::CommandServer(DataStore *store, INIReader *reader, EffectRunner *
 	this->config = reader;
 	this->store = store;
 	this->runner = runner;
-
-	// get the path of the socket
-	this->socketPath = this->config->Get("command", "socketPath", "");
 }
 
 /**
@@ -157,17 +154,65 @@ void CommandServer::threadEntry() {
 	// clean up the socket (i.e. delete the file on disk)
 	LOG(INFO) << "Closing command connection";
 
-	err = unlink(this->socketPath.c_str());
-	PLOG_IF(ERROR, err != 0) << "Couldn't unlink command socket: ";
+	// clean up socket
+	this->cleanUpSocket();
+}
+
+/**
+ * Cleans up any resources related to the command server socket.
+ */
+void CommandServer::cleanUpSocket(void) {
+	int err = 0;
+
+	// UNIX sockets need to unlink the file
+	if(this->socketMode == kSocketModeUnix) {
+		err = unlink(this->socketPath.c_str());
+		PLOG_IF(ERROR, err != 0) << "Couldn't unlink command socket: ";
+	}
 }
 
 /**
  * Creates the domain socket (using the stream mode) and prepares it for
  * listening.
  */
-void CommandServer::createSocket() {
-	struct sockaddr_un server;
+void CommandServer::createSocket(void) {
 	int err = 0;
+
+	// get socket type
+	std::string mode = this->config->Get("command", "mode", "tcp");
+
+	if(mode == "tcp") {
+		this->socketMode = kSocketModeTcp;
+	} else if(mode == "unix") {
+		this->socketMode = kSocketModeUnix;
+	} else {
+		LOG(FATAL) << "command.mode is invalid: got '" << mode << "', expected 'tcp' or 'unix'";
+	}
+
+	// invoke proper function
+	switch(this->socketMode) {
+		case kSocketModeTcp:
+			this->createSocketTcp();
+			break;
+
+		case kSocketModeUnix:
+			this->createSocketUnix();
+			break;
+	}
+
+	// we can now run the server
+	this->run = true;
+}
+
+/**
+ * Creates a unix domain socket for the command server.
+ */
+void CommandServer::createSocketUnix(void) {
+	int err = 0;
+	struct sockaddr_un server;
+
+		// get the path of the socket
+	this->socketPath = this->config->Get("command", "socketPath", "");
 
 	// delete the existing socket if needed
 	if(this->config->GetBoolean("command", "unlinkSocket", true)) {
@@ -193,7 +238,55 @@ void CommandServer::createSocket() {
 
 	// log some info
 	LOG(INFO) << "Created command socket at " << this->socketPath;
-	this->run = true;
+}
+/**
+ * Creates a tcp socket for the command server.
+ */
+void CommandServer::createSocketTcp(void) {
+	int err = 0;
+	struct sockaddr_in addr;
+	int nbytes, addrlen;
+	struct ip_mreq mreq;
+
+	unsigned int yes = 1;
+
+	// get config parameters
+	int backlog = this->config->GetInteger("command", "backlog", 10);
+	CHECK(backlog > 1) << "Backlog must be a positive integer; check command.backlog";
+
+	int port = this->config->GetInteger("command", "port", 7421);
+	std::string address = this->config->Get("command", "listen", "0.0.0.0");
+
+	// clear the address
+	memset(&addr, 0, sizeof(addr));
+
+	// convert IP address
+	err = inet_pton(AF_INET, address.c_str(), &addr.sin_addr.s_addr);
+	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
+
+	// create the socket
+	this->sock = socket(AF_INET, SOCK_STREAM, 0);
+	PLOG_IF(FATAL, this->sock < 0) << "Couldn't create command server socket";
+
+	// allow re-use of the address (so we don't have issues if server crashes)
+	err = setsockopt(this->sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	PLOG_IF(FATAL, err < 0) << "Couldn't set SO_REUSEADDR";
+
+	// set up the destination address
+	addr.sin_family = AF_INET;
+	// addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	addr.sin_port = htons(port);
+
+	// bind to this address
+	err = bind(this->sock, (struct sockaddr *) &addr, sizeof(addr));
+	PLOG_IF(FATAL, err < 0) << "Couldn't bind command server socket socket on port " << port;
+
+	// lastly, listen on this socket
+	err = listen(this->sock, backlog);
+	PLOG_IF(FATAL, err < 0) << "Couldn't listen on command server socket";
+
+	// log some info
+	LOG(INFO) << "Created command socket at " << address << ":" << port;
 }
 
 /**
