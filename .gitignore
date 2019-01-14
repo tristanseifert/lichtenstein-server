@@ -4,4 +4,4 @@ build/
 *.d
 
 # ignore database dir (for testing)
-store/
+store*/
