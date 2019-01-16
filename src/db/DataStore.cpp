@@ -19,10 +19,14 @@ static const bool lockLogging = false;
 
 #if USE_LOCKING
 	// gets the thread name into the "threadName" variable
-	#define LOCK_GET_THREAD_NAME() \
-		const static int threadNameSz = 64; \
-		char threadName[threadNameSz]; \
-		pthread_getname_np(pthread_self(), threadName, threadNameSz);
+  #ifdef pthread_getname_np
+  	#define LOCK_GET_THREAD_NAME() \
+  		const static int threadNameSz = 64; \
+  		char threadName[threadNameSz]; \
+  		pthread_getname_np(pthread_self(), threadName, threadNameSz);
+  #else
+    #define LOCK_GET_THREAD_NAME() const char *threadName = "";
+  #endif
 
 	// checks if locking is enabled
 	#define LOCK_IS_ENABLED() (this->useDbLock)
@@ -369,7 +373,9 @@ void BackgroundCheckpointThreadEntry(void *ctx) {
 #ifdef __APPLE__
 	pthread_setname_np("Database Background Checkpointing");
 #else
-	pthread_setname_np(pthread_self(), "Database Background Checkpointing");
+  #ifdef pthread_setname_np
+    pthread_setname_np(pthread_self(), "Database Background Checkpointing");
+  #endif
 #endif
 
 	DataStore *datastore = static_cast<DataStore *>(ctx);

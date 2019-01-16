@@ -5,7 +5,7 @@
 #include <chrono>
 
 #include <glog/logging.h>
-#include <pthread/pthread.h>
+#include <pthread.h>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -33,7 +33,9 @@ void ProtocolHandlerEntry(void *ctx) {
 #ifdef __APPLE__
 	pthread_setname_np("Protocol Handler");
 #else
-	pthread_setname_np(pthread_self(), "Protocol Handler");
+  #ifdef pthread_setname_np
+    pthread_setname_np(pthread_self(), "Protocol Handler");
+  #endif
 #endif
 
 	ProtocolHandler *srv = static_cast<ProtocolHandler *>(ctx);

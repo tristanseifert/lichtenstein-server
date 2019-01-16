@@ -5,6 +5,7 @@
 #define DB_NODE_H
 
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
 #include <sqlite3.h>
 

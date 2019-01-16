@@ -24,12 +24,12 @@ DEPS := $(OBJS:.o=.d)
 
 # libraries to link against
 LIBS := stdc++ glog gflags sqlite3
-LIBS_DIRS := $(ANGELSCRIPT_LIB_DIRS)
+LIBS_DIRS += $(ANGELSCRIPT_LIB_DIRS)
 
 LIBS_FLAGS := $(addprefix -L,$(LIBS_DIRS)) $(addprefix -l,$(LIBS)) $(ANGELSCRIPT_LIB_PATH)
 
 # directories to search for includes
-INC_DIRS := $(shell find $(SRC_DIRS) -type d) libs/ libs/json/src libs/inih libs/cpptime $(ANGELSCRIPT_INC_DIRS)
+INC_DIRS += $(shell find $(SRC_DIRS) -type d) libs/ libs/json/src libs/inih libs/cpptime $(ANGELSCRIPT_INC_DIRS)
 
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
