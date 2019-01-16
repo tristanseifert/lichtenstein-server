@@ -491,7 +491,7 @@ void CommandServer::processClientRequest(json &j, int fd) {
 
 	// add the txn field if it exists
 	try {
-		if(j.at("txn")) {
+		if(j.count("txn") == 1) {
 			response["txn"] = j["txn"];
 		}
 	} catch(std::exception e) {}

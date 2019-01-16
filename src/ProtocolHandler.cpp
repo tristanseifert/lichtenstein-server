@@ -534,6 +534,8 @@ void ProtocolHandler::waitForOutstandingFramebufferWrites(void) {
  * Multicasts the "output enable" command.
  */
 void ProtocolHandler::sendOutputEnableForAllNodes(void) {
+  return; /* not currently implemented, lol */
+
 	uint32_t txn;
 	int err;
 	LichtensteinUtils::PacketErrors pErr;
