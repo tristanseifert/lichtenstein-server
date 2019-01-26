@@ -4,6 +4,8 @@
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 
+#include <pthread.h>
+
 #include "INIReader.h"
 
 #include <iostream>
@@ -71,7 +73,9 @@ int main(int argc, char *argv[]) {
 	#ifdef __APPLE__
 		pthread_setname_np("Main Thread");
 	#else
-		pthread_setname_np(pthread_self(), "Main Thread");
+    #ifdef pthread_setname_np
+		  pthread_setname_np(pthread_self(), "Main Thread");
+    #endif
 	#endif
 
 	// set up a signal handler for termination so we can close down cleanly
