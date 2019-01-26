@@ -553,6 +553,9 @@ void CommandServer::clientRequestStatus(json &response, json &request) {
     response["hostname"] = nullptr;
     response["platform"] = nullptr;
   }
+
+  // also, include average fps from effect handler
+  response["actualFps"] = this->runner->getActualFps();
 }
 
 

@@ -46,7 +46,7 @@ EffectRunner::EffectRunner(DataStore *store, INIReader *config, ProtocolHandler 
 /**
  * Cleans up any resources we allocated and tear down the worker threads.
  */
-EffectRunner::~EffectRunner() {
+EffectRunner::~EffectRunner(void) {
 	VLOG(1) << "Deallocating effect runner: stopping thread pool";
 
 	// stop the worker thread pool, but don't execute the rest of the queue
@@ -101,15 +101,13 @@ EffectRunner::~EffectRunner() {
 	}
 
 	// delete all buffers
-	for(auto const& [channel, buffer] : this->channelBuffers) {
-		delete[] buffer;
-	}
+	this->deleteChannelBuffers();
 }
 
 /**
  * Sets up the thread pool.
  */
-void EffectRunner::setUpThreadPool() {
+void EffectRunner::setUpThreadPool(void) {
 	int numThreads = this->config->GetInteger("runner", "maxThreads", 0);
 
 	// if zero, create half as many threads as we have cores
@@ -151,7 +149,7 @@ void CoordinatorEntryPoint(void *ctx) {
  * It also handles the task of waiting for each effect to run to completion,
  * converting the framebuffers and handing that data off to the protocol layer.
  */
-void EffectRunner::setUpCoordinatorThread() {
+void EffectRunner::setUpCoordinatorThread(void) {
 	// initialize some atomics
 	this->frameCounter = 0;
 	this->outstandingEffects = 0;
@@ -167,7 +165,7 @@ void EffectRunner::setUpCoordinatorThread() {
 /**
  * Entry point for the coordinator thread.
  */
-void EffectRunner::coordinatorThreadEntry() {
+void EffectRunner::coordinatorThreadEntry(void) {
 	// get some config
 	int fps = this->config->GetInteger("runner", "fps", 30);
 
@@ -268,26 +266,18 @@ void EffectRunner::coordinatorThreadEntry() {
 	this->outputChannels.clear();
 
 	// delete all buffers
-	for(auto const& [channel, buffer] : this->channelBuffers) {
-		delete[] buffer;
-	}
-
-	this->channelBuffers.clear();
+	this->deleteChannelBuffers();
 }
 
 /**
  * Fetches all channels and allocates buffers for them.
  */
-void EffectRunner::updateChannels() {
+void EffectRunner::updateChannels(void) {
 	// attempt to acquire the lock
   std::unique_lock<std::mutex> lk(this->channelBufferMutex);
 
 	// delete all buffers
-	for(auto const& [channel, buffer] : this->channelBuffers) {
-		delete[] buffer;
-	}
-
-	this->channelBuffers.clear();
+	this->deleteChannelBuffers();
 
 	// delete all old channels
 	for(auto channel : this->outputChannels) {
@@ -312,10 +302,13 @@ void EffectRunner::updateChannels() {
 				break;
 		}
 
-		// allocate the buffer
+		// allocate the buffer for frame to output
 		uint8_t *buf = new uint8_t[numBytes];
-
 		this->channelBuffers[channel] = buf;
+
+		// allocate the buffer for the previous frame (used for delta updates)
+		uint8_t *prevFrameBuf = new uint8_t[numBytes];
+		this->channelBuffersPrevFrame[channel] = prevFrameBuf;
 	}
 
 	// reset the update flag
@@ -323,6 +316,24 @@ void EffectRunner::updateChannels() {
 
 	// unlock the lock
 	lk.unlock();
+}
+/**
+ * Deallocates the buffers for ALL channel buffers.
+ */
+void EffectRunner::deleteChannelBuffers(void) {
+  // delete output buffers
+  for(auto const& [channel, buffer] : this->channelBuffers) {
+		delete[] buffer;
+	}
+
+	this->channelBuffers.clear();
+
+  // delete prev frame buffers
+	for(auto const& [channel, buffer] : this->channelBuffersPrevFrame) {
+		delete[] buffer;
+	}
+
+	this->channelBuffersPrevFrame.clear();
 }
 
 
@@ -357,7 +368,7 @@ void EffectRunner::compensateSleepInaccuracies(long requestedNs, long actualNs) 
 /**
  * Calculates the actual FPS that the coordinator is achieving.
  */
-void EffectRunner::calculateActualFps() {
+void EffectRunner::calculateActualFps(void) {
 	this->actualFramesCounter++;
 
 	auto current = std::chrono::high_resolution_clock::now();
@@ -380,7 +391,7 @@ void EffectRunner::calculateActualFps() {
  * convert the framebuffers, and once the conversion of every buffer has
  * completed, output it to the nodes.
  */
-void EffectRunner::coordinatorRunEffects() {
+void EffectRunner::coordinatorRunEffects(void) {
 	// set up the condition variable
 	this->outstandingEffects = this->mapper->outputMap.size();
 
@@ -436,7 +447,7 @@ void EffectRunner::runEffect(OutputMapper::OutputGroup *group, Routine *routine)
  * that framebuffer to the format (RGB/RGBW) required by each of the output
  * channels.
  */
-void EffectRunner::coordinatorDoConversions() {
+void EffectRunner::coordinatorDoConversions(void) {
 	// set up the condition variable
 	unsigned int conversions = this->outputChannels.size();
 	this->outstandingConversions = conversions;
@@ -494,9 +505,18 @@ void EffectRunner::convertPixelData(DbChannel *channel) {
 void EffectRunner::_convertToRgb(DbChannel *channel) {
 	HSIPixel *fbPtr = this->fb->data.data();
 
-	uint8_t *channelBuffer = this->channelBuffers[channel];
+  // copy the previous frame
+  uint8_t *channelBuffer = this->channelBuffers[channel];
 	CHECK(channelBuffer != nullptr) << "Don't have output buffer for channel " << channel;
 
+  uint8_t *prevChannelBuffer = this->channelBuffersPrevFrame[channel];
+
+  if(prevChannelBuffer != nullptr) {
+    size_t numBytes = channel->numPixels * 3;
+    memcpy(prevChannelBuffer, channelBuffer, numBytes);
+  }
+
+  // convert pixel data
 	for(int i = 0, j = channel->fbOffset; i < channel->numPixels; i++, j++) {
 		fbPtr[j].convertToRGB(channelBuffer);
 		channelBuffer += 3;
@@ -509,8 +529,16 @@ void EffectRunner::_convertToRgb(DbChannel *channel) {
 void EffectRunner::_convertToRgbw(DbChannel *channel) {
 	HSIPixel *fbPtr = this->fb->data.data();
 
-	uint8_t *channelBuffer = this->channelBuffers[channel];
+  // copy the previous frame
+  uint8_t *channelBuffer = this->channelBuffers[channel];
 	CHECK(channelBuffer != nullptr) << "Don't have output buffer for channel " << channel;
+
+  uint8_t *prevChannelBuffer = this->channelBuffersPrevFrame[channel];
+
+  if(prevChannelBuffer != nullptr) {
+    size_t numBytes = channel->numPixels * 4;
+    memcpy(prevChannelBuffer, channelBuffer, numBytes);
+  }
 
 	for(int i = 0, j = channel->fbOffset; i < channel->numPixels; i++, j++) {
 		fbPtr[j].convertToRGBW(channelBuffer);
@@ -550,7 +578,7 @@ void EffectRunner::coordinatorSendData(void) {
 */
 
 	// wait for any outstanding sends to complete/get acknowledged
-	this->proto->waitForOutstandingFramebufferWrites();
+	// this->proto->waitForOutstandingFramebufferWrites();
 
 	// send the multicasted "output enable" command
 	this->proto->sendOutputEnableForAllNodes();
@@ -566,14 +594,45 @@ void EffectRunner::outputPixelData(DbChannel *channel) {
 		return;
 	}
 
-	// send the data
-	void *channelBuffer = this->channelBuffers[channel];
+  // get the channel's output buffer
+	uint8_t *channelBuffer = this->channelBuffers[channel];
 	CHECK(channelBuffer != nullptr) << "Don't have output buffer for channel " << channel;
 
-	size_t numPixels = channel->numPixels;
-	bool isRGBW = (channel->format == DbChannel::kPixelFormatRGBW);
+  // check if the data changed between both frames
+  size_t numPixels = channel->numPixels;
+  size_t lastChangedPixel = numPixels;
 
-	this->proto->sendDataToNode(channel, channelBuffer, numPixels, isRGBW);
+  bool isRGBW = (channel->format == DbChannel::kPixelFormatRGBW);
+
+  uint8_t *prevFrameChannelBuffer = this->channelBuffersPrevFrame[channel];
+
+  if(prevFrameChannelBuffer != nullptr) {
+    // reset the counter since we have a buffer
+    lastChangedPixel = 0;
+
+    // calculate pixel stride
+    size_t pixelStride = (isRGBW == true) ? 4 : 3;
+
+    // check if each pixel matches
+    for(size_t pixels = 0; pixels < numPixels; pixels++) {
+      uint8_t *prevPixel = &prevFrameChannelBuffer[(pixels * pixelStride)];
+      uint8_t *pixel = &channelBuffer[(pixels * pixelStride)];
+
+      // compare the bytes of each pixel
+      for(size_t byte = 0; byte < pixelStride; byte++) {
+        if(prevPixel[byte] != pixel[byte]) {
+          // this byte did not match; store the index
+          lastChangedPixel = pixels;
+          break;
+        }
+      }
+    }
+  }
+
+  // VLOG(1) << lastChangedPixel << " is the last changed pixel out of " << numPixels << " for " << channel;
+
+	// send the data
+	this->proto->sendDataToNode(channel, channelBuffer, lastChangedPixel, isRGBW);
 
 	// decrement the outstanding sends and notify coordinator
 	this->outstandingSends--;

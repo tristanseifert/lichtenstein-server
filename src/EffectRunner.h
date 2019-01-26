@@ -30,18 +30,18 @@ class EffectRunner {
 		~EffectRunner();
 
 	public:
-		inline OutputMapper *getMapper() const {
+		inline OutputMapper *getMapper(void) const {
 			return this->mapper;
 		}
 
 	private:
-		void setUpThreadPool();
+		void setUpThreadPool(void);
 
 	private:
 		friend void CoordinatorEntryPoint(void *ctx);
 
-		void setUpCoordinatorThread();
-		void coordinatorThreadEntry();
+		void setUpCoordinatorThread(void);
+		void coordinatorThreadEntry(void);
 
 		std::thread *coordinator;
 		std::atomic_bool coordinatorRunning;
@@ -55,7 +55,7 @@ class EffectRunner {
 
 	// effect running
 	private:
-		void coordinatorRunEffects();
+		void coordinatorRunEffects(void);
 		void runEffect(OutputMapper::OutputGroup *group, Routine *routine);
 
 		std::condition_variable effectsCv;
@@ -63,7 +63,7 @@ class EffectRunner {
 
 	// pixel conversion
 	private:
-		void coordinatorDoConversions();
+		void coordinatorDoConversions(void);
 		void convertPixelData(DbChannel *channel);
 
 		void _convertToRgb(DbChannel *channel);
@@ -94,22 +94,26 @@ class EffectRunner {
 		int actualFramesCounter = 0;
 		std::chrono::time_point<std::chrono::high_resolution_clock> fpsStart;
 
-		void calculateActualFps();
+		void calculateActualFps(void);
 
 	public:
 		/// returns the actual frames per second
-		double getActualFps() const {
+		double getActualFps(void) const {
 			return this->actualFps;
 		}
 
 	// channel handling
 	public:
-		void updateChannels();
+		void updateChannels(void);
+
+    void deleteChannelBuffers(void);
 
 		std::atomic_bool channelUpdatePending;
 
 		std::vector<DbChannel *> outputChannels;
-		std::map<DbChannel *, uint8_t *> channelBuffers;
+
+    std::map<DbChannel *, uint8_t *> channelBuffers;
+		std::map<DbChannel *, uint8_t *> channelBuffersPrevFrame;
 
 		std::mutex channelBufferMutex;
 
