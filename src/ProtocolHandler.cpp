@@ -111,8 +111,13 @@ void ProtocolHandler::createSocket() {
 	PLOG_IF(FATAL, err < 0) << "Couldn't set SO_REUSEADDR";
 
 	// enable the socket info struct
+#ifdef __linux__
 	err = setsockopt(this->sock, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes));
-	PLOG_IF(FATAL, err < 0) << "Couldn't set SO_REUSEADDR";
+	PLOG_IF(FATAL, err < 0) << "Couldn't set IP_PKTINFO";
+#else
+	err = setsockopt(this->sock, IPPROTO_IP, IP_RECVDSTADDR, &yes, sizeof(yes));
+	PLOG_IF(FATAL, err < 0) << "Couldn't set IP_RECVDSTADDR";
+#endif
 
 	// set up the destination address
 	addr.sin_family = AF_INET;
@@ -202,27 +207,47 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 	int err;
 	struct cmsghdr *cmhdr;
 
+  struct in_addr destInAddr;
+
 	static const socklen_t destAddrSz = 128;
 	char destAddr[destAddrSz];
 
 	bool isMulticast = false;
 
-	// go through the buffer and find IP_PKTINFO
+	// go through the buffer and find the destination address
 	for(cmhdr = CMSG_FIRSTHDR(msg); cmhdr != nullptr; cmhdr = CMSG_NXTHDR(msg, cmhdr)) {
-		// check if it's the right type
-		if(cmhdr->cmsg_level == IPPROTO_IP && cmhdr->cmsg_type == IP_PKTINFO) {
-			void *data = CMSG_DATA(cmhdr);
-			struct in_pktinfo *info = static_cast<struct in_pktinfo *>(data);
+		// make sure this message relates to IP
+		if(cmhdr->cmsg_level == IPPROTO_IP) {
+      // on linux, check for IP_PKTINFO
+#ifdef __linux__
+      if(cmhdr->cmsg_type == IP_PKTINFO) {
+  			void *data = CMSG_DATA(cmhdr);
+  			struct in_pktinfo *info = static_cast<struct in_pktinfo *>(data);
 
-			// check if it's multicast (they're class D, i.e. 1110 MSB)
-			unsigned int addr = ntohl(info->ipi_addr.s_addr);
-			isMulticast = ((addr >> 28) == 0x0E);
+        memcpy(&destInAddr, &info->ipi_addr, sizeof(struct in_addr));
+  		}
+#else
+      // on other OSes (macOS/FreeBSD), check for IP_RECVDSTADDR
+      if(cmhdr->cmsg_type == IP_RECVDSTADDR) {
+  			void *data = CMSG_DATA(cmhdr);
 
-			// convert the destination address
-			const char *ptr = inet_ntop(AF_INET, &info->ipi_addr, destAddr, destAddrSz);
-			CHECK(ptr != nullptr) << "Couldn't convert destination address";
-		}
+        // copy the in_addr struct out
+  			struct in_addr *destInAddrPtr = static_cast<struct in_addr *>(data);
+        memcpy(&destInAddr, destInAddrPtr, sizeof(struct in_addr));
+      }
+#endif
     }
+  }
+
+  // check if destination address is multicast (they're class D, i.e. 1110 MSB)
+  unsigned int addr = ntohl(destInAddr.s_addr);
+  isMulticast = ((addr >> 28) == 0x0E);
+
+  // convert the destination address
+  const char *ptr = inet_ntop(AF_INET, &destInAddr, destAddr, destAddrSz);
+  CHECK(ptr != nullptr) << "Couldn't convert destination address";
+
+
 
 	// if it's a multicast packet, pass it to the discovery handler
 	if(isMulticast) {
@@ -237,7 +262,7 @@ void ProtocolHandler::handlePacket(void *packet, size_t length, struct msghdr *m
 		pErr = LichtensteinUtils::validatePacket(packet, length);
 
 		if(err != LichtensteinUtils::kNoError) {
-			LOG(ERROR) << "Couldn't verify multicast packet: " << err;
+			LOG(ERROR) << "Couldn't verify unicast packet: " << err;
 			return;
 		}
 
