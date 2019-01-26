@@ -3,7 +3,7 @@
 #include "DataStore.h"
 
 #include <glog/logging.h>
-#include <pthread/pthread.h>
+#include <pthread.h>
 
 #include <unistd.h>
 #include <fcntl.h>

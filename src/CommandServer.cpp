@@ -12,14 +12,16 @@
 #include <thread>
 #include <sstream>
 
+#include <pthread.h>
+
 #include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <sys/ucred.h>
 #include <sys/resource.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 
 using json = nlohmann::json;
@@ -31,7 +33,9 @@ void CommandServerEntry(void *ctx) {
 #ifdef __APPLE__
 	pthread_setname_np("Command Server");
 #else
-	pthread_setname_np(pthread_self(), "Command Server");
+  #ifdef pthread_setname_np
+	 pthread_setname_np(pthread_self(), "Command Server");
+ #endif
 #endif
 
 	CommandServer *srv = static_cast<CommandServer *>(ctx);
@@ -45,7 +49,9 @@ void CommandClientEntry(void *ctx) {
 #ifdef __APPLE__
 	pthread_setname_np("Command Server Client Thread");
 #else
-	pthread_setname_np(pthread_self(), "Command Server Client Thread");
+  #ifdef pthread_setname_np
+	 pthread_setname_np(pthread_self(), "Command Server Client Thread");
+ #endif
 #endif
 
 	CommandServer::ClientThreadCtx *info = static_cast<CommandServer::ClientThreadCtx *>(ctx);
@@ -307,30 +313,6 @@ void CommandServer::acceptClient(int fd) {
  */
 void CommandServer::clientThreadEntry(int fd) {
 	int err = 0, rsz = 0, len = 0;
-
-	// get the process that opened this connection
-	struct ucred ucred;
-	len = sizeof(struct ucred);
-
-	/*
-	 * get the pid of the remote process. this is only done for logging purposes
-	 * so on systems where this isn't supported (*cough* macOS) it just doesn't
-	 * get compiled in. really lame, but meh.
-	 */
-#ifdef SO_PEERCRED
-	err = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &ucred, &len);
-
-	PLOG_IF(ERROR, err != 0) << "Couldn't get peer info on " << fd << ": ";
-
-	if(err == 0) {
-		LOG(INFO) << "Received connection from pid " << ucred.pid << " on fd " << fd;
-	}
-
-	// set thread name
-	char name[64];
-	snprintf(name, 64, "Command Server Client - pid %u", ucred.pid);
-	pthread_setname_np(pthread_self(), name);
-#endif
 
 	// allocate a read buffer
 	char *buffer = new char[kClientBufferSz];

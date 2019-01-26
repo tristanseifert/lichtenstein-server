@@ -135,7 +135,9 @@ void CoordinatorEntryPoint(void *ctx) {
 #ifdef __APPLE__
 	pthread_setname_np("Effect Coordinator");
 #else
-	pthread_setname_np(pthread_self(), "Effect Coordinator");
+  #ifdef pthread_setname_np
+	 pthread_setname_np(pthread_self(), "Effect Coordinator");
+ #endif
 #endif
 
 	EffectRunner *runner = static_cast<EffectRunner *>(ctx);

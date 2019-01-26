@@ -4,6 +4,9 @@
 
 #include <glog/logging.h>
 
+// for htons/ntohl, etc.
+#include <arpa/inet.h>
+
 #include "lichtenstein_proto.h"
 #include "crc32/crc32.h"
 
