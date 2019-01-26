@@ -76,7 +76,8 @@ ProtocolHandler::~ProtocolHandler() {
 	err = close(this->sock);
 	LOG_IF(ERROR, err != 0) << "Couldn't close multicast socket: " << strerror(errno);
 
-	this->worker->join();
+  // detach the worker so that it can be killed off
+	this->worker->detach();
 	delete this->worker;
 }
 
@@ -185,6 +186,10 @@ void ProtocolHandler::threadEntry() {
 				PLOG(WARNING) << "Couldn't read from socket: ";
 				break;
 			}
+      // request to terminate: exit
+      else {
+        goto cleanup;
+      }
 		}
 		// otherwise, try to parse the packet
 		else {
@@ -192,6 +197,8 @@ void ProtocolHandler::threadEntry() {
 			this->handlePacket(buffer, rsz, &msg);
 		}
 	}
+
+cleanup: ;
 
 	// clean up any resources we allocated
 	LOG(INFO) << "Closing listening socket";

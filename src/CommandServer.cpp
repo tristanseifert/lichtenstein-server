@@ -74,6 +74,14 @@ CommandServer::CommandServer(DataStore *store, INIReader *reader, EffectRunner *
  */
 CommandServer::~CommandServer() {
 	delete this->worker;
+
+  // delete any client threads
+  for(auto value : this->clients) {
+    int fd = std::get<0>(value);
+    std::thread *t = std::get<1>(value);
+
+    delete t;
+  }
 }
 
 /**
@@ -100,8 +108,8 @@ void CommandServer::stop() {
 	err = close(this->sock);
 	PLOG_IF(ERROR, err != 0) << "Couldn't close command socket: ";
 
-	// wait for the thread to terminate
-	this->worker->join();
+	// detach worker thread: it'll get killed when the destructor is called
+	this->worker->detach();
 
 	// now, terminate any remaining clients
 	if(!this->clients.empty()) {
@@ -118,8 +126,8 @@ void CommandServer::stop() {
 	   		PLOG_IF(ERROR, err != 0) << "Couldn't close client socket: ";
 	   	}
 
-			// now, wait for the thread to terminate
-			t->join();
+			// detach the thread (it will die off soon enough)
+			t->detach();
 		}
 	} else {
 		LOG(INFO) << "No active client connections to close, we're done";
@@ -151,10 +159,10 @@ void CommandServer::threadEntry() {
 
 			// continue the loop
 			continue;
-		}
-
-		// otherwise, accept the connection and start a new thread
-		this->acceptClient(msgsock);
+		} else {
+  		// otherwise, accept the connection and start a new thread
+  		this->acceptClient(msgsock);
+    }
 	}
 
 	// clean up the socket (i.e. delete the file on disk)
