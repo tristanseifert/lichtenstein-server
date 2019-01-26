@@ -631,8 +631,10 @@ void EffectRunner::outputPixelData(DbChannel *channel) {
 
   // VLOG(1) << lastChangedPixel << " is the last changed pixel out of " << numPixels << " for " << channel;
 
-	// send the data
-	this->proto->sendDataToNode(channel, channelBuffer, lastChangedPixel, isRGBW);
+	// send the data, if any pixels changed
+  if(lastChangedPixel > 0) {
+	  this->proto->sendDataToNode(channel, channelBuffer, lastChangedPixel, isRGBW);
+  }
 
 	// decrement the outstanding sends and notify coordinator
 	this->outstandingSends--;
