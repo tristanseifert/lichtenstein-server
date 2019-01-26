@@ -546,22 +546,7 @@ void ProtocolHandler::fbSendTimeoutExpired(DbChannel *ch, uint32_t txn) {
  * waiting for a response, in case a node is unreachable.
  */
 void ProtocolHandler::waitForOutstandingFramebufferWrites(void) {
-	// exit if the pending framebuffer writes is zero
-	if(this->numPendingFBWrites == 0) {
-		return;
-	}
-
-	// wait to take the lock
-	while(this->numPendingFBWrites != 0) {
-/*		// exit if the pending framebuffer writes is zero
-		if(this->numPendingFBWrites == 0) {
-			return;
-		}
-*/
-
-		// attempt to take the lock (unlocked by acknowledgements)
-		this->pendingOutputMutex.lock();
-	};
+  /* not implemented right now */
 }
 
 /**
