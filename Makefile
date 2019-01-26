@@ -5,6 +5,13 @@ TARGET_EXEC ?= lichtenstein_server
 BUILD_DIR ?= ./build
 SRC_DIRS ?= ./src
 
+# detect OS - this way, we can apply OS-specific flags
+ifeq ($(OS),Windows_NT)
+    detected_OS := Windows
+else
+    detected_OS := $(shell uname)
+endif
+
 # flags for angelscript
 ANGELSCRIPT_ADDONS := scriptbuilder scriptstdstring scriptarray scriptdictionary scriptmath datetime debugger
 ANGELSCRIPT_ADDON_DIRS := $(addprefix libs/angelscript-sdk/add_on/,$(ANGELSCRIPT_ADDONS))
@@ -26,11 +33,19 @@ DEPS := $(OBJS:.o=.d)
 LIBS := stdc++ glog gflags sqlite3
 LIBS_DIRS += $(ANGELSCRIPT_LIB_DIRS)
 
-LIBS_FLAGS := $(addprefix -L,$(LIBS_DIRS)) $(addprefix -l,$(LIBS)) $(ANGELSCRIPT_LIB_PATH)
 
 # directories to search for includes
 INC_DIRS += $(shell find $(SRC_DIRS) -type d) libs/ libs/json/src libs/inih libs/cpptime $(ANGELSCRIPT_INC_DIRS)
 
+# add FreeBSD specific flags: include/library dirs, threading libraries
+ifeq ($(detected_OS),FreeBSD)
+	INC_DIRS += /usr/local/include/
+	LIBS_DIRS += /usr/local/lib/
+
+	LIBS += thr m
+endif
+
+LIBS_FLAGS := $(addprefix -L,$(LIBS_DIRS)) $(addprefix -l,$(LIBS)) $(ANGELSCRIPT_LIB_PATH)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 # flags for the C and C++ compiler
