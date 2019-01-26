@@ -23,6 +23,7 @@
 #include <sys/resource.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/utsname.h>
 
 using json = nlohmann::json;
 
@@ -538,6 +539,20 @@ void CommandServer::clientRequestStatus(json &response, json &request) {
 	response["load"] = {load[0], load[1], load[2]};
 
 	response["mem"] = usage.ru_maxrss;
+
+  // get the system info
+  struct utsname unameInfo;
+  err = uname(&unameInfo);
+
+  if(err == 0) {
+    response["os"] = unameInfo.sysname;
+    response["hostname"] = unameInfo.nodename;
+    response["platform"] = unameInfo.machine;
+  } else {
+    response["os"] = nullptr;
+    response["hostname"] = nullptr;
+    response["platform"] = nullptr;
+  }
 }
 
 
