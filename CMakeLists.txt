@@ -37,9 +37,6 @@ set(version_file "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
 
 # build all of the sources
 add_executable(server
-        src/crc32/crc32.cpp
-        src/crc32/crc32.h
-        src/crc32/crclut.h
         src/db/Channel.cpp
         src/db/Channel.h
         src/db/DataStore.cpp
@@ -50,12 +47,6 @@ add_executable(server
         src/db/Node.h
         src/db/Routine.cpp
         src/db/Routine.h
-        src/libb64/cdecode.c
-        src/libb64/cdecode.h
-        src/libb64/cencode.c
-        src/libb64/cencode.h
-        src/libb64/decode.h
-        src/libb64/encode.h
         src/CommandServer.cpp
         src/CommandServer.h
         src/EffectRunner.cpp
@@ -64,12 +55,7 @@ add_executable(server
         src/Framebuffer.h
         src/HSIPixel.cpp
         src/HSIPixel.h
-        src/lichtenstein_proto.h
-        src/LichtensteinUtils.cpp
-        src/LichtensteinUtils.h
         src/main.cpp
-        src/NodeDiscovery.cpp
-        src/NodeDiscovery.h
         src/OutputMapper.cpp
         src/OutputMapper.h
         src/ProtocolHandler.cpp
@@ -116,6 +102,9 @@ target_link_libraries(server SQLite::SQLite3)
 # link against glog
 find_package(glog REQUIRED)
 target_link_libraries(server glog::glog)
+# link against LibreSSL
+find_package(LibreSSL REQUIRED)
+target_link_libraries(server LibreSSL::TLS)
 
 # lastly, link in all the pieces we need from the lichtenstein library
 add_subdirectory(libs/liblichtenstein EXCLUDE_FROM_ALL)
