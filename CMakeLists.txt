@@ -6,8 +6,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake;${CMAKE_MODULE_PATH}")
 
 # set global C++ options
 set(CMAKE_CXX_STANDARD 17)
-
-set(CMAKE_VERBOSE_MAKEFILE ON)
+#set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # include directories
 include_directories(src)
@@ -80,6 +79,7 @@ add_executable(server
         src/Routine.h
         ${version_file} src/version.h)
 
+
 # compile/link angelscript, and the add-ons wfe want
 add_subdirectory(libs/angelscript-sdk/angelscript/projects/cmake)
 target_link_libraries(server ${ANGELSCRIPT_LIBRARY_NAME})
@@ -104,17 +104,20 @@ target_sources(server PRIVATE
 
         libs/angelscript-sdk/add_on/debugger/debugger.cpp)
 
-# link against libraries
+
+# link against SQLite
 find_package(SQLite3 REQUIRED)
 target_link_libraries(server SQLite::SQLite3)
-
+# link against glog
 find_package(glog REQUIRED)
 target_link_libraries(server glog::glog)
 
-# link in the lichtenstein client library
+# lastly, link in all the pieces we need from the lichtenstein library
 add_subdirectory(libs/liblichtenstein EXCLUDE_FROM_ALL)
 
-target_link_libraries(server lichtensteinClient)
+target_link_libraries(server lichtensteinIo)
+target_link_libraries(server lichtensteinProto)
+
 include_directories(libs/liblichtenstein/client)
 include_directories(libs/liblichtenstein/protocol)
 include_directories(${CMAKE_BINARY_DIR}/libs/liblichtenstein/protocol)
