@@ -98,7 +98,7 @@ void ProtocolHandler::createSocket() {
 
 	// get the port and IP address to listen on
 	int port = this->config->GetInteger("server", "port", 7420);
-	string address = this->config->Get("server", "listen", "0.0.0.0");
+  std::string address = this->config->Get("server", "listen", "0.0.0.0");
 
 	err = inet_pton(AF_INET, address.c_str(), &addr.sin_addr.s_addr);
 	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
@@ -385,7 +385,7 @@ void ProtocolHandler::adoptNode(DbNode *node) {
 	adopt->port = this->config->GetInteger("server", "port", 7420);
 
 	// get IP and convert
-	string address = this->config->Get("server", "listen", "0.0.0.0");
+  std::string address = this->config->Get("server", "listen", "0.0.0.0");
 
 	struct in_addr addr;
 	err = inet_pton(AF_INET, address.c_str(), &addr);
@@ -591,7 +591,8 @@ void ProtocolHandler::sendOutputEnableForAllNodes(void) {
 	memset(&sockAddr, 0, sizeof(sockAddr));
 
 	// get multicast IP
-	string multiAddress = this->config->Get("server", "multicastGroup", "239.42.0.69");
+  std::string multiAddress = this->config->Get("server", "multicastGroup",
+                                               "239.42.0.69");
 
 	err = inet_pton(AF_INET, multiAddress.c_str(), &sockAddr.sin_addr.s_addr);
 	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";

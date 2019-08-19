@@ -16,7 +16,6 @@ include_directories(src/libb64)
 
 # libraries in the "libs" folder
 include_directories(libs/inih)
-include_directories(libs/json/src)
 include_directories(libs)
 include_directories(libs/cpptime)
 
@@ -104,6 +103,12 @@ target_sources(server PRIVATE
 
         libs/angelscript-sdk/add_on/debugger/debugger.cpp)
 
+
+# JSON library
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+add_subdirectory(libs/json)
+
+target_link_libraries(server nlohmann_json::nlohmann_json)
 
 # link against SQLite
 find_package(SQLite3 REQUIRED)

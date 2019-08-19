@@ -49,7 +49,8 @@ void effectStep() {
 
 // declare some C functions
 void ASMessageCallback(const asSMessageInfo *msg, void *param);
-void ASScriptPrint(string &msg);
+
+void ASScriptPrint(std::string &msg);
 
 void ASHSIPixelConstructor(void *memory);
 void ASHSIPixelDestructor(void *memory);
@@ -61,7 +62,7 @@ int ASRandomIntInRange(int min, int max);
  * Initializes a new routine object with the given database routine (that's how
  * we get our AngelScript code) and properties to pass to that code.
  */
-Routine::Routine(DbRoutine *r, std::map<string, double> &params) {
+Routine::Routine(DbRoutine *r, std::map<std::string, double> &params) {
 	this->routine = r;
 	this->params = params;
 
@@ -100,7 +101,7 @@ void Routine::attachBuffer(HSIPixel *buf, size_t elements) {
 /**
  * Updates the parameters.
  */
-void Routine::changeParams(std::map<string, double> &newParams) {
+void Routine::changeParams(std::map<std::string, double> &newParams) {
 	this->params = newParams;
 
 	// merge the default parameters
@@ -469,7 +470,7 @@ int ASRandomIntInRange(int min, int max) {
  * Logging of messages from the script itself; these are logged to the global
  * logger as verbose messages.
  */
-void ASScriptPrint(string &msg) {
+void ASScriptPrint(std::string &msg) {
 	int line, col;
 	const char *section;
 

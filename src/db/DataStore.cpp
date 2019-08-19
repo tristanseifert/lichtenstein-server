@@ -2,7 +2,7 @@
 
 #include "version.h"
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 #include <glog/logging.h>
 
@@ -62,7 +62,7 @@ const char *schema_v1 =
 
 // lastest schema
 const char *schema_latest = schema_v1;
-const string latestSchemaVersion = "1";
+const std::string latestSchemaVersion = "1";
 
 /**
  * Default info properties that are inserted into the database after it's been
@@ -158,7 +158,8 @@ int DataStore::sqlPrepare(const char *sql, sqlite3_stmt **stmt) {
 /**
  * Binds a string to a named parameter in the given statement.
  */
-int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, string value, bool optional) {
+int DataStore::sqlBind(sqlite3_stmt *stmt, const char *param, std::string value,
+                       bool optional) {
 	int err, idx;
 
 	LOCK_START();
@@ -312,7 +313,7 @@ int DataStore::sqlGetColumnInt(sqlite3_stmt *statement, int index) {
 /**
  * Returns the value of the given column as a string.
  */
-string DataStore::sqlGetColumnString(sqlite3_stmt *statement, int index) {
+std::string DataStore::sqlGetColumnString(sqlite3_stmt *statement, int index) {
 	LOCK_START();
 
 	// get the UTF-8 string and its length from sqlite, then allocate a buffer
@@ -326,7 +327,7 @@ string DataStore::sqlGetColumnString(sqlite3_stmt *statement, int index) {
 	memcpy(nameStr, name, nameLen);
 
 	// create a C++ string and then deallocate the buffer
-	string retVal = string(nameStr);
+  std::string retVal = std::string(nameStr);
 	delete[] nameStr;
 
 	LOCK_END();
@@ -357,12 +358,12 @@ const void *DataStore::sqlGetColumnBlob(sqlite3_stmt *statement, int index, size
 /**
  * Returns the name of the given column.
  */
-string DataStore::sqlColumnName(sqlite3_stmt *statement, int index) {
-	string nameStr;
+std::string DataStore::sqlColumnName(sqlite3_stmt *statement, int index) {
+  std::string nameStr;
 
 	LOCK_START();
 	const char *colName = sqlite3_column_name(statement, index);
-	nameStr = string(colName);
+  nameStr = std::string(colName);
 	LOCK_END();
 
 	return nameStr;
@@ -391,7 +392,7 @@ void BackgroundCheckpointThreadEntry(void *ctx) {
  */
 void DataStore::createCheckpointThread() {
 	// verify journal mode
-	string journalMode = this->config->Get("db", "journal", "WAL");
+  std::string journalMode = this->config->Get("db", "journal", "WAL");
 
 	if(journalMode != "WAL") {
 		VLOG(1) << "Not creating checkpoint thread: journal mode is " << journalMode;
@@ -537,7 +538,7 @@ void DataStore::openConfigDb() {
 	CHECK(status == SQLITE_OK) << "Couldn't set temp_store: " << errStr;
 
 	// truncate the journal rather than deleting it
-	string journalMode = this->config->Get("db", "journal", "WAL");
+  std::string journalMode = this->config->Get("db", "journal", "WAL");
 
 	snprintf(sqlBuf, sqlBufSize, "PRAGMA journal_mode=%s;", journalMode.c_str());
 
@@ -627,7 +628,7 @@ void DataStore::checkDbVersion() {
 
 
 	// the database has a schema, we just have to find out what version…
-	string schemaVersion = this->getInfoValue("schema_version");
+  std::string schemaVersion = this->getInfoValue("schema_version");
 	LOG(INFO) << "Schema version: " << schemaVersion;
 
 	// is the schema version the same as that of the latest schema?
@@ -667,7 +668,7 @@ void DataStore::provisonBlankDb() {
  * highest version until we reach the latest version.
  */
 void DataStore::upgradeSchema() {
-	string schemaVersion = this->getInfoValue("schema_version");
+  std::string schemaVersion = this->getInfoValue("schema_version");
 	LOG(INFO) << "Latest schema version is " << latestSchemaVersion << ", db is"
 			  << " currently on version " << schemaVersion << "; upgrade required";
 }
@@ -693,7 +694,9 @@ void sqlFunctionHandler(sqlite3_context *ctx, int numValues, sqlite3_value **val
  * Registers a native function that's called when an SQL function with `name` is
  * called. This is useful for things like triggers.
  */
-void DataStore::registerCustomFunction(string name, CustomFunction callback, void *ctx) {
+void
+DataStore::registerCustomFunction(std::string name, CustomFunction callback,
+                                  void *ctx) {
 	int err;
 
 	// allocate a context parameter
@@ -721,15 +724,16 @@ void DataStore::registerCustomFunction(string name, CustomFunction callback, voi
  * Updates the server version stored in the db.
  */
 void DataStore::updateStoredServerVersion() {
-	this->setInfoValue("server_build", string(gVERSION_HASH) + "/" + string(gVERSION_BRANCH));
-	this->setInfoValue("server_version", string(gVERSION));
+  this->setInfoValue("server_build", std::string(gVERSION_HASH) + "/" +
+                                     std::string(gVERSION_BRANCH));
+  this->setInfoValue("server_version", std::string(gVERSION));
 }
 
 /**
  * Sets a DB metadata key to the specified value. This key must be defined in
  * the initial schema so that the update clause can run.
  */
-void DataStore::setInfoValue(string key, string value) {
+void DataStore::setInfoValue(std::string key, std::string value) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
 
@@ -757,10 +761,10 @@ void DataStore::setInfoValue(string key, string value) {
  * Returns the value of the given database metadata key. If the key does not
  * exist, an error is raised.
  */
-string DataStore::getInfoValue(string key) {
+std::string DataStore::getInfoValue(std::string key) {
 	int err = 0, result;
 	sqlite3_stmt *statement = nullptr;
-	string returnValue;
+  std::string returnValue;
 
 	// prepare a query and bind key
 	err = this->sqlPrepare("SELECT value FROM info WHERE key = :key;", &statement);
@@ -774,7 +778,7 @@ string DataStore::getInfoValue(string key) {
 
 	if(result == SQLITE_ROW) {
 		const unsigned char *value = sqlite3_column_text(statement, 0);
-		returnValue = string(reinterpret_cast<const char *>(value));
+    returnValue = std::string(reinterpret_cast<const char *>(value));
 	}
 
 	// free the statement

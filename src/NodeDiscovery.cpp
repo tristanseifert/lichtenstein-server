@@ -47,8 +47,9 @@ void NodeDiscovery::leaveMulticastGroup() {
 	LOG(INFO) << "Shutting down multicast receiver";
 
 	// get the port and IP address used for multicast
-	string multiAddress = this->config->Get("server", "multicastGroup", "239.42.0.69");
-	string address = this->config->Get("server", "listen", "0.0.0.0");
+  std::string multiAddress = this->config->Get("server", "multicastGroup",
+                                               "239.42.0.69");
+  std::string address = this->config->Get("server", "listen", "0.0.0.0");
 
 	err = inet_pton(AF_INET, multiAddress.c_str(), &mreq.imr_multiaddr.s_addr);
 	PLOG_IF(FATAL, err != 1) << "Couldn't convert IP address: ";
@@ -69,8 +70,9 @@ void NodeDiscovery::setUpMulticast() {
 	struct ip_mreq mreq;
 
 	// get the configuration
-	string multiAddress = this->config->Get("server", "multicastGroup", "239.42.0.69");
-	string address = this->config->Get("server", "listen", "0.0.0.0");
+  std::string multiAddress = this->config->Get("server", "multicastGroup",
+                                               "239.42.0.69");
+  std::string address = this->config->Get("server", "listen", "0.0.0.0");
 
 	LOG(INFO) << "Joining multicast group " << multiAddress;
 
@@ -160,7 +162,7 @@ void NodeDiscovery::processNodeAnnouncement(void *data, size_t length) {
 	std::fill(hostnameBuf, hostnameBuf + hostnameLen + 1, 0);
 	memcpy(hostnameBuf, packet->hostname, hostnameLen);
 
-	node->hostname = string(hostnameBuf);
+  node->hostname = std::string(hostnameBuf);
 
 	// get the framebuffer size and number of channels
 	node->numChannels = packet->channels;

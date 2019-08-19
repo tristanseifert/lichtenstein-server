@@ -11,7 +11,7 @@
 
 #include <sqlite3.h>
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 class DataStore;
 class DbRoutine;
@@ -86,18 +86,16 @@ inline std::ostream &operator<<(std::ostream& strm, const DbGroup *obj) {
  */
 inline void to_json(nlohmann::json& j, const DbGroup& group) {
 	// build the JSON representation
-	j = nlohmann::json{
-		{"id", group.id},
+  j["id"] = group.id;
 
-		{"name", group.name},
+  j["name"] = group.name;
 
-		{"enabled", group.enabled},
+  j["enabled"] = group.enabled;
 
-		{"start", group.start},
-		{"end", group.end},
+  j["start"] = group.start;
+  j["end"] = group.end;
 
-		{"currentRoutine", group.currentRoutine}
-	};
+//  j["currentRoutine"] = group.currentRoutine;
 }
 
 inline void to_json(nlohmann::json& j, const DbGroup *group) {

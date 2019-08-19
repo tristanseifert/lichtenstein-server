@@ -38,7 +38,8 @@ DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 
 // parsing of the config file
 INIReader *configReader = nullptr;
-void parseConfigFile(string path);
+
+void parseConfigFile(const std::string &path);
 
 /**
  * Signal handler. This handler is invoked for the following signals to enable
@@ -170,7 +171,7 @@ int main(int argc, char *argv[]) {
 /**
  * Opens the config file for reading and parses it.
  */
-void parseConfigFile(string path) {
+void parseConfigFile(const std::string &path) {
 	int err;
 
 	LOG(INFO) << "Reading configuration from " << path;

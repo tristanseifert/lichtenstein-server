@@ -9,7 +9,7 @@
 
 #include <sqlite3.h>
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 class DataStore;
 class DbChannel;
@@ -105,25 +105,23 @@ inline void to_json(nlohmann::json& j, const DbNode& n) {
 	inet_ntop(AF_INET, &n.ip, ipAddr, ipAddrSz);
 
 	// build the JSON representation
-	j = nlohmann::json{
-		{"id", n.id},
+  j["id"] = n.id;
 
-		{"mac", n.macToString()},
-		{"ip", std::string(ipAddr)},
-		{"hostname", n.hostname},
+  j["mac"] = n.macToString();
+  j["ip"] = std::string(ipAddr);
+  j["hostname"] = n.hostname;
 
-		{"adopted", n.adopted},
+  j["adopted"] = n.adopted;
 
-		{"hwVersion", n.hwVersion},
-		{"swVersion", n.swVersion},
+  j["hwVersion"] = n.hwVersion;
+  j["swVersion"] = n.swVersion;
 
-		{"lastSeen", n.lastSeen},
+  j["lastSeen"] = n.lastSeen;
 
-		{"numChannels", n.numChannels},
-		{"fbSize", n.fbSize},
+  j["numChannels"] = n.numChannels;
+  j["fbSize"] = n.fbSize;
 
-		{"channels", n.channels}
-	};
+//  j["channels"] = n.channels;
 }
 
 inline void to_json(nlohmann::json& j, const DbNode *node) {
