@@ -1,0 +1,7 @@
+//the path to the version.h file is relative to your build directory.
+#include "./version.h"
+
+const char *gVERSION = "@VERSION@";
+const char *gVERSION_SHORT = "@VERSION_SHORT@";
+const char *gVERSION_HASH = "@GIT_HASH@";
+const char *gVERSION_BRANCH = "@GIT_BRANCH@";

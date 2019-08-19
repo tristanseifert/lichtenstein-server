@@ -1,4 +1,5 @@
 #include "CommandServer.h"
+#include "version.h"
 
 #include "DataStore.h"
 #include "Routine.h"
@@ -533,8 +534,8 @@ void CommandServer::clientRequestStatus(json &response, json &request) {
 	}
 
 	// build response
-	response["version"] = string(VERSION);
-	response["build"] = string(GIT_HASH) + "/" + string(GIT_BRANCH);
+	response["version"] = string(gVERSION);
+	response["build"] = string(gVERSION_HASH) + "/" + string(gVERSION_BRANCH);
 
 	response["load"] = {load[0], load[1], load[2]};
 

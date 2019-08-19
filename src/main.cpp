@@ -1,6 +1,8 @@
 /**
  * Main entrypoint for Lichtenstein server
  */
+#include "version.h"
+
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 
@@ -60,8 +62,7 @@ int main(int argc, char *argv[]) {
 	google::InitGoogleLogging(argv[0]);
 	google::InstallFailureSignalHandler();
 
-	LOG(INFO) << "lichtenstein server " << GIT_HASH << "/" << GIT_BRANCH
-			  << " compiled on " << COMPILE_TIME;
+	LOG(INFO) << "lichtenstein server " << gVERSION_HASH << "/" << gVERSION_BRANCH;
 
 	// interpret command-line flags
 	gflags::ParseCommandLineFlags(&argc, &argv, true);

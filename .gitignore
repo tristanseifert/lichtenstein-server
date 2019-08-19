@@ -3,5 +3,7 @@
 build/
 *.d
 
+cmake-build-debug/
+
 # ignore database dir (for testing)
 store*/

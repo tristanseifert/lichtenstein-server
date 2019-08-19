@@ -1,5 +1,7 @@
 #include "DataStore.h"
 
+#include "version.h"
+
 #include "json.hpp"
 
 #include <glog/logging.h>
@@ -67,8 +69,9 @@ const string latestSchemaVersion = "1";
  * provisioned.
  */
 const char *schema_info_default =
-	"INSERT INTO info (key, value) VALUES (\"server_build\", \"" GIT_HASH "/" GIT_BRANCH "\");"
-	"INSERT INTO info (key, value) VALUES (\"server_version\", \"" VERSION "\");"
+//	"INSERT INTO info (key, value) VALUES (\"server_build\", \"" gVERSION_HASH "/" gVERSION_BRANCH "\");"
+//	"INSERT INTO info (key, value) VALUES (\"server_version\", \"" gVERSION "\");"
+  ""
 ;
 
 /**
@@ -718,8 +721,8 @@ void DataStore::registerCustomFunction(string name, CustomFunction callback, voi
  * Updates the server version stored in the db.
  */
 void DataStore::updateStoredServerVersion() {
-	this->setInfoValue("server_build", string(GIT_HASH) + "/" + string(GIT_BRANCH));
-	this->setInfoValue("server_version", string(VERSION));
+	this->setInfoValue("server_build", string(gVERSION_HASH) + "/" + string(gVERSION_BRANCH));
+	this->setInfoValue("server_version", string(gVERSION));
 }
 
 /**

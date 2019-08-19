@@ -10,3 +10,6 @@
 [submodule "libs/cpptime"]
 	path = libs/cpptime
 	url = git@github.com:eglimi/cpptime.git
+[submodule "libs/liblichtenstein"]
+	path = libs/liblichtenstein
+	url = git@github.com:tristanseifert/lichtenstein-lib.git
