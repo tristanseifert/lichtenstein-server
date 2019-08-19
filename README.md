@@ -8,6 +8,14 @@ Once all dependencies have been satisfied (remember to pull submodules and downl
 
 Be sure you have sqlite3, [glog](https://github.com/google/glog), and [gflags](https://github.com/gflags/gflags) installed on the system, and in your include/link paths. You will also need whatever dependencies [lichtenstein-lib](https://github.com/tristanseifert/lichtenstein-lib) requires; namely, the protobuf runtime, [LibreSSL](https://www.libressl.org/), and [Catch2](https://github.com/catchorg/Catch2/) for tests.
 
+As an example, you might do the following to build:
+```
+mkdir build
+cd build
+cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug ..
+make
+```
+
 ### macOS
 Install glog and gflags via Homebrew; then invoke CMake. Everything should compile without problems.
 
