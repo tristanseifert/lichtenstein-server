@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 project(lichtenstein_server)
 
 # include all files in the CMake directory
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake;${CMAKE_MODULE_PATH}")
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 # set global C++ options
 set(CMAKE_CXX_STANDARD 17)
