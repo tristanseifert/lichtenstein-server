@@ -1,11 +1,12 @@
 #include "CommandServer.h"
+#include "version.h"
 
 #include "DataStore.h"
 #include "Routine.h"
 #include "EffectRunner.h"
 #include "OutputMapper.h"
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 #include "INIReader.h"
 #include <glog/logging.h>
 
@@ -360,7 +361,7 @@ void CommandServer::clientThreadEntry(int fd) {
 			buffer[zeroByte] = 0;
 
 			// create a string from it
-			string jsonStr = std::string(buffer);
+      std::string jsonStr = std::string(buffer);
 			// LOG(INFO) << jsonStr;
 
 			try {
@@ -490,7 +491,7 @@ void CommandServer::processClientRequest(json &j, int fd) {
 	// serialize it to a string and send it
 	bool humanReadable = this->config->GetBoolean("command", "humanReadableResponses", false);
 
-	string responseStr = humanReadable ? response.dump(4) : response.dump();
+  std::string responseStr = humanReadable ? response.dump(4) : response.dump();
 
 	const char *responseBuf = responseStr.c_str();
 	size_t length = strlen(responseBuf);
@@ -527,14 +528,15 @@ void CommandServer::clientRequestStatus(json &response, json &request) {
 	if(err != 0) {
 		PLOG(ERROR) << "Couldn't get resource usage: ";
 		response["status"] = kErrorSyscallError;
-		response["error"] = string(strerror(errno));
+    response["error"] = std::string(strerror(errno));
 	} else {
 		response["status"] = 0;
 	}
 
 	// build response
-	response["version"] = string(VERSION);
-	response["build"] = string(GIT_HASH) + "/" + string(GIT_BRANCH);
+  response["version"] = std::string(gVERSION);
+  response["build"] =
+          std::string(gVERSION_HASH) + "/" + std::string(gVERSION_BRANCH);
 
 	response["load"] = {load[0], load[1], load[2]};
 
@@ -877,7 +879,7 @@ void CommandServer::clientRequestUpdateRoutine(nlohmann::json &response, nlohman
   }
 
   if(response.count("defaults") == 1) {
-		std::map<string, double> params = request["defaults"];
+    std::map<std::string, double> params = request["defaults"];
     routine->defaultParams = params;
   }
 
@@ -915,7 +917,7 @@ void CommandServer::clientRequestNewRoutine(nlohmann::json &response, nlohmann::
   routine->name = keys["name"];
   routine->code = keys["code"];
 
-  std::map<string, double> params = keys["defaults"];
+  std::map<std::string, double> params = keys["defaults"];
   routine->defaultParams = params;
 
   // save the routine
@@ -1172,7 +1174,7 @@ void CommandServer::clientRequestAddMapping(json &response, json &request) {
 	OutputMapper *mapper = this->runner->getMapper();
 
 	if(hasParams) {
-		std::map<string, double> params = request["routine"]["params"];
+    std::map<std::string, double> params = request["routine"]["params"];
 		routine = new Routine(dbRoutine, params);
 	} else {
 		routine = new Routine(dbRoutine);

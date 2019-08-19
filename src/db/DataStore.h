@@ -18,7 +18,7 @@
 #include <sqlite3.h>
 
 #include "INIReader.h"
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 #include "Group.h"
 #include "Routine.h"

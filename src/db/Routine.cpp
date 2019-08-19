@@ -1,7 +1,7 @@
 #include "Routine.h"
 #include "DataStore.h"
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 #include <glog/logging.h>
 #include <sqlite3.h>
@@ -202,7 +202,7 @@ void DbRoutine::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 	// iterate over all returned columns
 	for(int i = 0; i < numColumns; i++) {
 		// get the column name and see to which property it matches up
-		string colName = db->sqlColumnName(statement, i);
+    std::string colName = db->sqlColumnName(statement, i);
 
 		// is it the id column?
 		if(colName == "id") {

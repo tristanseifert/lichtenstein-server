@@ -3,5 +3,14 @@
 build/
 *.d
 
+cmake-build-*/
+
+# CLion stuff
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/shelf
+
 # ignore database dir (for testing)
 store*/

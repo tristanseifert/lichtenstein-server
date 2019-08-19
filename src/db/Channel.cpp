@@ -7,7 +7,7 @@
 #include <vector>
 #include <iostream>
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 
 #pragma mark - Public Query Interface
@@ -237,7 +237,7 @@ void DbChannel::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 	// iterate over all returned columns
 	for(int i = 0; i < numColumns; i++) {
 		// get the column name and see to which property it matches up
-		string colName = db->sqlColumnName(statement, i);
+    std::string colName = db->sqlColumnName(statement, i);
 
 		// is it the id column?
 		if(colName == "id") {

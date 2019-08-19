@@ -1,6 +1,8 @@
 /**
  * Main entrypoint for Lichtenstein server
  */
+#include "version.h"
+
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 
@@ -36,7 +38,8 @@ DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 
 // parsing of the config file
 INIReader *configReader = nullptr;
-void parseConfigFile(string path);
+
+void parseConfigFile(const std::string &path);
 
 /**
  * Signal handler. This handler is invoked for the following signals to enable
@@ -60,8 +63,7 @@ int main(int argc, char *argv[]) {
 	google::InitGoogleLogging(argv[0]);
 	google::InstallFailureSignalHandler();
 
-	LOG(INFO) << "lichtenstein server " << GIT_HASH << "/" << GIT_BRANCH
-			  << " compiled on " << COMPILE_TIME;
+	LOG(INFO) << "lichtenstein server " << gVERSION_HASH << "/" << gVERSION_BRANCH;
 
 	// interpret command-line flags
 	gflags::ParseCommandLineFlags(&argc, &argv, true);
@@ -169,7 +171,7 @@ int main(int argc, char *argv[]) {
 /**
  * Opens the config file for reading and parses it.
  */
-void parseConfigFile(string path) {
+void parseConfigFile(const std::string &path) {
 	int err;
 
 	LOG(INFO) << "Reading configuration from " << path;

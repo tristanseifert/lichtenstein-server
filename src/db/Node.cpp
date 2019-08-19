@@ -262,7 +262,7 @@ void DbNode::_fromRow(sqlite3_stmt *statement, DataStore *db) {
 	// iterate over all returned columns
 	for(int i = 0; i < numColumns; i++) {
 		// get the column name and see to which property it matches up
-		string colName = db->sqlColumnName(statement, i);
+    std::string colName = db->sqlColumnName(statement, i);
 
 		// is it the id column?
 		if(colName == "id") {
@@ -370,14 +370,14 @@ void DbNode::_bindToStatement(sqlite3_stmt *statement, DataStore *db) {
 /**
  * Converts a MAC address to a string.
  */
-const string DbNode::macToString(const uint8_t macIn[6]) {
+const std::string DbNode::macToString(const uint8_t macIn[6]) {
 	static const int macBufSz = 32;
 
 	char mac[macBufSz];
 	snprintf(mac, macBufSz, "%02X-%02X-%02X-%02X-%02X-%02X", macIn[0], macIn[1],
 			 macIn[2], macIn[3], macIn[4], macIn[5]);
 
-	return string(mac);
+  return std::string(mac);
 }
 
 #pragma mark - Operators
