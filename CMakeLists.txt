@@ -19,22 +19,6 @@ include_directories(libs/inih)
 include_directories(libs)
 include_directories(libs/cpptime)
 
-# compile in the git version file
-include(GetGitRevisionDescription)
-git_describe(VERSION --tags --dirty=-d)
-
-get_git_head_revision(GIT_REFSPEC GIT_HASH)
-
-string(REGEX REPLACE "^v([0-9]+)\\..*" "\\1" VERSION_MAJOR "${VERSION}")
-string(REGEX REPLACE "^v[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR "${VERSION}")
-string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" VERSION_PATCH "${VERSION}")
-string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.[0-9]+(.*)" "\\1" VERSION_SHA1 "${VERSION}")
-set(VERSION_SHORT "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
-
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/version.cpp.in
-        ${CMAKE_CURRENT_BINARY_DIR}/version.cpp)
-set(version_file "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
-
 # build all of the sources
 add_executable(server
         src/db/Channel.cpp
@@ -62,7 +46,29 @@ add_executable(server
         src/ProtocolHandler.h
         src/Routine.cpp
         src/Routine.h
-        ${version_file} src/version.h)
+        src/version.h
+        src/api/IRequestHandler.h
+        src/api/HandlerFactory.cpp
+        src/api/HandlerFactory.h src/api/API.cpp src/api/API.h src/api/ClientHandler.cpp src/api/ClientHandler.h)
+
+
+# get Git info and compile it into the binary
+include(GetGitRevisionDescription)
+git_describe(VERSION --tags --dirty=-d)
+
+get_git_head_revision(GIT_REFSPEC GIT_HASH)
+
+string(REGEX REPLACE "^v([0-9]+)\\..*" "\\1" VERSION_MAJOR "${VERSION}")
+string(REGEX REPLACE "^v[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR "${VERSION}")
+string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" VERSION_PATCH "${VERSION}")
+string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.[0-9]+(.*)" "\\1" VERSION_SHA1 "${VERSION}")
+set(VERSION_SHORT "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/version.cpp.in
+        ${CMAKE_CURRENT_BINARY_DIR}/version.cpp)
+set(version_file "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
+
+target_sources(server PRIVATE ${version_file})
 
 
 # compile/link angelscript, and the add-ons wfe want
@@ -112,6 +118,5 @@ add_subdirectory(libs/liblichtenstein EXCLUDE_FROM_ALL)
 target_link_libraries(server lichtensteinIo)
 target_link_libraries(server lichtensteinProto)
 
-include_directories(libs/liblichtenstein/client)
-include_directories(libs/liblichtenstein/protocol)
+#include_directories(libs/liblichtenstein)
 include_directories(${CMAKE_BINARY_DIR}/libs/liblichtenstein/protocol)

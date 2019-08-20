@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
 
 	// start the external command interpreter (JSON socket)
 	cs = new CommandServer(store, configReader, runner);
-	cs->start();
+//	cs->start();
 
 	// XXX: Test the routine code
 	/*std::vector<DbRoutine *> routines = store->getAllRoutines();
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
 	*/
 
 	// XXX: Test the effect evaluation code
-	std::vector<DbGroup *> groups = store->getAllGroups();
+/*	std::vector<DbGroup *> groups = store->getAllGroups();
 	std::vector<DbRoutine *> routines = store->getAllRoutines();
 
 	auto mapper = runner->getMapper();
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
 		Routine *r = new Routine(dbR);
 
 		mapper->addMapping(g, r);
-	}
+	}*/
 
 	// wait for a signal
 	while(keepRunning) {

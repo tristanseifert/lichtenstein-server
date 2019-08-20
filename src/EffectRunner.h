@@ -38,8 +38,6 @@ class EffectRunner {
 		void setUpThreadPool(void);
 
 	private:
-		friend void CoordinatorEntryPoint(void *ctx);
-
 		void setUpCoordinatorThread(void);
 		void coordinatorThreadEntry(void);
 

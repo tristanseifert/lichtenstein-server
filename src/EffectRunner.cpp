@@ -127,22 +127,6 @@ void EffectRunner::setUpThreadPool(void) {
 
 #pragma mark - Coordinator Thread Entry
 /**
- * Coordinator thread entry point
- */
-void CoordinatorEntryPoint(void *ctx) {
-#ifdef __APPLE__
-	pthread_setname_np("Effect Coordinator");
-#else
-  #ifdef pthread_setname_np
-	 pthread_setname_np(pthread_self(), "Effect Coordinator");
- #endif
-#endif
-
-	EffectRunner *runner = static_cast<EffectRunner *>(ctx);
-	runner->coordinatorThreadEntry();
-}
-
-/**
  * Sets up the coordinator thread. This thread essentially runs a high accuracy
  * timer that fires at the specified framerate, and then runs each effect.
  *
@@ -159,7 +143,8 @@ void EffectRunner::setUpCoordinatorThread(void) {
 	this->coordinatorRunning = true;
 
 	// lastly, start the thread
-	this->coordinator = new std::thread(CoordinatorEntryPoint, this);
+  this->coordinator = new std::thread(&EffectRunner::coordinatorThreadEntry,
+                                      this);
 }
 
 /**
@@ -577,9 +562,6 @@ void EffectRunner::coordinatorSendData(void) {
 	}
 */
 
-	// wait for any outstanding sends to complete/get acknowledged
-	// this->proto->waitForOutstandingFramebufferWrites();
-
 	// send the multicasted "output enable" command
 	this->proto->sendOutputEnableForAllNodes();
 }
@@ -633,7 +615,8 @@ void EffectRunner::outputPixelData(DbChannel *channel) {
 
 	// send the data, if any pixels changed
   if(lastChangedPixel > 0) {
-	  this->proto->sendDataToNode(channel, channelBuffer, lastChangedPixel, isRGBW);
+    this->proto->sendPixelData(channel, channelBuffer, lastChangedPixel,
+                               isRGBW);
   }
 
 	// decrement the outstanding sends and notify coordinator

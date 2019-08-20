@@ -5,21 +5,16 @@
 #ifndef PROTOCOLHANDLER_H
 #define PROTOCOLHANDLER_H
 
-#include <thread>
-#include <atomic>
-#include <vector>
-#include <tuple>
-#include <chrono>
-#include <mutex>
+#include "api/API.h"
 
-#include <cpptime.h>
+#include <memory>
 
 class DataStore;
 class INIReader;
 
-class NodeDiscovery;
 class DbNode;
 class DbChannel;
+
 
 class ProtocolHandler {
 	public:
@@ -27,10 +22,8 @@ class ProtocolHandler {
 		~ProtocolHandler();
 
 	public:
-		void adoptNode(DbNode *node);
-
-		void sendDataToNode(DbChannel *channel, void *data, size_t numPixels, bool isRGBW);
-		void waitForOutstandingFramebufferWrites(void);
+    void sendPixelData(DbChannel *channel, void *data, size_t numPixels,
+                       bool isRGBW);
 
 		void sendOutputEnableForAllNodes(void);
 
@@ -40,6 +33,8 @@ class ProtocolHandler {
 	private:
 		DataStore *store;
 		INIReader *config;
+
+    std::unique_ptr<api::API> serverApi;
 };
 
 #endif
