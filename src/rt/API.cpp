@@ -9,7 +9,7 @@
 #include <glog/logging.h>
 #include <INIReader.h>
 
-#include <liblichtenstein/io/TLSServer.h>
+#include <liblichtenstein/io/DTLSServer.h>
 #include <liblichtenstein/io/OpenSSLError.h>
 #include <liblichtenstein/io/mdns/Service.h>
 
@@ -24,10 +24,9 @@
 using ZeroconfService = liblichtenstein::mdns::Service;
 
 using SSLError = liblichtenstein::io::OpenSSLError;
-using TLSServer = liblichtenstein::io::TLSServer;
+using DTLSServer = liblichtenstein::io::DTLSServer;
 
-
-namespace api {
+namespace rt {
   /**
    * Sets up the server API.
    *
@@ -35,9 +34,9 @@ namespace api {
    * @param ini App configuration
    */
   API::API(DataStore *db, INIReader *ini) : store(db), config(ini) {
-    // create the listening socket and TLS handler
+    // create the listening socket and DTLS handler
     this->createSocket();
-    this->createTLSServer();
+    this->createDTLSServer();
 
     // create the worker thread
     this->thread = std::make_unique<std::thread>(&API::listenThread, this);
@@ -52,21 +51,22 @@ namespace api {
     // mark to the API to terminate
     this->shutdown = true;
 
-    // close the listening socket and join that thread
+    // shut down the listening socket and join that thread
     if(this->socket != -1) {
       err = close(this->socket);
-      PLOG_IF(ERROR, err != 0) << "close() on API socket failed";
+      PLOG_IF(ERROR, err != 0) << "close() on realtime socket failed";
 
       this->socket = -1;
     }
 
     if(this->thread) {
-      if(this->thread->joinable()) {
-        this->thread->join();
-      }
-
+      // just let the thread fuck off, we don't care anymore after now
+//      this->thread->detach();
       this->thread = nullptr;
     }
+
+    // clear any remaining clients
+    this->clients.clear();
   }
 
 
@@ -80,12 +80,13 @@ namespace api {
     int on = 1;
 
     // get params from config
-    const std::string listenAddress = this->config->Get("api", "listen",
+    const std::string listenAddress = this->config->Get("realtime", "listen",
                                                         "0.0.0.0");
-    const unsigned int listenPort = this->config->GetInteger("api", "port",
-                                                             45678);
+    const unsigned int listenPort = this->config->GetInteger("realtime", "port",
+                                                             7420);
 
-    VLOG(1) << "API server starting on " << listenAddress << ":" << listenPort;
+    VLOG(1) << "Realtime server starting on " << listenAddress << ":"
+            << listenPort;
 
     // parse the address
     servaddr.sin_family = AF_INET;
@@ -109,7 +110,7 @@ namespace api {
     }
 
     // create listening socket
-    this->socket = ::socket(servaddr.sin_family, SOCK_STREAM, 0);
+    this->socket = ::socket(servaddr.sin_family, SOCK_DGRAM, 0);
     PCHECK(this->socket > 0) << "socket() failed";
 
     servaddr.sin_port = htons(listenPort);
@@ -126,25 +127,20 @@ namespace api {
     setsockopt(this->socket, SOL_SOCKET, SO_REUSEPORT, (const void *) &on,
                (socklen_t) sizeof(on));
 #endif
-
-    // the socket has been created! listen for connections
-    const int backlog = (int) this->config->GetInteger("api", "backlog", 10);
-
-    err = listen(this->socket, backlog);
-    PCHECK(err == 0) << "listen() failed";
   }
 
   /**
-   * Once the listening socket has been created, we can create the TLS server
+   * Once the listening socket has been created, we can create the DTLS server
    * to work to that socket.
    */
-  void API::createTLSServer() {
+  void API::createDTLSServer() {
     // create the server
-    this->tls = std::make_unique<TLSServer>(this->socket);
+    this->tls = std::make_unique<DTLSServer>(this->socket);
 
     // load certificate
-    const std::string certPath = this->config->Get("api", "certPath", "");
-    const std::string certKeyPath = this->config->Get("api", "certKeyPath", "");
+    const std::string certPath = this->config->Get("realtime", "certPath", "");
+    const std::string certKeyPath = this->config->Get("realtime", "certKeyPath",
+                                                      "");
 
     this->tls->loadCert(certPath, certKeyPath);
   }
@@ -155,10 +151,11 @@ namespace api {
    */
   void API::listenThread() {
     // start advertising via mDNS
-    if(this->config->GetBoolean("api", "advertise", true)) {
-      const unsigned int listenPort = this->config->GetInteger("api", "port",
-                                                               45678);
-      this->service = ZeroconfService::create("_licht._tcp,_server-api-v1",
+    if(this->config->GetBoolean("realtime", "advertise", true)) {
+      const unsigned int listenPort = this->config->GetInteger("realtime",
+                                                               "port",
+                                                               7420);
+      this->service = ZeroconfService::create("_licht._tcp,_rt-api-v1",
                                               listenPort);
 
       if(this->service) {
@@ -177,26 +174,24 @@ namespace api {
       }
         // was there an error in the SSL libraries?
       catch(SSLError &e) {
-        LOG(ERROR) << "TLS error accepting server API client: " << e.what();
+        LOG(ERROR) << "TLS error accepting client: " << e.what();
       }
         // was there an error during a syscall?
       catch(std::system_error &e) {
         // if it's "connection aborted", ignore it
         if(e.code().value() == ECONNABORTED) {
-          VLOG(1) << "Server API listening socket was closed";
+          VLOG(1) << "Listening socket was closed";
         } else {
-          LOG(ERROR) << "System error accepting server API client: "
-                     << e.what();
+          LOG(ERROR) << "System error accepting client: " << e.what();
         }
       } catch(std::runtime_error &e) {
-        LOG(ERROR) << "Runtime error accepting server API client: " << e.what();
+        LOG(ERROR) << "Runtime error accepting client: " << e.what();
       } catch(std::exception &e) {
-        LOG(FATAL) << "Unexpected error accepting server API client"
-                   << e.what();
+        LOG(FATAL) << "Unexpected error accepting client" << e.what();
       }
     }
 
-    VLOG(1) << "Server API is shutting down";
+    VLOG(1) << "Real-time API is shutting down";
 
     // stop advertising the service
     if(this->service) {

@@ -2,24 +2,25 @@
 // Created by Tristan Seifert on 2019-08-20.
 //
 
-#ifndef LICHTENSTEIN_SERVER_API_CLIENTHANDLER_H
-#define LICHTENSTEIN_SERVER_API_CLIENTHANDLER_H
+#ifndef LICHTENSTEIN_SERVER_RT_CLIENTHANDLER_H
+#define LICHTENSTEIN_SERVER_RT_CLIENTHANDLER_H
 
 #include <memory>
 #include <atomic>
 #include <thread>
-
 #include <liblichtenstein/protocol/GenericClientHandler.h>
 
 namespace liblichtenstein::io {
   class GenericServerClient;
 }
 
-namespace api {
+namespace rt {
   class API;
 
   /**
-   * An instance is created for every client that connects to the server API.
+   * Handles a "connection" from a node to the real-time API. This accepts any
+   * requests the client makes as normally, and also sends data for any
+   * channels that the client has subscribed for data updates.
    */
   class ClientHandler : public liblichtenstein::api::GenericClientHandler {
       using clientType = liblichtenstein::io::GenericServerClient;
@@ -47,4 +48,5 @@ namespace api {
   };
 }
 
-#endif //LICHTENSTEIN_SERVER_API_CLIENTHANDLER_H
+
+#endif //LICHTENSTEIN_SERVER_RT_CLIENTHANDLER_H

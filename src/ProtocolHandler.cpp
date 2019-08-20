@@ -6,6 +6,7 @@
 
 // define shorthands for some classes we use a lot
 using ServerAPI = api::API;
+using RealtimeAPI = rt::API;
 
 
 
@@ -20,6 +21,10 @@ ProtocolHandler::ProtocolHandler(DataStore *db, INIReader *ini) : store(db),
 
   // set up the API
   this->serverApi = std::make_unique<ServerAPI>(this->store, this->config);
+
+  // also, create the realtime API
+  this->rtApi = std::make_unique<RealtimeAPI>(this->store, this->config);
+
 }
 
 /**

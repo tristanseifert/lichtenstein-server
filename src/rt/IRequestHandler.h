@@ -2,18 +2,18 @@
 // Created by Tristan Seifert on 2019-08-20.
 //
 
-#ifndef LICHTENSTEIN_SERVER_API_IREQUESTHANDLER_H
-#define LICHTENSTEIN_SERVER_API_IREQUESTHANDLER_H
+#ifndef LICHTENSTEIN_SERVER_RT_IREQUESTHANDLER_H
+#define LICHTENSTEIN_SERVER_RT_IREQUESTHANDLER_H
 
 namespace lichtenstein::protocol {
   class Message;
 }
 
-namespace api {
+namespace rt {
   class ClientHandler;
 
   /**
-   * Provides the interface implemented by all request handlers.
+   * Provides the interface implemented by all real-time request handlers.
    */
   class IRequestHandler {
     public:
@@ -31,4 +31,5 @@ namespace api {
       ClientHandler *client = nullptr;
   };
 }
-#endif //LICHTENSTEIN_SERVER_API_IREQUESTHANDLER_H
+
+#endif //LICHTENSTEIN_SERVER_RT_IREQUESTHANDLER_H

@@ -2,8 +2,8 @@
 // Created by Tristan Seifert on 2019-08-20.
 //
 
-#ifndef LICHTENSTEIN_SERVER_API_API_H
-#define LICHTENSTEIN_SERVER_API_API_H
+#ifndef LICHTENSTEIN_SERVER_RT_API_H
+#define LICHTENSTEIN_SERVER_RT_API_H
 
 #include <atomic>
 #include <thread>
@@ -14,17 +14,18 @@ class DataStore;
 class INIReader;
 
 namespace liblichtenstein::io {
-  class TLSServer;
+  class DTLSServer;
 }
 namespace liblichtenstein::mdns {
   class Service;
 }
 
-namespace api {
+namespace rt {
   class ClientHandler;
 
   /**
-   * Implements the TCP-based server API.
+   * Implements the UDP-based real-time service. Clients connect to this service
+   * and subscribe to one or more channels for which they wish to receive data.
    */
   class API {
     public:
@@ -35,7 +36,7 @@ namespace api {
     private:
       void createSocket();
 
-      void createTLSServer();
+      void createDTLSServer();
 
       void listenThread();
 
@@ -46,8 +47,8 @@ namespace api {
     private:
       // socket on which the API is listening
       int socket = -1;
-      // TLS server to handle the API
-      std::unique_ptr<liblichtenstein::io::TLSServer> tls;
+      // DTLS server to handle the API
+      std::unique_ptr<liblichtenstein::io::DTLSServer> tls;
 
       // mDNS service used to advertise
       std::unique_ptr<liblichtenstein::mdns::Service> service;
@@ -63,4 +64,4 @@ namespace api {
 }
 
 
-#endif //LICHTENSTEIN_SERVER_API_API_H
+#endif // LICHTENSTEIN_SERVER_RT_API_H

@@ -2,20 +2,22 @@
 // Created by Tristan Seifert on 2019-08-20.
 //
 
-#ifndef LICHTENSTEIN_SERVER_API_HANDLERFACTORY_H
-#define LICHTENSTEIN_SERVER_API_HANDLERFACTORY_H
+#ifndef LICHTENSTEIN_SERVER_RT_HANDLERFACTORY_H
+#define LICHTENSTEIN_SERVER_RT_HANDLERFACTORY_H
 
-#include <memory>
 #include <string>
+#include <memory>
 #include <map>
 
-namespace api {
+
+namespace rt {
   class IRequestHandler;
 
   class ClientHandler;
 
   /**
-   * The handler factory contains a registry of all API handlers
+   * The handler factory contains a registry of all API handlers for the
+   * realtime API
    */
   class HandlerFactory {
     public:
@@ -39,4 +41,4 @@ namespace api {
 }
 
 
-#endif //LICHTENSTEIN_SERVER_API_HANDLERFACTORY_H
+#endif //LICHTENSTEIN_SERVER_RT_HANDLERFACTORY_H

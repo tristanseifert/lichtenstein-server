@@ -6,6 +6,7 @@
 #define PROTOCOLHANDLER_H
 
 #include "api/API.h"
+#include "rt/API.h"
 
 #include <memory>
 
@@ -34,7 +35,10 @@ class ProtocolHandler {
 		DataStore *store;
 		INIReader *config;
 
+    // TCP-based control API (used by nodes and other clients)
     std::unique_ptr<api::API> serverApi;
+    // UDP-based real-time data API (used for pixel data)
+    std::unique_ptr<rt::API> rtApi;
 };
 
 #endif
