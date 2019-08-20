@@ -49,7 +49,7 @@ add_executable(server
         src/version.h
         src/api/IRequestHandler.h
         src/api/HandlerFactory.cpp
-        src/api/HandlerFactory.h src/api/API.cpp src/api/API.h src/api/ClientHandler.cpp src/api/ClientHandler.h)
+        src/api/HandlerFactory.h src/api/API.cpp src/api/API.h src/api/ClientHandler.cpp src/api/ClientHandler.h src/rt/IRequestHandler.h src/rt/HandlerFactory.cpp src/rt/HandlerFactory.h src/rt/API.cpp src/rt/API.h src/rt/ClientHandler.cpp src/rt/ClientHandler.h)
 
 
 # get Git info and compile it into the binary
@@ -110,7 +110,14 @@ find_package(glog REQUIRED)
 target_link_libraries(server glog::glog)
 # link against LibreSSL
 find_package(LibreSSL REQUIRED)
-target_link_libraries(server LibreSSL::TLS)
+
+if (APPLE)
+    # a kind of nasty hack for macOS, otherwise it will link with system OpenSSL :(
+    include_directories(BEFORE SYSTEM /usr/local/opt/libressl/include)
+    target_link_libraries(server /usr/local/opt/libressl/lib/libcrypto.dylib /usr/local/opt/libressl/lib/libssl.dylib /usr/local/opt/libressl/lib/libtls.dylib)
+else ()
+    target_link_libraries(server LibreSSL::TLS)
+endif ()
 
 # lastly, link in all the pieces we need from the lichtenstein library
 add_subdirectory(libs/liblichtenstein EXCLUDE_FROM_ALL)
