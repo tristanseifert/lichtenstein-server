@@ -101,6 +101,9 @@ void CommandServer::start() {
 void CommandServer::stop() {
 	int err = 0;
 
+  // exit if we've already shut down
+  if(!this->run) return;
+
 	LOG(INFO) << "Shutting down command server...";
 
 	// signal for the thread to stop, and force the socket to close
@@ -111,7 +114,9 @@ void CommandServer::stop() {
 	PLOG_IF(ERROR, err != 0) << "Couldn't close command socket: ";
 
 	// detach worker thread: it'll get killed when the destructor is called
-	this->worker->detach();
+  if(this->worker) {
+    this->worker->detach();
+  }
 
 	// now, terminate any remaining clients
 	if(!this->clients.empty()) {

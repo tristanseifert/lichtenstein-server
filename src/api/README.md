@@ -1,0 +1,1 @@
+This directory contains code for the standard TCP-based API, which is used by nodes to communicate their status to the server, and for third-party applications to control the server.

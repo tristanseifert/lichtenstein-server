@@ -1,0 +1,1 @@
+This directory contains the code for the realtime API, which is used by nodes to receive pixel data.

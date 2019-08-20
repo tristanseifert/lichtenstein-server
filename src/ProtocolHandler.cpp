@@ -1,70 +1,53 @@
 #include "ProtocolHandler.h"
 
-#include <chrono>
-
 #include <glog/logging.h>
-#include <pthread.h>
 
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <openssl/ssl.h>
 
-#include "db/DataStore.h"
-#include "db/Node.h"
-#include "db/Channel.h"
+// define shorthands for some classes we use a lot
+using ServerAPI = api::API;
+
 
 
 /**
  * Sets up the lichtenstein protocol server.
  */
-ProtocolHandler::ProtocolHandler(DataStore *store, INIReader *reader) {
-	this->store = store;
-	this->config = reader;
+ProtocolHandler::ProtocolHandler(DataStore *db, INIReader *ini) : store(db),
+                                                                  config(ini) {
+  // initialize LibreSSL
+  SSL_library_init();
+  SSL_load_error_strings();
+
+  // set up the API
+  this->serverApi = std::make_unique<ServerAPI>(this->store, this->config);
 }
 
 /**
  * Deallocates some structures that were created.
  */
 ProtocolHandler::~ProtocolHandler() {
+
 }
 
 
 /**
- * Sends an adoption packet to the given node.
+ * Queues pixel data for the given channel.
  */
-void ProtocolHandler::adoptNode(DbNode *node) {
+void ProtocolHandler::sendPixelData(DbChannel *channel, void *pixelData,
+                                    size_t numPixels, bool isRGBW) {
 
 }
 
 
 /**
- * Sends pixel data to the node.
- */
-void ProtocolHandler::sendDataToNode(DbChannel *channel, void *pixelData, size_t numPixels, bool isRGBW) {
-
-}
-
-/**
- * Waits for all pixel data frames to be sent to the nodes, or for a timeout on
- * waiting for a response, in case a node is unreachable.
- */
-void ProtocolHandler::waitForOutstandingFramebufferWrites(void) {
-  /* not implemented right now */
-}
-
-/**
- * Multicasts the "output enable" command.
+ * Called by the effect runner after data has been sent to all nodes.
  */
 void ProtocolHandler::sendOutputEnableForAllNodes(void) {
-  return; /* not currently implemented, lol */
+
 }
 
 /**
- * Prepares for a shutdown of the effect thread. This really just signals the
- * lock that thread might be waiting on.
+ * Called as the effect worker shuts down.
  */
 void ProtocolHandler::prepareForShutDown(void) {
 
