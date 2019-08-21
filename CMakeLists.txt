@@ -31,8 +31,6 @@ add_executable(server
         src/db/Node.h
         src/db/Routine.cpp
         src/db/Routine.h
-        src/CommandServer.cpp
-        src/CommandServer.h
         src/EffectRunner.cpp
         src/EffectRunner.h
         src/Framebuffer.cpp
