@@ -51,6 +51,9 @@ namespace rt {
     // mark to the API to terminate
     this->shutdown = true;
 
+    // clear any remaining clients
+    this->clients.clear();
+
     // shut down the listening socket and join that thread
     if(this->socket != -1) {
       err = close(this->socket);
@@ -61,12 +64,9 @@ namespace rt {
 
     if(this->thread) {
       // just let the thread fuck off, we don't care anymore after now
-//      this->thread->detach();
-      this->thread = nullptr;
+      this->thread->detach();
+//      this->thread = nullptr;
     }
-
-    // clear any remaining clients
-    this->clients.clear();
   }
 
 

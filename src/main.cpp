@@ -15,7 +15,6 @@
 
 #include <signal.h>
 
-#include "CommandServer.h"
 #include "ProtocolHandler.h"
 #include "DataStore.h"
 #include "EffectRunner.h"
@@ -28,7 +27,6 @@ std::atomic_bool keepRunning;
 static DataStore *store = nullptr;
 
 // various components of the server
-static CommandServer *cs = nullptr;
 static ProtocolHandler *protocol = nullptr;
 static EffectRunner *runner = nullptr;
 
@@ -100,10 +98,6 @@ int main(int argc, char *argv[]) {
 	// start the effect evaluator
 	runner = new EffectRunner(store, configReader, protocol);
 
-	// start the external command interpreter (JSON socket)
-	cs = new CommandServer(store, configReader, runner);
-//	cs->start();
-
 	// XXX: Test the routine code
 	/*std::vector<DbRoutine *> routines = store->getAllRoutines();
 	DataStore::Routine *r = routines[0];
@@ -156,11 +150,7 @@ int main(int argc, char *argv[]) {
 		pause();
 	}
 
-	// stop the servers
-	cs->stop();
-
 	// clean up
-	delete cs;
 	delete runner;
 	delete protocol;
 
