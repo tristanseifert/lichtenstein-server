@@ -13,3 +13,6 @@
 [submodule "libs/liblichtenstein"]
 	path = libs/liblichtenstein
 	url = git@github.com:tristanseifert/lichtenstein-lib.git
+[submodule "libs/angelscript"]
+	path = libs/angelscript
+	url = git@github.com:codecat/angelscript-mirror.git

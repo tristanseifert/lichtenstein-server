@@ -80,28 +80,28 @@ add_executable(server
 
 
 # compile/link angelscript, and the add-ons wfe want
-add_subdirectory(libs/angelscript-sdk/angelscript/projects/cmake)
+add_subdirectory(libs/angelscript/sdk/angelscript/projects/cmake)
 target_link_libraries(server ${ANGELSCRIPT_LIBRARY_NAME})
 
-include_directories(libs/angelscript-sdk/angelscript/include)
-include_directories(libs/angelscript-sdk/add_on)
+include_directories(libs/angelscript/sdk/angelscript/include)
+include_directories(libs/angelscript/sdk/add_on)
 
 target_sources(server PRIVATE
-        libs/angelscript-sdk/add_on/scriptbuilder/scriptbuilder.cpp
+        libs/angelscript/sdk/add_on/scriptbuilder/scriptbuilder.cpp
 
-        libs/angelscript-sdk/add_on/scriptstdstring/scriptstdstring.cpp
-        libs/angelscript-sdk/add_on/scriptstdstring/scriptstdstring_utils.cpp
+        libs/angelscript/sdk/add_on/scriptstdstring/scriptstdstring.cpp
+        libs/angelscript/sdk/add_on/scriptstdstring/scriptstdstring_utils.cpp
 
-        libs/angelscript-sdk/add_on/scriptarray/scriptarray.cpp
+        libs/angelscript/sdk/add_on/scriptarray/scriptarray.cpp
 
-        libs/angelscript-sdk/add_on/scriptdictionary/scriptdictionary.cpp
+        libs/angelscript/sdk/add_on/scriptdictionary/scriptdictionary.cpp
 
-        libs/angelscript-sdk/add_on/scriptmath/scriptmath.cpp
-        libs/angelscript-sdk/add_on/scriptmath/scriptmathcomplex.cpp
+        libs/angelscript/sdk/add_on/scriptmath/scriptmath.cpp
+        libs/angelscript/sdk/add_on/scriptmath/scriptmathcomplex.cpp
 
-        libs/angelscript-sdk/add_on/datetime/datetime.cpp
+        libs/angelscript/sdk/add_on/datetime/datetime.cpp
 
-        libs/angelscript-sdk/add_on/debugger/debugger.cpp)
+        libs/angelscript/sdk/add_on/debugger/debugger.cpp)
 
 
 # JSON library
