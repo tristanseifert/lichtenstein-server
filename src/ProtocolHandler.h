@@ -5,9 +5,6 @@
 #ifndef PROTOCOLHANDLER_H
 #define PROTOCOLHANDLER_H
 
-#include "api/API.h"
-#include "rt/API.h"
-
 #include <memory>
 
 class DataStore;
@@ -15,6 +12,13 @@ class INIReader;
 
 class DbNode;
 class DbChannel;
+
+namespace api {
+  class API;
+}
+namespace rt {
+  class API;
+}
 
 
 class ProtocolHandler {

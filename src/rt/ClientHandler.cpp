@@ -4,6 +4,10 @@
 #include "ClientHandler.h"
 #include "HandlerFactory.h"
 #include "IRequestHandler.h"
+#include "PixelDataHandler.h"
+
+#include "db/Node.h"
+#include "db/Channel.h"
 
 #include <glog/logging.h>
 
@@ -37,12 +41,43 @@ namespace rt {
    * Cleans up the client handler.
    */
   ClientHandler::~ClientHandler() {
-    this->shutdown = true;
+    this->close();
 
     // wait for thread to join and delete it
-    if(this->thread->joinable()) {
-      this->thread->join();
+    if(this->thread) {
+      if(this->thread->joinable()) {
+        this->thread->join();
+      }
+
+      this->thread = nullptr;
     }
+  }
+
+  /**
+   * Handles closing the client handler connection.
+   */
+  void ClientHandler::close() {
+    if(this->shutdown) return;
+
+    VLOG(1) << "Closing rt client connection " << this;
+
+    // this just sets the shutdown variable
+    GenericClientHandler::close();
+
+    // de-register all pixel data callbacks
+    {
+      // XXX: could this deadlock? i don't think so
+      std::lock_guard lock(this->pixelDataCallbacksLock);
+
+      for(int callback : this->pixelDataCallbacks) {
+        PixelDataHandler::removeHandler(callback);
+      }
+
+      this->pixelDataCallbacks.clear();
+    }
+
+    // close the client connection
+    this->client->close();
   }
 
 
@@ -86,8 +121,8 @@ namespace rt {
     }
 
     // clean up client
-    VLOG(1) << "Shutting down API client for client " << this->client;
-    this->client->close();
+    VLOG(1) << "Shutting down rt API client for client " << this->client;
+    this->close();
   }
 
   /**
@@ -114,5 +149,38 @@ namespace rt {
       error << "Received message of unknown type " << type;
       throw ProtocolError(error.str().c_str());
     }
+  }
+
+
+  /**
+   * Called whenever a channel to which we are subscribed has received new pixel
+   * data.
+   *
+   * @param channel Channel with data
+   * @param data Data (raw bytes)
+   * @param format format of the data
+   */
+  void ClientHandler::receivedData(const DBChannel &channel,
+                                   const std::vector<std::byte> &data,
+                                   PixelDataHandler::PixelFormat format) {
+    // return immediately if not valid
+    if(!this->client || this->shutdown) {
+      return;
+    }
+
+    // construct the appropriate message and forward it
+  }
+
+  /**
+   * Registers a new pixel data callback, this is typically called from the
+   * request handler for subscribing to a new channel.
+   *
+   * @param token
+   */
+  void ClientHandler::registerPixelDataCallback(int token) {
+    // try to take the lock and add to vector
+    std::lock_guard lock(this->pixelDataCallbacksLock);
+
+    this->pixelDataCallbacks.push_back(token);
   }
 }
