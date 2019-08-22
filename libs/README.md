@@ -1,1 +1,1 @@
-To properly build this project, you will need to [download the AngelScript SDK](http://www.angelcode.com/angelscript/downloads.html) (as of writing, the latest version is 2.32.0, released 2017-12-16) and into the `angelscript-sdk` folder. It will be built automatically through CMake and linked statically into the app.
+AngelScript is integrated via the [GitHub mirror](https://github.com/codecat/angelscript-mirror) of the official SVN repository; [see this page](https://www.angelcode.com/angelscript/wip.php) for more information.
