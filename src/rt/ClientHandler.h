@@ -5,10 +5,17 @@
 #ifndef LICHTENSTEIN_SERVER_RT_CLIENTHANDLER_H
 #define LICHTENSTEIN_SERVER_RT_CLIENTHANDLER_H
 
+#include "PixelDataHandler.h"
+
 #include <memory>
 #include <atomic>
 #include <thread>
+#include <vector>
+#include <mutex>
+
 #include <liblichtenstein/protocol/GenericClientHandler.h>
+
+class DBChannel;
 
 namespace liblichtenstein::io {
   class GenericServerClient;
@@ -32,19 +39,33 @@ namespace rt {
 
       ~ClientHandler() override;
 
+      void close() override;
+
+    private:
+      void
+      receivedData(const DBChannel &channel, const std::vector<std::byte> &data,
+                   PixelDataHandler::PixelFormat format);
+
     private:
       void handle();
 
       void processMessage(protoMessageType &received);
 
     private:
+      void registerPixelDataCallback(int token);
+
+    private:
       // API that this client connected to
       API *api = nullptr;
 
-      // should worker thread shut down?
-      std::atomic_bool shutdown = false;
       // worker thread
       std::unique_ptr<std::thread> thread;
+
+      // mutex protecting the pixel data callbacks structure
+      std::mutex pixelDataCallbacksLock;
+
+      // IDs of any callbacks added (for pixel data)
+      std::vector<int> pixelDataCallbacks;
   };
 }
 
