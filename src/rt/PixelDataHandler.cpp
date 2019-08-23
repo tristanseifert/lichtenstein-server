@@ -139,6 +139,10 @@ namespace rt {
   /**
    * Called by external code when new data for a particular channel is available.
    *
+   * This actually works by first fetching all callbacks for a given channel,
+   * copying them into a temporary vector (while holding the cb list lock) so we
+   * can then run them all without having to hold a lock ourselves.
+   *
    * @param channel Channel for which this data is
    * @param data Data pointer
    * @param len Number of bytes
@@ -146,15 +150,27 @@ namespace rt {
    */
   void PixelDataHandler::receivedData(DbChannel &channel, const void *data,
                                       const size_t len, PixelFormat format) {
+    // fetch all of the callbacks
+    std::vector<dataCallback> callbacks;
+
+    {
+      std::lock_guard listLock(callbackListLock);
+
+      auto range = callbackList.equal_range(channel);
+
+      for(auto callback = range.first; callback != range.second; ++callback) {
+        callbacks.push_back(callback->second);
+      }
+
+      if(callbacks.empty()) return;
+    }
     // create a vector of data
     auto *charBuffer = reinterpret_cast<const std::byte *>(data);
     std::vector<std::byte> dataVect(charBuffer, charBuffer + len);
 
-    // invoke all the callbacks
-    auto range = callbackList.equal_range(channel);
-
-    for(auto callback = range.first; callback != range.second; ++callback) {
-      callback->second(channel, dataVect, format);
+    // now, execute the callbacks
+    for(auto callback : callbacks) {
+      callback(channel, dataVect, format);
     }
   }
 

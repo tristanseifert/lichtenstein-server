@@ -12,13 +12,18 @@
 #include <thread>
 #include <vector>
 #include <mutex>
+#include <random>
 
 #include <liblichtenstein/protocol/GenericClientHandler.h>
 
-class DBChannel;
+class DbChannel;
 
 namespace liblichtenstein::io {
   class GenericServerClient;
+}
+
+namespace rt::handlers {
+  class JoinChannel;
 }
 
 namespace rt {
@@ -30,6 +35,8 @@ namespace rt {
    * channels that the client has subscribed for data updates.
    */
   class ClientHandler : public liblichtenstein::api::GenericClientHandler {
+      friend class handlers::JoinChannel;
+
       using clientType = liblichtenstein::io::GenericServerClient;
 
     public:
@@ -43,7 +50,7 @@ namespace rt {
 
     private:
       void
-      receivedData(const DBChannel &channel, const std::vector<std::byte> &data,
+      receivedData(const DbChannel &channel, const std::vector<std::byte> &data,
                    PixelDataHandler::PixelFormat format);
 
     private:
@@ -63,9 +70,11 @@ namespace rt {
 
       // mutex protecting the pixel data callbacks structure
       std::mutex pixelDataCallbacksLock;
-
       // IDs of any callbacks added (for pixel data)
       std::vector<int> pixelDataCallbacks;
+
+      // used to generate random numbers
+      std::mt19937 random = std::mt19937(std::random_device()());
   };
 }
 

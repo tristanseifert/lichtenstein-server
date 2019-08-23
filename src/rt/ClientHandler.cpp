@@ -15,13 +15,14 @@
 #include <liblichtenstein/io/OpenSSLError.h>
 #include <liblichtenstein/io/SSLSessionClosedError.h>
 #include <liblichtenstein/protocol/ProtocolError.h>
-
-#include "proto/shared/Message.pb.h"
+#include <proto/rt/ChannelData.pb.h>
+#include <proto/shared/Message.pb.h>
 
 // alias some commonly used classes
 using SSLError = liblichtenstein::io::OpenSSLError;
 using SSLSessionClosedError = liblichtenstein::io::SSLSessionClosedError;
 using ProtocolError = liblichtenstein::api::ProtocolError;
+
 
 namespace rt {
   /**
@@ -160,15 +161,39 @@ namespace rt {
    * @param data Data (raw bytes)
    * @param format format of the data
    */
-  void ClientHandler::receivedData(const DBChannel &channel,
+  void ClientHandler::receivedData(const DbChannel &channel,
                                    const std::vector<std::byte> &data,
                                    PixelDataHandler::PixelFormat format) {
-    // return immediately if not valid
+    using ChannelDataMsgType = lichtenstein::protocol::rt::ChannelData;
+    using PixelFmtType = ChannelDataMsgType::PixelFormat;
+
+    // return immediately if client connection is closed
     if(!this->client || this->shutdown) {
       return;
     }
 
-    // construct the appropriate message and forward it
+    // construct the appropriate message and send it
+    ChannelDataMsgType dataMsg;
+
+    switch(format) {
+      case PixelDataHandler::RGB:
+        dataMsg.set_format(PixelFmtType::ChannelData_PixelFormat_RGB);
+        break;
+
+      case PixelDataHandler::RGBW:
+        dataMsg.set_format(PixelFmtType::ChannelData_PixelFormat_RGBW);
+        break;
+
+      default:
+        LOG(FATAL) << "Invalid pixel format: " << format;
+        break;
+    }
+
+    // generate a random transaction number for acknowledgement and store it
+    dataMsg.set_transaction(this->random());
+
+    // actually send response
+    this->sendResponse(dataMsg);
   }
 
   /**
