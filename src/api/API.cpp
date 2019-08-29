@@ -20,6 +20,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <stdexcept>
+
 // alias some commonly used classes
 using ZeroconfService = liblichtenstein::mdns::Service;
 
@@ -35,6 +37,17 @@ namespace api {
    * @param ini App configuration
    */
   API::API(DataStore *db, INIReader *ini) : store(db), config(ini) {
+    // read the server uuid
+    const std::string uuidStr = this->config->Get("server", "uuid", "");
+    auto uuid = uuids::uuid::from_string(uuidStr);
+
+    if(!uuid.has_value()) {
+      throw std::invalid_argument(
+              "Server UUID could not be parsed; check server.uuid in config");
+    }
+
+    this->serverUuid = uuid.value();
+
     // create the listening socket and TLS handler
     this->createSocket();
     this->createTLSServer();
@@ -163,7 +176,8 @@ namespace api {
 
       if(this->service) {
         this->service->startAdvertising();
-        this->service->setTxtRecord("vers", std::string(gVERSION));
+        this->service->setTxtRecord("version", std::string(gVERSION));
+        this->service->setTxtRecord("uuid", uuids::to_string(this->serverUuid));
       }
     }
 

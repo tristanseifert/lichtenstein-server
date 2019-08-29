@@ -3,6 +3,7 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/libs/CTPL" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/libs/angelscript" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/libs/cpptime" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/libs/inih" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/libs/json" vcs="Git" />

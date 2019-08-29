@@ -59,6 +59,8 @@ namespace api {
       // try to read from the client
       try {
         this->readMessage([this](protoMessageType &message) {
+          if(this->shutdown) return;
+
           this->processMessage(message);
         });
       }

@@ -24,6 +24,8 @@ namespace liblichtenstein::io {
 
 namespace rt::handlers {
   class JoinChannel;
+
+  class ChannelDataAck;
 }
 
 namespace rt {
@@ -36,6 +38,8 @@ namespace rt {
    */
   class ClientHandler : public liblichtenstein::api::GenericClientHandler {
       friend class handlers::JoinChannel;
+
+      friend class handlers::ChannelDataAck;
 
       using clientType = liblichtenstein::io::GenericServerClient;
 
@@ -60,6 +64,8 @@ namespace rt {
 
     private:
       void registerPixelDataCallback(int token);
+
+      void handlePixelDataAck(int txn);
 
     private:
       // API that this client connected to

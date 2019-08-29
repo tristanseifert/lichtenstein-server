@@ -160,7 +160,7 @@ namespace rt {
 
       if(this->service) {
         this->service->startAdvertising();
-        this->service->setTxtRecord("vers", std::string(gVERSION));
+        this->service->setTxtRecord("version", std::string(gVERSION));
       }
     }
 

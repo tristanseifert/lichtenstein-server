@@ -16,3 +16,6 @@
 [submodule "libs/angelscript"]
 	path = libs/angelscript
 	url = git@github.com:codecat/angelscript-mirror.git
+[submodule "libs/stduuid"]
+	path = libs/stduuid
+	url = git@github.com:mariusbancila/stduuid.git

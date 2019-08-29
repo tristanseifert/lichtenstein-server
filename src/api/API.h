@@ -9,6 +9,8 @@
 #include <thread>
 #include <vector>
 
+#include <uuid.h>
+
 class DataStore;
 
 class INIReader;
@@ -44,6 +46,9 @@ namespace api {
       INIReader *config = nullptr;
 
     private:
+      // server UUID
+      uuids::uuid serverUuid;
+
       // socket on which the API is listening
       int socket = -1;
       // TLS server to handle the API

@@ -14,9 +14,7 @@ set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fno-omit-frame-pointer -fsanitize
 
 # include directories
 include_directories(src)
-include_directories(src/crc32)
 include_directories(src/db)
-include_directories(src/libb64)
 
 # libraries in the "libs" folder
 include_directories(libs/inih)
@@ -64,7 +62,7 @@ add_executable(server
         src/rt/ClientHandler.cpp
         src/rt/ClientHandler.h
         src/rt/PixelDataHandler.cpp
-        src/rt/PixelDataHandler.h src/rt/handlers/JoinChannel.cpp src/rt/handlers/JoinChannel.h)
+        src/rt/PixelDataHandler.h src/rt/handlers/JoinChannel.cpp src/rt/handlers/JoinChannel.h src/rt/handlers/ChannelDataAck.cpp src/rt/handlers/ChannelDataAck.h)
 
 
 # get Git info and compile it into the binary
@@ -116,6 +114,9 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory(libs/json)
 
 target_link_libraries(server nlohmann_json::nlohmann_json)
+
+# stduuid library
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/stduuid/include)
 
 # link against SQLite
 find_package(SQLite3 REQUIRED)

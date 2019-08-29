@@ -94,6 +94,8 @@ namespace rt {
       // try to read from the client
       try {
         this->readMessage([this](protoMessageType &message) {
+          if(this->shutdown) return;
+
           this->processMessage(message);
         });
       }
@@ -190,6 +192,7 @@ namespace rt {
     }
 
     // generate a random transaction number for acknowledgement and store it
+    // TODO: actually do something with this
     dataMsg.set_transaction(this->random());
 
     // actually send response
@@ -207,5 +210,15 @@ namespace rt {
     std::lock_guard lock(this->pixelDataCallbacksLock);
 
     this->pixelDataCallbacks.push_back(token);
+  }
+
+  /**
+   * When a node responds with a ChannelDataAck message, this function is
+   * invoked with the transaction value as a parameter.
+   *
+   * @param txn Transaction number from ack packet
+   */
+  void ClientHandler::handlePixelDataAck(int txn) {
+
   }
 }
