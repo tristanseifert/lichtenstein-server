@@ -20,8 +20,9 @@ using PixelHandler = rt::PixelDataHandler;
 /**
  * Sets up the lichtenstein protocol server.
  */
-ProtocolHandler::ProtocolHandler(DataStore *db, INIReader *ini) : store(db),
-                                                                  config(ini) {
+ProtocolHandler::ProtocolHandler(std::shared_ptr<DataStore> db,
+                                 std::shared_ptr<INIReader> ini) : store(db),
+                                                                   config(ini) {
   // verify that the protobuf library version is correct
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 

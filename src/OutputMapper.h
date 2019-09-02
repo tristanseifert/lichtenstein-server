@@ -13,6 +13,7 @@
 #include <vector>
 #include <mutex>
 #include <exception>
+#include <memory>
 
 #include "INIReader.h"
 
@@ -73,7 +74,9 @@ class OutputMapper {
 				virtual int numPixels();
 
 				virtual void bindBufferToRoutine(Routine *r);
-				virtual void copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer = nullptr);
+
+        virtual void copyIntoFramebuffer(std::shared_ptr<Framebuffer> fb,
+                                         HSIPixel *buffer = nullptr);
 
 			private:
 				virtual void _resizeBuffer();
@@ -108,7 +111,8 @@ class OutputMapper {
 				// overrides from OutputGroup
 				virtual int numPixels();
 
-				virtual void copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer = nullptr);
+        virtual void copyIntoFramebuffer(std::shared_ptr<Framebuffer> fb,
+                                         HSIPixel *buffer = nullptr);
 
 				int numMembers() {
 					return this->groups.size();
@@ -135,7 +139,8 @@ class OutputMapper {
 		};
 
 	public:
-		OutputMapper(DataStore *s, Framebuffer *f, INIReader *reader);
+    OutputMapper(std::shared_ptr<DataStore>, std::shared_ptr<Framebuffer>,
+                 std::shared_ptr<INIReader>);
 		~OutputMapper();
 
 	public:
@@ -156,9 +161,9 @@ class OutputMapper {
 		void printMap(void);
 
 	private:
-		DataStore *store;
-		Framebuffer *fb;
-		INIReader *config;
+    std::shared_ptr<DataStore> store;
+    std::shared_ptr<INIReader> config;
+    std::shared_ptr<Framebuffer> fb;
 
 		// TODO: indicate if the output config was changed
 

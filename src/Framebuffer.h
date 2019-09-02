@@ -18,6 +18,7 @@
 
 #include <vector>
 #include <iostream>
+#include <memory>
 
 #include "INIReader.h"
 
@@ -27,7 +28,8 @@ class Framebuffer {
 	friend class EffectRunner;
 
 	public:
-		Framebuffer(DataStore *store, INIReader *reader);
+    Framebuffer(std::shared_ptr<DataStore> store,
+                std::shared_ptr<INIReader> reader);
 		~Framebuffer();
 
 		void recalculateMinSize();
@@ -45,8 +47,8 @@ class Framebuffer {
 		}
 
 	private:
-		DataStore *store;
-		INIReader *config;
+    std::shared_ptr<DataStore> store;
+    std::shared_ptr<INIReader> config;
 
 		std::vector<HSIPixel> data;
 };

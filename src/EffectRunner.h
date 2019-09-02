@@ -17,6 +17,7 @@
 #include <thread>
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 
 class DataStore;
 class Framebuffer;
@@ -26,11 +27,13 @@ class ProtocolHandler;
 
 class EffectRunner {
 	public:
-		EffectRunner(DataStore *store, INIReader *config, ProtocolHandler *proto);
+    EffectRunner(std::shared_ptr<DataStore> store,
+                 std::shared_ptr<INIReader> config,
+                 std::shared_ptr<ProtocolHandler> proto);
 		~EffectRunner();
 
 	public:
-		inline OutputMapper *getMapper(void) const {
+    inline std::shared_ptr<OutputMapper> getMapper(void) const {
 			return this->mapper;
 		}
 
@@ -116,12 +119,12 @@ class EffectRunner {
 		std::mutex channelBufferMutex;
 
 	private:
-		DataStore *store;
-		INIReader *config;
+    std::shared_ptr<DataStore> store;
+    std::shared_ptr<INIReader> config;
 
-		Framebuffer *fb;
-		OutputMapper *mapper;
-		ProtocolHandler *proto;
+    std::shared_ptr<Framebuffer> fb;
+    std::shared_ptr<OutputMapper> mapper;
+    std::shared_ptr<ProtocolHandler> proto;
 
 		ctpl::thread_pool *workPool;
 };

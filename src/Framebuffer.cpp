@@ -11,9 +11,10 @@
 /**
  * Allocates the framebuffer memory.
  */
-Framebuffer::Framebuffer(DataStore *store, INIReader *reader) {
-	this->store = store;
-	this->config = reader;
+Framebuffer::Framebuffer(std::shared_ptr<DataStore> store,
+                         std::shared_ptr<INIReader> reader) : store(store),
+                                                              config(reader) {
+
 }
 
 /**

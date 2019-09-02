@@ -12,7 +12,7 @@
 #include <map>
 #include <thread>
 #include <mutex>
-
+#include <memory>
 #include <ctime>
 
 #include <sqlite3.h>
@@ -34,7 +34,7 @@ class DataStore {
 		typedef void (*CustomFunction)(DataStore *, void *);
 
 	public:
-		DataStore(INIReader *reader);
+    DataStore(std::shared_ptr<INIReader> reader);
 		~DataStore();
 
 		void commit();
@@ -153,7 +153,7 @@ class DataStore {
 		std::string _stringFromColumn(sqlite3_stmt *statement, int col);
 
 	private:
-		INIReader *config;
+    std::shared_ptr<INIReader> config;
 
 		std::string path;
 		sqlite3 *db;

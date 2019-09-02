@@ -83,10 +83,8 @@ const char *schema_info_default =
  * It is then up to the user to remediate this issue, usually by either deleting
  * the existing database, or by fixing it manually.
  */
-DataStore::DataStore(INIReader *reader) {
+DataStore::DataStore(std::shared_ptr<INIReader> reader) : config(reader) {
 	// read the db path from the config
-	this->config = reader;
-
 	this->path = this->config->Get("db", "path", "");
 	this->useDbLock = this->config->GetBoolean("db", "serializeAccess", false);
 

@@ -10,32 +10,33 @@
 
 #include "INIReader.h"
 
+#include <memory>
 #include <iostream>
 #include <atomic>
 
 #include <signal.h>
 
-#include "ProtocolHandler.h"
 #include "DataStore.h"
+#include "ProtocolHandler.h"
 #include "EffectRunner.h"
 #include "Routine.h"
 
 // when set to false, the server terminates
-std::atomic_bool keepRunning;
+std::atomic_bool keepRunning = true;
 
 // data store
-static DataStore *store = nullptr;
+static std::shared_ptr<DataStore> store = nullptr;
 
 // various components of the server
-static ProtocolHandler *protocol = nullptr;
-static EffectRunner *runner = nullptr;
+static std::shared_ptr<ProtocolHandler> protocol = nullptr;
+static std::shared_ptr<EffectRunner> runner = nullptr;
 
 // define flags
 DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
 DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 
 // parsing of the config file
-INIReader *configReader = nullptr;
+static std::shared_ptr<INIReader> configReader = nullptr;
 
 void parseConfigFile(const std::string &path);
 
@@ -90,13 +91,13 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGINT, &sigIntHandler, nullptr);
 
 	// load the datastore from disk
-	store = new DataStore(configReader);
+  store = std::make_shared<DataStore>(configReader);
 
 	// start the protocol parser (binary lichtenstein protocol)
-	protocol = new ProtocolHandler(store, configReader);
+  protocol = std::make_shared<ProtocolHandler>(store, configReader);
 
 	// start the effect evaluator
-	runner = new EffectRunner(store, configReader, protocol);
+  runner = std::make_shared<EffectRunner>(store, configReader, protocol);
 
 	// XXX: Test the routine code
 	/*std::vector<DbRoutine *> routines = store->getAllRoutines();
@@ -151,11 +152,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	// clean up
-	delete runner;
-	delete protocol;
-
-	// delete the datastore last
-	delete store;
+  runner = nullptr;
+  protocol = nullptr;
+  store = nullptr;
 }
 
 /**
@@ -167,7 +166,7 @@ void parseConfigFile(const std::string &path) {
 	LOG(INFO) << "Reading configuration from " << path;
 
 	// attempt to open the config file
-	configReader = new INIReader(path);
+  configReader = std::make_shared<INIReader>(path);
 
 	err = configReader->ParseError();
 

@@ -24,17 +24,16 @@
  * Initializes the effect runner, worker threads, and the framebuffer and output
  * mapper.
  */
-EffectRunner::EffectRunner(DataStore *store, INIReader *config, ProtocolHandler *proto) {
-	this->config = config;
-	this->store = store;
-	this->proto = proto;
-
+EffectRunner::EffectRunner(std::shared_ptr<DataStore> store,
+                           std::shared_ptr<INIReader> config,
+                           std::shared_ptr<ProtocolHandler> proto) : store(
+        store), config(config), proto(proto) {
 	// allocate the framebuffer
-	this->fb = new Framebuffer(store, config);
+  this->fb = std::make_shared<Framebuffer>(store, config);
 	this->fb->recalculateMinSize();
 
 	// create the output mapper
-	this->mapper = new OutputMapper(store, this->fb, config);
+  this->mapper = std::make_shared<OutputMapper>(store, this->fb, config);
 
 	// set up the worker thread pool
 	this->setUpThreadPool();
@@ -92,8 +91,8 @@ EffectRunner::~EffectRunner(void) {
 	delete this->workPool;
 
 	// delete framebuffer, mapper
-	delete this->fb;
-	delete this->mapper;
+  this->mapper = nullptr;
+  this->fb = nullptr;
 
 	// deallocate buffers and the channels
 	for(auto channel : this->outputChannels) {

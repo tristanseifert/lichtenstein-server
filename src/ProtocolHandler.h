@@ -23,7 +23,8 @@ namespace rt {
 
 class ProtocolHandler {
 	public:
-		ProtocolHandler(DataStore *store, INIReader *reader);
+    ProtocolHandler(std::shared_ptr<DataStore> store,
+                    std::shared_ptr<INIReader> reader);
 		~ProtocolHandler();
 
 	public:
@@ -36,8 +37,8 @@ class ProtocolHandler {
 
 
 	private:
-		DataStore *store;
-		INIReader *config;
+    std::shared_ptr<DataStore> store;
+    std::shared_ptr<INIReader> config;
 
     // TCP-based control API (used by nodes and other clients)
     std::unique_ptr<api::API> serverApi;

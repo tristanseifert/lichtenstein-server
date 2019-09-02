@@ -36,7 +36,8 @@ namespace api {
    * @param db Data store to use for data storage
    * @param ini App configuration
    */
-  API::API(DataStore *db, INIReader *ini) : store(db), config(ini) {
+  API::API(std::shared_ptr<DataStore> db, std::shared_ptr<INIReader> ini)
+          : store(db), config(ini) {
     // read the server uuid
     const std::string uuidStr = this->config->Get("server", "uuid", "");
     auto uuid = uuids::uuid::from_string(uuidStr);

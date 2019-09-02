@@ -33,7 +33,8 @@ namespace rt {
    * @param db Data store to use for data storage
    * @param ini App configuration
    */
-  API::API(DataStore *db, INIReader *ini) : store(db), config(ini) {
+  API::API(std::shared_ptr<DataStore> db, std::shared_ptr<INIReader> ini)
+          : store(db), config(ini) {
     // create the listening socket and DTLS handler
     this->createSocket();
     this->createDTLSServer();

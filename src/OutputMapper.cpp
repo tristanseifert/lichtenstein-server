@@ -12,11 +12,11 @@
 /**
  * Initializes the output mapper.
  */
-OutputMapper::OutputMapper(DataStore *s, Framebuffer *f, INIReader *reader) {
-	this->store = s;
-	this->fb = f;
+OutputMapper::OutputMapper(std::shared_ptr<DataStore> db,
+                           std::shared_ptr<Framebuffer> fb,
+                           std::shared_ptr<INIReader> ini) : store(db), fb(fb),
+                                                             config(ini) {
 
-	this->config = reader;
 }
 
 /**
@@ -363,7 +363,9 @@ void OutputMapper::OutputGroup::bindBufferToRoutine(Routine *r) {
  * Copies the pixel data for this group into the framebuffer at the correct
  * offsets.
  */
-void OutputMapper::OutputGroup::copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer) {
+void
+OutputMapper::OutputGroup::copyIntoFramebuffer(std::shared_ptr<Framebuffer> fb,
+                                               HSIPixel *buffer) {
 	// if buffer is nullptr, use the buffer we've been allocated previously
 	if(buffer == nullptr) {
 		buffer = this->buffer;
@@ -525,7 +527,8 @@ bool OutputMapper::OutputUberGroup::containsMember(OutputGroup *inGroup) {
  * @note Stuff like brightness changes aren't handled here since we just call
  * into the groups' copy functions, which eventually will call into the base.
  */
-void OutputMapper::OutputUberGroup::copyIntoFramebuffer(Framebuffer *fb, HSIPixel *buffer) {
+void OutputMapper::OutputUberGroup::copyIntoFramebuffer(
+        std::shared_ptr<Framebuffer> fb, HSIPixel *buffer) {
 	// take the lock to modify the groups set
 	// std::lock_guard<std::recursive_mutex>(this->groupsLock);
 

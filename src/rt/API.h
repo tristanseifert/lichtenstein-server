@@ -29,7 +29,7 @@ namespace rt {
    */
   class API {
     public:
-      API(DataStore *store, INIReader *config);
+      API(std::shared_ptr<DataStore> store, std::shared_ptr<INIReader> reader);
 
       ~API();
 
@@ -41,8 +41,8 @@ namespace rt {
       void listenThread();
 
     private:
-      DataStore *store = nullptr;
-      INIReader *config = nullptr;
+      std::shared_ptr<DataStore> store;
+      std::shared_ptr<INIReader> config;
 
     private:
       // socket on which the API is listening
