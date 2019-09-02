@@ -23,13 +23,16 @@ class DataStore;
 class Framebuffer;
 class DbChannel;
 class Routine;
-class ProtocolHandler;
+
+namespace protocol {
+  class ProtocolHandler;
+}
 
 class EffectRunner {
 	public:
     EffectRunner(std::shared_ptr<DataStore> store,
                  std::shared_ptr<INIReader> config,
-                 std::shared_ptr<ProtocolHandler> proto);
+                 std::shared_ptr<protocol::ProtocolHandler> proto);
 		~EffectRunner();
 
 	public:
@@ -124,7 +127,7 @@ class EffectRunner {
 
     std::shared_ptr<Framebuffer> fb;
     std::shared_ptr<OutputMapper> mapper;
-    std::shared_ptr<ProtocolHandler> proto;
+    std::shared_ptr<protocol::ProtocolHandler> proto;
 
 		ctpl::thread_pool *workPool;
 };

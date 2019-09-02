@@ -42,8 +42,8 @@ add_executable(server
         src/main.cpp
         src/OutputMapper.cpp
         src/OutputMapper.h
-        src/ProtocolHandler.cpp
-        src/ProtocolHandler.h
+        src/protocol/ProtocolHandler.cpp
+        src/protocol/ProtocolHandler.h
         src/Routine.cpp
         src/Routine.h
         src/version.h
@@ -62,7 +62,7 @@ add_executable(server
         src/rt/ClientHandler.cpp
         src/rt/ClientHandler.h
         src/rt/PixelDataHandler.cpp
-        src/rt/PixelDataHandler.h src/rt/handlers/JoinChannel.cpp src/rt/handlers/JoinChannel.h src/rt/handlers/ChannelDataAck.cpp src/rt/handlers/ChannelDataAck.h)
+        src/rt/PixelDataHandler.h src/rt/handlers/JoinChannel.cpp src/rt/handlers/JoinChannel.h src/rt/handlers/ChannelDataAck.cpp src/rt/handlers/ChannelDataAck.h src/helpers/IPHelpers.cpp src/helpers/IPHelpers.h src/protocol/AdoptionHandler.cpp src/protocol/AdoptionHandler.h)
 
 
 # get Git info and compile it into the binary

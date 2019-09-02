@@ -17,9 +17,14 @@
 #include <signal.h>
 
 #include "DataStore.h"
-#include "ProtocolHandler.h"
+#include "protocol/ProtocolHandler.h"
 #include "EffectRunner.h"
 #include "Routine.h"
+
+
+using protocol::ProtocolHandler;
+
+
 
 // when set to false, the server terminates
 std::atomic_bool keepRunning = true;
@@ -28,7 +33,7 @@ std::atomic_bool keepRunning = true;
 static std::shared_ptr<DataStore> store = nullptr;
 
 // various components of the server
-static std::shared_ptr<ProtocolHandler> protocol = nullptr;
+static std::shared_ptr<ProtocolHandler> protocolHandler = nullptr;
 static std::shared_ptr<EffectRunner> runner = nullptr;
 
 // define flags
@@ -38,7 +43,9 @@ DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 // parsing of the config file
 static std::shared_ptr<INIReader> configReader = nullptr;
 
+
 void parseConfigFile(const std::string &path);
+
 
 /**
  * Signal handler. This handler is invoked for the following signals to enable
@@ -94,10 +101,10 @@ int main(int argc, char *argv[]) {
   store = std::make_shared<DataStore>(configReader);
 
 	// start the protocol parser (binary lichtenstein protocol)
-  protocol = std::make_shared<ProtocolHandler>(store, configReader);
+  protocolHandler = std::make_shared<ProtocolHandler>(store, configReader);
 
 	// start the effect evaluator
-  runner = std::make_shared<EffectRunner>(store, configReader, protocol);
+  runner = std::make_shared<EffectRunner>(store, configReader, protocolHandler);
 
 	// XXX: Test the routine code
 	/*std::vector<DbRoutine *> routines = store->getAllRoutines();
@@ -153,7 +160,7 @@ int main(int argc, char *argv[]) {
 
 	// clean up
   runner = nullptr;
-  protocol = nullptr;
+  protocolHandler = nullptr;
   store = nullptr;
 }
 

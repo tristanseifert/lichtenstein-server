@@ -1,6 +1,6 @@
 #include "EffectRunner.h"
 
-#include "ProtocolHandler.h"
+#include "protocol/ProtocolHandler.h"
 #include "DataStore.h"
 #include "OutputMapper.h"
 #include "Framebuffer.h"
@@ -26,8 +26,8 @@
  */
 EffectRunner::EffectRunner(std::shared_ptr<DataStore> store,
                            std::shared_ptr<INIReader> config,
-                           std::shared_ptr<ProtocolHandler> proto) : store(
-        store), config(config), proto(proto) {
+                           std::shared_ptr<protocol::ProtocolHandler> proto) :
+        store(store), config(config), proto(proto) {
 	// allocate the framebuffer
   this->fb = std::make_shared<Framebuffer>(store, config);
 	this->fb->recalculateMinSize();

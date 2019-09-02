@@ -79,11 +79,15 @@ namespace api {
         // an error decoding message
       catch(ProtocolError &e) {
         LOG(ERROR) << "Protocol error, closing connection: " << e.what();
+        this->sendException(e);
+
         break;
       }
         // some other runtime error happened
       catch(std::runtime_error &e) {
         LOG(ERROR) << "Runtime error reading from client: " << e.what();
+        this->sendException(e);
+
         break;
       }
     }
