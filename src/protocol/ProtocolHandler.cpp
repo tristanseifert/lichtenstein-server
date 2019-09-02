@@ -51,7 +51,17 @@ namespace protocol {
     // also, create the realtime API
     this->rtApi = std::make_unique<RealtimeAPI>(this->store, this->config);
 
-}
+    // set up adoption handler
+    this->orphanage = std::make_unique<AdoptionHandler>(this->store,
+                                                        this->config, this);
+
+    // try some shit
+    try {
+      this->orphanage->attemptAdoption("127.0.0.1", 56789);
+    } catch(std::exception &e) {
+      LOG(ERROR) << "Failed to adopt node: " << e.what();
+    }
+  }
 
   /**
    * Deallocates some structures that were created.

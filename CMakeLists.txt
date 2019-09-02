@@ -62,7 +62,7 @@ add_executable(server
         src/rt/ClientHandler.cpp
         src/rt/ClientHandler.h
         src/rt/PixelDataHandler.cpp
-        src/rt/PixelDataHandler.h src/rt/handlers/JoinChannel.cpp src/rt/handlers/JoinChannel.h src/rt/handlers/ChannelDataAck.cpp src/rt/handlers/ChannelDataAck.h src/helpers/IPHelpers.cpp src/helpers/IPHelpers.h src/protocol/AdoptionHandler.cpp src/protocol/AdoptionHandler.h)
+        src/rt/PixelDataHandler.h src/rt/handlers/JoinChannel.cpp src/rt/handlers/JoinChannel.h src/rt/handlers/ChannelDataAck.cpp src/rt/handlers/ChannelDataAck.h src/helpers/IPHelpers.cpp src/helpers/IPHelpers.h src/protocol/AdoptionHandler.cpp src/protocol/AdoptionHandler.h src/api/handlers/AuthHello.cpp src/api/handlers/AuthHello.h src/rt/handlers/AuthHello.cpp src/rt/handlers/AuthHello.h)
 
 
 # get Git info and compile it into the binary

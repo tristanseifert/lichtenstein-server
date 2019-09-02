@@ -113,12 +113,14 @@ namespace rt {
       }
         // an error decoding message
       catch(ProtocolError &e) {
-        LOG(ERROR) << "Protocol error, closing connection: " << e.what();
-        break;
+        LOG(ERROR) << "Protocol error: " << e.what();
+        this->sendException(e);
       }
         // some other runtime error happened
       catch(std::runtime_error &e) {
-        LOG(ERROR) << "Runtime error reading from client: " << e.what();
+        LOG(ERROR) << "Runtime error: " << e.what();
+        this->sendException(e);
+
         break;
       }
     }

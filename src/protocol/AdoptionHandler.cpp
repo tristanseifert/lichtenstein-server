@@ -88,17 +88,18 @@ namespace protocol {
             << to_string(nodeUuid);
 
     // generate a random secret to use for this node
-    std::vector<std::byte> secret(kSecretLength, std::byte(0));
-//    secret.reserve(kSecretLength);
-    std::fill(secret.begin(), secret.begin() + (kSecretLength - 1),
-              std::byte(0));
+//    std::vector<std::byte> secret(kSecretLength, std::byte(0));
+////    secret.reserve(kSecretLength);
+//    std::fill(secret.begin(), secret.begin() + (kSecretLength - 1),
+//              std::byte(0));
+//
+//    err = RAND_bytes(reinterpret_cast<unsigned char *>(secret.data()),
+//                     kSecretLength);
+    std::vector<std::byte> secret = {(std::byte) 'A'};
 
-    err = RAND_bytes(reinterpret_cast<unsigned char *>(secret.data()),
-                     kSecretLength);
-
-    if(err != 1) {
-      throw SSLError("RAND_bytes() failed when generating node secret");
-    }
+//    if(err != 1) {
+//      throw SSLError("RAND_bytes() failed when generating node secret");
+//    }
 
     VLOG(1) << "Generated " << secret.size() << " bytes of secret";
 
@@ -196,7 +197,7 @@ namespace protocol {
     request.set_secret(secret.data(), secret.size());
 
     // then, send the message
-    VLOG(1) << "Adopt request: " << request.DebugString();
+//    VLOG(1) << "Adopt request: " << request.DebugString();
     io->sendMessage(request);
   }
 
