@@ -40,9 +40,17 @@ namespace api {
   ClientHandler::~ClientHandler() {
     this->shutdown = true;
 
+    // TODO: implement better signalling here
+
+    // close client
+    if(this->client) {
+      this->client = nullptr;
+    }
+
     // wait for thread to join and delete it
     if(this->thread->joinable()) {
-      this->thread->join();
+//      this->thread->join();
+      this->thread->detach();
     }
   }
 
@@ -68,22 +76,27 @@ namespace api {
       catch(SSLError &e) {
         // ignore TLS errors if we're shutting down
         if(!this->shutdown) {
-          LOG(ERROR) << "TLS error reading from client: " << e.what();
+          LOG(ERROR) << "TLS error in API client: " << e.what();
         }
       }
         // if we get this exception, session was closed
       catch(SSLSessionClosedError &e) {
-        VLOG(1) << "Connection was closed: " << e.what();
+        VLOG(1) << "Connection was closed in API client: " << e.what();
         break;
       }
         // an error decoding message
       catch(ProtocolError &e) {
-        LOG(ERROR) << "Protocol error: " << e.what();
+        LOG(ERROR) << "Protocol error in API client: " << e.what();
         this->sendException(e);
+      }
+      // system error
+      catch(std::system_error &e) {
+        LOG(ERROR) << "System error in API client: " << e.what();
+        break;
       }
         // some other runtime error happened
       catch(std::runtime_error &e) {
-        LOG(ERROR) << "Runtime error: " << e.what();
+        LOG(ERROR) << "Runtime error in API client: " << e.what();
         this->sendException(e);
 
         break;
@@ -91,8 +104,10 @@ namespace api {
     }
 
     // clean up client
-    VLOG(1) << "Shutting down API client for client " << this->client;
-    this->client->close();
+    if(this->client) {
+      VLOG(1) << "Shutting down API client for client " << this->client;
+      this->client->close();
+    }
   }
 
   /**

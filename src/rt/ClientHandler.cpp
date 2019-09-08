@@ -103,22 +103,27 @@ namespace rt {
       catch(SSLError &e) {
         // ignore TLS errors if we're shutting down
         if(!this->shutdown) {
-          LOG(ERROR) << "TLS error reading from client: " << e.what();
+          LOG(ERROR) << "TLS error in RT client: " << e.what();
         }
       }
         // if we get this exception, session was closed
       catch(SSLSessionClosedError &e) {
-        VLOG(1) << "Connection was closed: " << e.what();
+        VLOG(1) << "Connection was closed in RT client: " << e.what();
         break;
       }
         // an error decoding message
       catch(ProtocolError &e) {
-        LOG(ERROR) << "Protocol error: " << e.what();
+        LOG(ERROR) << "Protocol error in RT client: " << e.what();
         this->sendException(e);
+      }
+        // system error
+      catch(std::system_error &e) {
+        LOG(ERROR) << "System error in RT client: " << e.what();
+        break;
       }
         // some other runtime error happened
       catch(std::runtime_error &e) {
-        LOG(ERROR) << "Runtime error: " << e.what();
+        LOG(ERROR) << "Runtime error RT client: " << e.what();
         this->sendException(e);
 
         break;

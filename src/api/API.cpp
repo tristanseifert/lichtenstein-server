@@ -66,6 +66,9 @@ namespace api {
     // mark to the API to terminate
     this->shutdown = true;
 
+    // close all clients
+    this->clients.clear();
+
     // close the listening socket and join that thread
     if(this->socket != -1) {
       err = close(this->socket);
@@ -76,7 +79,8 @@ namespace api {
 
     if(this->thread) {
       if(this->thread->joinable()) {
-        this->thread->join();
+//        this->thread->join();
+        this->thread->detach();
       }
 
       this->thread = nullptr;
