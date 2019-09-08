@@ -16,6 +16,9 @@
 
 #include <signal.h>
 
+#include "config/Config.h"
+#include "config/Defaults.h"
+
 #include "DataStore.h"
 #include "protocol/ProtocolHandler.h"
 #include "EffectRunner.h"
@@ -42,6 +45,12 @@ DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 
 // parsing of the config file
 static std::shared_ptr<INIReader> configReader = nullptr;
+
+// config defaults
+static bool defaultsRegistered =
+        config::Defaults::registerLong("logging.verbosity", 0) &&
+        config::Defaults::registerBool("logging.stderr", true);
+
 
 
 void parseConfigFile(const std::string &path);
@@ -183,8 +192,11 @@ void parseConfigFile(const std::string &path) {
 		LOG(FATAL) << "Parse error on line " << err << " of config file " << path;
 	}
 
+	Config::load(path);
+
 	// set up the logging parameters
-	int verbosity = configReader->GetInteger("logging", "verbosity", 0);
+	int verbosity = Config::getNumber("logging.verbosity");
+//	int verbosity = configReader->GetInteger("logging", "verbosity", 0);
 
 	if(verbosity < 0) {
 		FLAGS_v = abs(verbosity);
@@ -199,5 +211,5 @@ void parseConfigFile(const std::string &path) {
 		FLAGS_minloglevel = std::min(verbosity, 2);
 	}
 
-	FLAGS_logtostderr = configReader->GetBoolean("logging", "stderr", true);
+  FLAGS_logtostderr = Config::getBool("logging.stderr");
 }

@@ -19,3 +19,6 @@
 [submodule "libs/stduuid"]
 	path = libs/stduuid
 	url = git@github.com:mariusbancila/stduuid.git
+[submodule "libs/sqlite_orm"]
+	path = libs/sqlite_orm
+	url = git@github.com:fnc12/sqlite_orm.git
