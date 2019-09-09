@@ -90,8 +90,8 @@ namespace api {
 
     if(this->thread) {
       if(this->thread->joinable()) {
-//        this->thread->join();
-        this->thread->detach();
+        this->thread->join();
+//        this->thread->detach();
       }
 
       this->thread = nullptr;

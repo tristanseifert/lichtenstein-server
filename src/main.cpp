@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGINT, &sigIntHandler, nullptr);
 
 	// load the datastore from disk
-  store = std::make_shared<DataStore>(configReader);
+  store = std::make_shared<DataStore>();
 
 	// start the protocol parser (binary lichtenstein protocol)
   protocolHandler = std::make_shared<ProtocolHandler>(store);
@@ -182,16 +182,6 @@ void parseConfigFile(const std::string &path) {
 	LOG(INFO) << "Reading configuration from " << path;
 
 	// attempt to open the config file
-  configReader = std::make_shared<INIReader>(path);
-
-	err = configReader->ParseError();
-
-	if(err == -1) {
-		LOG(FATAL) << "Couldn't open config file at " << path;
-	} else if(err > 0) {
-		LOG(FATAL) << "Parse error on line " << err << " of config file " << path;
-	}
-
 	Config::load(path);
 
 	// set up the logging parameters
