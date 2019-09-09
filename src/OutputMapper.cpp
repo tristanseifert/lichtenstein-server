@@ -13,9 +13,8 @@
  * Initializes the output mapper.
  */
 OutputMapper::OutputMapper(std::shared_ptr<DataStore> db,
-                           std::shared_ptr<Framebuffer> fb,
-                           std::shared_ptr<INIReader> ini) : store(db), fb(fb),
-                                                             config(ini) {
+                           std::shared_ptr<Framebuffer> fb) : store(db),
+                                                              fb(fb) {
 
 }
 
@@ -29,7 +28,7 @@ OutputMapper::~OutputMapper() {
 /**
  * Prints the output map.
  */
-void OutputMapper::printMap(void) {
+void OutputMapper::printMap() {
 	std::stringstream str;
 
 	for(auto elem : this->outputMap) {
@@ -155,7 +154,7 @@ void OutputMapper::removeMappingForGroup(OutputGroup *g) {
 /**
  * Removes any empty ubergroups.
  */
-void OutputMapper::removeEmptyUbergroups(void) {
+void OutputMapper::removeEmptyUbergroups() {
 	// take the lock for this scope
 	std::lock_guard<std::recursive_mutex>(this->outputMapLock);
 
@@ -191,7 +190,7 @@ void OutputMapper::_removeMappingsInUbergroup(OutputMapper::OutputUberGroup *ug)
 	VLOG(1) << "Removing any conflicting mappings in ubergroup " << ug;
 
 	// take the lock for this scope
-	std::lock_guard<std::recursive_mutex>(this->outputMapLock);
+  std::lock_guard<std::recursive_mutex> lock(this->outputMapLock);
 
 	// check if there's any identical ubergroups
 	for (auto it = this->outputMap.cbegin(); it != this->outputMap.cend();) {

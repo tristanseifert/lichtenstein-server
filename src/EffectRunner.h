@@ -11,7 +11,6 @@
 #include "HSIPixel.h"
 #include "OutputMapper.h"
 
-#include "INIReader.h"
 #include "CTPL/ctpl.h"
 
 #include <thread>
@@ -31,21 +30,21 @@ namespace protocol {
 class EffectRunner {
 	public:
     EffectRunner(std::shared_ptr<DataStore> store,
-                 std::shared_ptr<INIReader> config,
                  std::shared_ptr<protocol::ProtocolHandler> proto);
 		~EffectRunner();
 
 	public:
-    inline std::shared_ptr<OutputMapper> getMapper(void) const {
+    inline std::shared_ptr<OutputMapper> getMapper() const {
 			return this->mapper;
 		}
 
 	private:
-		void setUpThreadPool(void);
+    void setUpThreadPool();
 
 	private:
-		void setUpCoordinatorThread(void);
-		void coordinatorThreadEntry(void);
+    void setUpCoordinatorThread();
+
+    void coordinatorThreadEntry();
 
 		std::thread *coordinator;
 		std::atomic_bool coordinatorRunning;
@@ -59,7 +58,7 @@ class EffectRunner {
 
 	// effect running
 	private:
-		void coordinatorRunEffects(void);
+    void coordinatorRunEffects();
 		void runEffect(OutputMapper::OutputGroup *group, Routine *routine);
 
 		std::condition_variable effectsCv;
@@ -67,7 +66,7 @@ class EffectRunner {
 
 	// pixel conversion
 	private:
-		void coordinatorDoConversions(void);
+    void coordinatorDoConversions();
 		void convertPixelData(DbChannel *channel);
 
 		void _convertToRgb(DbChannel *channel);
@@ -78,7 +77,7 @@ class EffectRunner {
 
 	// data sending
 	private:
-		void coordinatorSendData(void);
+    void coordinatorSendData();
 
 		void outputPixelData(DbChannel *channel);
 
@@ -98,19 +97,19 @@ class EffectRunner {
 		int actualFramesCounter = 0;
 		std::chrono::time_point<std::chrono::high_resolution_clock> fpsStart;
 
-		void calculateActualFps(void);
+    void calculateActualFps();
 
 	public:
 		/// returns the actual frames per second
-		double getActualFps(void) const {
+    double getActualFps() const {
 			return this->actualFps;
 		}
 
 	// channel handling
 	public:
-		void updateChannels(void);
+    void updateChannels();
 
-    void deleteChannelBuffers(void);
+    void deleteChannelBuffers();
 
 		std::atomic_bool channelUpdatePending;
 
@@ -123,7 +122,6 @@ class EffectRunner {
 
 	private:
     std::shared_ptr<DataStore> store;
-    std::shared_ptr<INIReader> config;
 
     std::shared_ptr<Framebuffer> fb;
     std::shared_ptr<OutputMapper> mapper;

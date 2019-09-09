@@ -15,8 +15,6 @@
 #include <exception>
 #include <memory>
 
-#include "INIReader.h"
-
 class Routine;
 
 class DataStore;
@@ -139,8 +137,7 @@ class OutputMapper {
 		};
 
 	public:
-    OutputMapper(std::shared_ptr<DataStore>, std::shared_ptr<Framebuffer>,
-                 std::shared_ptr<INIReader>);
+    OutputMapper(std::shared_ptr<DataStore>, std::shared_ptr<Framebuffer>);
 		~OutputMapper();
 
 	public:
@@ -162,7 +159,6 @@ class OutputMapper {
 
 	private:
     std::shared_ptr<DataStore> store;
-    std::shared_ptr<INIReader> config;
     std::shared_ptr<Framebuffer> fb;
 
 		// TODO: indicate if the output config was changed

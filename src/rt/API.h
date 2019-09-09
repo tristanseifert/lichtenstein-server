@@ -11,8 +11,6 @@
 
 class DataStore;
 
-class INIReader;
-
 namespace liblichtenstein::io {
   class DTLSServer;
 }
@@ -29,7 +27,7 @@ namespace rt {
    */
   class API {
     public:
-      API(std::shared_ptr<DataStore> store, std::shared_ptr<INIReader> reader);
+      API(std::shared_ptr<DataStore> store);
 
       ~API();
 
@@ -42,7 +40,6 @@ namespace rt {
 
     private:
       std::shared_ptr<DataStore> store;
-      std::shared_ptr<INIReader> config;
 
     private:
       // socket on which the API is listening

@@ -17,7 +17,6 @@
 
 #include <sqlite3.h>
 
-#include "INIReader.h"
 #include <nlohmann/json.hpp>
 
 #include "Group.h"
@@ -34,7 +33,7 @@ class DataStore {
 		typedef void (*CustomFunction)(DataStore *, void *);
 
 	public:
-    DataStore(std::shared_ptr<INIReader> reader);
+    DataStore();
 		~DataStore();
 
 		void commit();
@@ -153,8 +152,6 @@ class DataStore {
 		std::string _stringFromColumn(sqlite3_stmt *statement, int col);
 
 	private:
-    std::shared_ptr<INIReader> config;
-
 		std::string path;
 		sqlite3 *db;
 

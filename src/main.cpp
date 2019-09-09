@@ -8,13 +8,14 @@
 
 #include <pthread.h>
 
-#include "INIReader.h"
-
 #include <memory>
 #include <iostream>
 #include <atomic>
 
 #include <signal.h>
+
+#include "config/Config.h"
+#include "config/Defaults.h"
 
 #include "DataStore.h"
 #include "protocol/ProtocolHandler.h"
@@ -40,8 +41,11 @@ static std::shared_ptr<EffectRunner> runner = nullptr;
 DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
 DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 
-// parsing of the config file
-static std::shared_ptr<INIReader> configReader = nullptr;
+// config defaults
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
+        config::Defaults::registerLong("logging.verbosity", 0, "Verbosity level") &&
+        config::Defaults::registerBool("logging.stderr", true, "Logging is output to stderr");
+
 
 
 void parseConfigFile(const std::string &path);
@@ -98,13 +102,13 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGINT, &sigIntHandler, nullptr);
 
 	// load the datastore from disk
-  store = std::make_shared<DataStore>(configReader);
+  store = std::make_shared<DataStore>();
 
 	// start the protocol parser (binary lichtenstein protocol)
-  protocolHandler = std::make_shared<ProtocolHandler>(store, configReader);
+  protocolHandler = std::make_shared<ProtocolHandler>(store);
 
 	// start the effect evaluator
-  runner = std::make_shared<EffectRunner>(store, configReader, protocolHandler);
+  runner = std::make_shared<EffectRunner>(store, protocolHandler);
 
 	// XXX: Test the routine code
 	/*std::vector<DbRoutine *> routines = store->getAllRoutines();
@@ -173,18 +177,11 @@ void parseConfigFile(const std::string &path) {
 	LOG(INFO) << "Reading configuration from " << path;
 
 	// attempt to open the config file
-  configReader = std::make_shared<INIReader>(path);
-
-	err = configReader->ParseError();
-
-	if(err == -1) {
-		LOG(FATAL) << "Couldn't open config file at " << path;
-	} else if(err > 0) {
-		LOG(FATAL) << "Parse error on line " << err << " of config file " << path;
-	}
+	Config::load(path);
 
 	// set up the logging parameters
-	int verbosity = configReader->GetInteger("logging", "verbosity", 0);
+	int verbosity = Config::getNumber("logging.verbosity");
+//	int verbosity = configReader->GetInteger("logging", "verbosity", 0);
 
 	if(verbosity < 0) {
 		FLAGS_v = abs(verbosity);
@@ -199,5 +196,8 @@ void parseConfigFile(const std::string &path) {
 		FLAGS_minloglevel = std::min(verbosity, 2);
 	}
 
-	FLAGS_logtostderr = configReader->GetBoolean("logging", "stderr", true);
+  FLAGS_logtostderr = Config::getBool("logging.stderr");
+
+	// YEET
+	LOG(INFO) << "Registered keys:" << std::endl << config::Defaults::printDescriptions();
 }

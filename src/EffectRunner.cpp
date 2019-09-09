@@ -1,5 +1,8 @@
 #include "EffectRunner.h"
 
+#include "../config/Config.h"
+#include "../config/Defaults.h"
+
 #include "protocol/ProtocolHandler.h"
 #include "DataStore.h"
 #include "OutputMapper.h"
@@ -20,20 +23,26 @@
 // log FPS counters
 #define LOG_FPS							0
 
+// register defaults
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
+        config::Defaults::registerLong("runner.fps", 30,
+                                       "Framerate at which to run effects") &&
+        config::Defaults::registerLong("runner.maxThreads", 0,
+                                       "Number of threads to use for effects (0 = auto)");
+
 /**
  * Initializes the effect runner, worker threads, and the framebuffer and output
  * mapper.
  */
 EffectRunner::EffectRunner(std::shared_ptr<DataStore> store,
-                           std::shared_ptr<INIReader> config,
                            std::shared_ptr<protocol::ProtocolHandler> proto) :
-        store(store), config(config), proto(proto) {
+        store(store), proto(proto) {
 	// allocate the framebuffer
-  this->fb = std::make_shared<Framebuffer>(store, config);
+  this->fb = std::make_shared<Framebuffer>(store);
 	this->fb->recalculateMinSize();
 
 	// create the output mapper
-  this->mapper = std::make_shared<OutputMapper>(store, this->fb, config);
+  this->mapper = std::make_shared<OutputMapper>(store, this->fb);
 
 	// set up the worker thread pool
 	this->setUpThreadPool();
@@ -45,7 +54,7 @@ EffectRunner::EffectRunner(std::shared_ptr<DataStore> store,
 /**
  * Cleans up any resources we allocated and tear down the worker threads.
  */
-EffectRunner::~EffectRunner(void) {
+EffectRunner::~EffectRunner() {
 	VLOG(1) << "Deallocating effect runner: stopping thread pool";
 
 	// stop the worker thread pool, but don't execute the rest of the queue
@@ -106,8 +115,8 @@ EffectRunner::~EffectRunner(void) {
 /**
  * Sets up the thread pool.
  */
-void EffectRunner::setUpThreadPool(void) {
-	int numThreads = this->config->GetInteger("runner", "maxThreads", 0);
+void EffectRunner::setUpThreadPool() {
+  int numThreads = Config::getNumber("runner.maxThreads");
 
 	// if zero, create half as many threads as we have cores
 	if(numThreads == 0) {
@@ -132,7 +141,7 @@ void EffectRunner::setUpThreadPool(void) {
  * It also handles the task of waiting for each effect to run to completion,
  * converting the framebuffers and handing that data off to the protocol layer.
  */
-void EffectRunner::setUpCoordinatorThread(void) {
+void EffectRunner::setUpCoordinatorThread() {
 	// initialize some atomics
 	this->frameCounter = 0;
 	this->outstandingEffects = 0;
@@ -149,9 +158,9 @@ void EffectRunner::setUpCoordinatorThread(void) {
 /**
  * Entry point for the coordinator thread.
  */
-void EffectRunner::coordinatorThreadEntry(void) {
+void EffectRunner::coordinatorThreadEntry() {
 	// get some config
-	int fps = this->config->GetInteger("runner", "fps", 30);
+  int fps = Config::getNumber("runner.fps");
 
 	LOG(INFO) << "Started coordinator thread, fps = " << fps;
 
@@ -176,7 +185,7 @@ void EffectRunner::coordinatorThreadEntry(void) {
 		}
 
 		// check if we have effects to run
-		if(this->mapper->outputMap.empty() == false) {
+    if(!this->mapper->outputMap.empty()) {
 			// run the effect routines
 			if(this->coordinatorRunning == false) goto cleanup;
 			this->coordinatorRunEffects();
@@ -256,7 +265,7 @@ void EffectRunner::coordinatorThreadEntry(void) {
 /**
  * Fetches all channels and allocates buffers for them.
  */
-void EffectRunner::updateChannels(void) {
+void EffectRunner::updateChannels() {
 	// attempt to acquire the lock
   std::unique_lock<std::mutex> lk(this->channelBufferMutex);
 
@@ -304,7 +313,7 @@ void EffectRunner::updateChannels(void) {
 /**
  * Deallocates the buffers for ALL channel buffers.
  */
-void EffectRunner::deleteChannelBuffers(void) {
+void EffectRunner::deleteChannelBuffers() {
   // delete output buffers
   for(auto const& [channel, buffer] : this->channelBuffers) {
 		delete[] buffer;
@@ -352,7 +361,7 @@ void EffectRunner::compensateSleepInaccuracies(long requestedNs, long actualNs) 
 /**
  * Calculates the actual FPS that the coordinator is achieving.
  */
-void EffectRunner::calculateActualFps(void) {
+void EffectRunner::calculateActualFps() {
 	this->actualFramesCounter++;
 
 	auto current = std::chrono::high_resolution_clock::now();
@@ -375,7 +384,7 @@ void EffectRunner::calculateActualFps(void) {
  * convert the framebuffers, and once the conversion of every buffer has
  * completed, output it to the nodes.
  */
-void EffectRunner::coordinatorRunEffects(void) {
+void EffectRunner::coordinatorRunEffects() {
 	// set up the condition variable
 	this->outstandingEffects = this->mapper->outputMap.size();
 
@@ -431,7 +440,7 @@ void EffectRunner::runEffect(OutputMapper::OutputGroup *group, Routine *routine)
  * that framebuffer to the format (RGB/RGBW) required by each of the output
  * channels.
  */
-void EffectRunner::coordinatorDoConversions(void) {
+void EffectRunner::coordinatorDoConversions() {
 	// set up the condition variable
 	unsigned int conversions = this->outputChannels.size();
 	this->outstandingConversions = conversions;
@@ -535,7 +544,7 @@ void EffectRunner::_convertToRgbw(DbChannel *channel) {
 /**
  * Sends pixel data from each framebuffer to the appropriate nodes.
  */
-void EffectRunner::coordinatorSendData(void) {
+void EffectRunner::coordinatorSendData() {
 	// set up the condition variable
 	unsigned int outputChannels = this->outputChannels.size();
 	this->outstandingSends = outputChannels;
@@ -592,7 +601,7 @@ void EffectRunner::outputPixelData(DbChannel *channel) {
     lastChangedPixel = 0;
 
     // calculate pixel stride
-    size_t pixelStride = (isRGBW == true) ? 4 : 3;
+    size_t pixelStride = isRGBW ? 4 : 3;
 
     // check if each pixel matches
     for(size_t pixels = 0; pixels < numPixels; pixels++) {

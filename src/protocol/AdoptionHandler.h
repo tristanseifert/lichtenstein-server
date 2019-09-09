@@ -12,8 +12,6 @@
 #include <liblichtenstein/io/TLSClient.h>
 #include <liblichtenstein/protocol/MessageIO.h>
 
-class INIReader;
-
 class DataStore;
 
 namespace protocol {
@@ -31,7 +29,6 @@ namespace protocol {
 
     public:
       AdoptionHandler(std::shared_ptr<DataStore> store,
-                      std::shared_ptr<INIReader> reader,
                       ProtocolHandler *proto);
 
       ~AdoptionHandler();
@@ -54,7 +51,6 @@ namespace protocol {
 
     private:
       std::shared_ptr<DataStore> store;
-      std::shared_ptr<INIReader> config;
 
       // protocol handler we're owned by
       ProtocolHandler *handler;

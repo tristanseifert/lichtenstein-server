@@ -1,5 +1,8 @@
 #include "DataStore.h"
 
+#include "../config/Config.h"
+#include "../config/Defaults.h"
+
 #include "version.h"
 
 #include <nlohmann/json.hpp>
@@ -7,6 +10,16 @@
 #include <glog/logging.h>
 
 using json = nlohmann::json;
+
+// register defaults
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
+        config::Defaults::registerString("db.path", "", "Path to data store") &&
+        config::Defaults::registerBool("db.serializeAccess", false,
+                                       "Force all database accesses to happen serially") &&
+        config::Defaults::registerString("db.journal", "WAL",
+                                         "SQLite journalling mode to use") &&
+        config::Defaults::registerLong("db.checkpointInterval", 0,
+                                       "How often to checkpoint DB (0 to disable)");
 
 /**
  * When set, locking support is compiled into the application. It's not active
@@ -83,10 +96,10 @@ const char *schema_info_default =
  * It is then up to the user to remediate this issue, usually by either deleting
  * the existing database, or by fixing it manually.
  */
-DataStore::DataStore(std::shared_ptr<INIReader> reader) : config(reader) {
+DataStore::DataStore() {
 	// read the db path from the config
-	this->path = this->config->Get("db", "path", "");
-	this->useDbLock = this->config->GetBoolean("db", "serializeAccess", false);
+  this->path = Config::getString("db.path");
+  this->useDbLock = Config::getBool("db.serializeAccess");
 
 	// open the db
 	this->open();
@@ -390,7 +403,7 @@ void BackgroundCheckpointThreadEntry(void *ctx) {
  */
 void DataStore::createCheckpointThread() {
 	// verify journal mode
-  std::string journalMode = this->config->Get("db", "journal", "WAL");
+  std::string journalMode = Config::getString("db.journal");
 
 	if(journalMode != "WAL") {
 		VLOG(1) << "Not creating checkpoint thread: journal mode is " << journalMode;
@@ -398,7 +411,7 @@ void DataStore::createCheckpointThread() {
 	}
 
 	// verify duration
-	int duration = this->config->GetInteger("db", "checkpointInterval", 0);
+  int duration = Config::getNumber("db.checkpointInterval");
 
 	if(duration <= 0) {
 		VLOG(1) << "Not creating checkpoint thread: interval is " << duration;
@@ -414,7 +427,7 @@ void DataStore::createCheckpointThread() {
  * until the checkpoint interval has elapsed.
  */
 void DataStore::_checkpointThreadEntry() {
-	int duration = this->config->GetInteger("db", "checkpointInterval", 0);
+  int duration = Config::getNumber("db.checkpointInterval");
 	LOG(INFO) << "Performing background checkpoint every " << duration
 			  << " seconds";
 
@@ -536,7 +549,7 @@ void DataStore::openConfigDb() {
 	CHECK(status == SQLITE_OK) << "Couldn't set temp_store: " << errStr;
 
 	// truncate the journal rather than deleting it
-  std::string journalMode = this->config->Get("db", "journal", "WAL");
+  std::string journalMode = Config::getString("db.journal");
 
 	snprintf(sqlBuf, sqlBufSize, "PRAGMA journal_mode=%s;", journalMode.c_str());
 

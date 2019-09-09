@@ -10,7 +10,6 @@
 #include <uuid.h>
 
 class DataStore;
-class INIReader;
 
 class DbNode;
 class DbChannel;
@@ -28,8 +27,7 @@ namespace protocol {
 
   class ProtocolHandler {
     public:
-      ProtocolHandler(std::shared_ptr<DataStore> store,
-                      std::shared_ptr<INIReader> reader);
+      ProtocolHandler(std::shared_ptr<DataStore> store);
 
       ~ProtocolHandler();
 
@@ -49,7 +47,6 @@ namespace protocol {
 
     private:
       std::shared_ptr<DataStore> store;
-      std::shared_ptr<INIReader> config;
 
       // server UUID
       uuids::uuid uuid;

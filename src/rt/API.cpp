@@ -4,10 +4,12 @@
 #include "API.h"
 #include "ClientHandler.h"
 
+#include "../config/Config.h"
+#include "../config/Defaults.h"
+
 #include "../version.h"
 
 #include <glog/logging.h>
-#include <INIReader.h>
 
 #include <liblichtenstein/io/DTLSServer.h>
 #include <liblichtenstein/io/OpenSSLError.h>
@@ -26,6 +28,16 @@ using ZeroconfService = liblichtenstein::mdns::Service;
 using SSLError = liblichtenstein::io::OpenSSLError;
 using DTLSServer = liblichtenstein::io::DTLSServer;
 
+// register defaults
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
+  config::Defaults::registerString("realtime.listen", "0.0.0.0", "Address on which the rt API listens") &&
+  config::Defaults::registerString("realtime.remoteAddress", "", "External address of the rt API") &&
+  config::Defaults::registerLong("realtime.port", 7420, "Port on which rt API listens") &&
+  config::Defaults::registerString("realtime.certPath", "", "Path to rt API TLS cert") &&
+  config::Defaults::registerString("realtime.certKeyPath", "", "Path to rt API TLS cert private key") &&
+  config::Defaults::registerBool("realtime.advertise", true, "Advertise rt API over mDNS");
+
+
 namespace rt {
   /**
    * Sets up the server API.
@@ -33,8 +45,7 @@ namespace rt {
    * @param db Data store to use for data storage
    * @param ini App configuration
    */
-  API::API(std::shared_ptr<DataStore> db, std::shared_ptr<INIReader> ini)
-          : store(db), config(ini) {
+  API::API(std::shared_ptr<DataStore> db) : store(db) {
     // create the listening socket and DTLS handler
     this->createSocket();
     this->createDTLSServer();
@@ -81,10 +92,8 @@ namespace rt {
     int on = 1;
 
     // get params from config
-    const std::string listenAddress = this->config->Get("realtime", "listen",
-                                                        "0.0.0.0");
-    const unsigned int listenPort = this->config->GetInteger("realtime", "port",
-                                                             7420);
+    const std::string listenAddress = Config::getString("realtime.listen");
+    const unsigned int listenPort = Config::getNumber("realtime.port");
 
     VLOG(1) << "Realtime server starting on " << listenAddress << ":"
             << listenPort;
@@ -139,9 +148,8 @@ namespace rt {
     this->tls = std::make_unique<DTLSServer>(this->socket);
 
     // load certificate
-    const std::string certPath = this->config->Get("realtime", "certPath", "");
-    const std::string certKeyPath = this->config->Get("realtime", "certKeyPath",
-                                                      "");
+    const std::string certPath = Config::getString("realtime.certPath");
+    const std::string certKeyPath = Config::getString("realtime.certKeyPath");
 
     this->tls->loadCert(certPath, certKeyPath);
   }
@@ -152,10 +160,8 @@ namespace rt {
    */
   void API::listenThread() {
     // start advertising via mDNS
-    if(this->config->GetBoolean("realtime", "advertise", true)) {
-      const unsigned int listenPort = this->config->GetInteger("realtime",
-                                                               "port",
-                                                               7420);
+    if(Config::getBool("realtime.advertise")) {
+      const unsigned int listenPort = Config::getNumber("realtime.port");
       this->service = ZeroconfService::create("_licht._tcp,_rt-api-v1",
                                               listenPort);
 

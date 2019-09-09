@@ -62,7 +62,7 @@ add_executable(server
         src/rt/ClientHandler.cpp
         src/rt/ClientHandler.h
         src/rt/PixelDataHandler.cpp
-        src/rt/PixelDataHandler.h src/rt/handlers/JoinChannel.cpp src/rt/handlers/JoinChannel.h src/rt/handlers/ChannelDataAck.cpp src/rt/handlers/ChannelDataAck.h src/helpers/IPHelpers.cpp src/helpers/IPHelpers.h src/protocol/AdoptionHandler.cpp src/protocol/AdoptionHandler.h src/api/handlers/AuthHello.cpp src/api/handlers/AuthHello.h src/rt/handlers/AuthHello.cpp src/rt/handlers/AuthHello.h)
+        src/rt/PixelDataHandler.h src/rt/handlers/JoinChannel.cpp src/rt/handlers/JoinChannel.h src/rt/handlers/ChannelDataAck.cpp src/rt/handlers/ChannelDataAck.h src/helpers/IPHelpers.cpp src/helpers/IPHelpers.h src/protocol/AdoptionHandler.cpp src/protocol/AdoptionHandler.h src/api/handlers/AuthHello.cpp src/api/handlers/AuthHello.h src/rt/handlers/AuthHello.cpp src/rt/handlers/AuthHello.h src/db/DataStore2.cpp src/db/DataStore2.h src/config/ConfigReader.cpp src/config/ConfigReader.h src/config/Defaults.h src/config/Defaults.cpp src/config/Config.cpp src/config/Config.h)
 
 
 # get Git info and compile it into the binary
@@ -118,9 +118,12 @@ target_link_libraries(server nlohmann_json::nlohmann_json)
 # stduuid library
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/stduuid/include)
 
-# link against SQLite
+# link against SQLite and sqlite_orm
 find_package(SQLite3 REQUIRED)
 target_link_libraries(server SQLite::SQLite3)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/sqlite_orm/include)
+
 # link against glog
 find_package(glog REQUIRED)
 target_link_libraries(server glog::glog)

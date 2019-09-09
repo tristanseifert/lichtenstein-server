@@ -13,8 +13,6 @@
 
 class DataStore;
 
-class INIReader;
-
 namespace liblichtenstein::io {
   class TLSServer;
 }
@@ -30,7 +28,7 @@ namespace api {
    */
   class API {
     public:
-      API(std::shared_ptr<DataStore> store, std::shared_ptr<INIReader> reader);
+      API(std::shared_ptr<DataStore> store);
 
       ~API();
 
@@ -43,7 +41,6 @@ namespace api {
 
     private:
       std::shared_ptr<DataStore> store;
-      std::shared_ptr<INIReader> config;
 
     private:
       // server UUID
