@@ -48,8 +48,8 @@ static std::shared_ptr<INIReader> configReader = nullptr;
 
 // config defaults
 static bool defaultsRegistered =
-        config::Defaults::registerLong("logging.verbosity", 0) &&
-        config::Defaults::registerBool("logging.stderr", true);
+        config::Defaults::registerLong("logging.verbosity", 0, "Verbosity level") &&
+        config::Defaults::registerBool("logging.stderr", true, "Logging is output to stderr");
 
 
 
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
   store = std::make_shared<DataStore>(configReader);
 
 	// start the protocol parser (binary lichtenstein protocol)
-  protocolHandler = std::make_shared<ProtocolHandler>(store, configReader);
+  protocolHandler = std::make_shared<ProtocolHandler>(store);
 
 	// start the effect evaluator
   runner = std::make_shared<EffectRunner>(store, configReader, protocolHandler);
@@ -212,4 +212,7 @@ void parseConfigFile(const std::string &path) {
 	}
 
   FLAGS_logtostderr = Config::getBool("logging.stderr");
+
+	// YEET
+	LOG(INFO) << "Registered keys:" << std::endl << config::Defaults::printDescriptions();
 }

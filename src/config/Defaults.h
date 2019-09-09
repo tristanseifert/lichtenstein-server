@@ -13,7 +13,7 @@
 namespace config {
   class Defaults {
     private:
-      using ValueType = std::tuple<std::string, long, double, bool>;
+      using ValueType = std::tuple<std::string, long, double, bool, std::optional<std::string>>;
 
     public:
       Defaults() = delete;
@@ -25,13 +25,14 @@ namespace config {
       static std::optional<bool> getBool(const std::string &key);
 
     public:
-      static bool registerString(const std::string &key, const std::string &value);
-      static bool registerLong(const std::string &key, const long value);
-      static bool registerDouble(const std::string &key, const double value);
-      static bool registerBool(const std::string &key, const bool value);
+      static bool registerString(const std::string &key, const std::string &value, const std::optional<std::string> description = std::nullopt);
+      static bool registerLong(const std::string &key, const long value, const std::optional<std::string> description = std::nullopt);
+      static bool registerDouble(const std::string &key, const double value, const std::optional<std::string> description = std::nullopt);
+      static bool registerBool(const std::string &key, const bool value, const std::optional<std::string> description = std::nullopt);
 
     public:
-      static void printData();
+      static std::string printData();
+      static std::string printDescriptions();
 
     private:
       static void allocData();

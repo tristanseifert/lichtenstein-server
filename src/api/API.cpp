@@ -4,10 +4,12 @@
 #include "API.h"
 #include "ClientHandler.h"
 
+#include "../config/Config.h"
+#include "../config/Defaults.h"
+
 #include "../version.h"
 
 #include <glog/logging.h>
-#include <INIReader.h>
 
 #include <liblichtenstein/io/TLSServer.h>
 #include <liblichtenstein/io/OpenSSLError.h>
@@ -28,6 +30,16 @@ using ZeroconfService = liblichtenstein::mdns::Service;
 using SSLError = liblichtenstein::io::OpenSSLError;
 using TLSServer = liblichtenstein::io::TLSServer;
 
+// register defaults
+static bool defaultsRegistered =
+  config::Defaults::registerString("api.listen", "0.0.0.0", "Address on which the API listens") &&
+  config::Defaults::registerString("api.remoteAddress", "", "External address of the API") &&
+  config::Defaults::registerLong("api.port", 45678, "Port on which the API listens") &&
+  config::Defaults::registerLong("api.backlog", 10, "Backlog to pass to listen() for API") &&
+  config::Defaults::registerString("api.certPath", "", "Path to API TLS cert") &&
+  config::Defaults::registerString("api.certKeyPath", "", "Path to API TLS cert private key") &&
+  config::Defaults::registerBool("api.advertise", true, "Whether to advertise the API via mDNS");
+
 
 namespace api {
   /**
@@ -36,10 +48,9 @@ namespace api {
    * @param db Data store to use for data storage
    * @param ini App configuration
    */
-  API::API(std::shared_ptr<DataStore> db, std::shared_ptr<INIReader> ini)
-          : store(db), config(ini) {
+  API::API(std::shared_ptr<DataStore> db): store(db) {
     // read the server uuid
-    const std::string uuidStr = this->config->Get("server", "uuid", "");
+    const std::string uuidStr = Config::getString("server.uuid");
     auto uuid = uuids::uuid::from_string(uuidStr);
 
     if(!uuid.has_value()) {
@@ -98,10 +109,8 @@ namespace api {
     int on = 1;
 
     // get params from config
-    const std::string listenAddress = this->config->Get("api", "listen",
-                                                        "0.0.0.0");
-    const unsigned int listenPort = this->config->GetInteger("api", "port",
-                                                             45678);
+    const std::string listenAddress = Config::getString("api.listen");
+    const unsigned int listenPort = Config::getNumber("api.port");
 
     VLOG(1) << "API server starting on " << listenAddress << ":" << listenPort;
 
@@ -146,7 +155,7 @@ namespace api {
 #endif
 
     // the socket has been created! listen for connections
-    const int backlog = (int) this->config->GetInteger("api", "backlog", 10);
+    const int backlog = (int) Config::getNumber("api.backlog");
 
     err = listen(this->socket, backlog);
     PCHECK(err == 0) << "listen() failed";
@@ -161,8 +170,8 @@ namespace api {
     this->tls = std::make_unique<TLSServer>(this->socket);
 
     // load certificate
-    const std::string certPath = this->config->Get("api", "certPath", "");
-    const std::string certKeyPath = this->config->Get("api", "certKeyPath", "");
+    const std::string certPath = Config::getString("api.certPath");
+    const std::string certKeyPath = Config::getString("api.certKeyPath");
 
     this->tls->loadCert(certPath, certKeyPath);
   }
@@ -173,9 +182,8 @@ namespace api {
    */
   void API::listenThread() {
     // start advertising via mDNS
-    if(this->config->GetBoolean("api", "advertise", true)) {
-      const unsigned int listenPort = this->config->GetInteger("api", "port",
-                                                               45678);
+    if(Config::getBool("api.advertise")) {
+      const unsigned int listenPort = Config::getNumber("api.port");
       this->service = ZeroconfService::create("_licht._tcp,_server-api-v1",
                                               listenPort);
 

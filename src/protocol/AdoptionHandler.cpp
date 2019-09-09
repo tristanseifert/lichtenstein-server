@@ -4,6 +4,8 @@
 #include "AdoptionHandler.h"
 #include "ProtocolHandler.h"
 
+#include "../config/Config.h"
+
 #include "../helpers/IPHelpers.h"
 
 #include <liblichtenstein/io/TLSClient.h>
@@ -17,7 +19,6 @@
 #include <proto/client/AdoptRequest.pb.h>
 #include <proto/client/AdoptAck.pb.h>
 
-#include <INIReader.h>
 #include <glog/logging.h>
 
 #include <openssl/rand.h>
@@ -46,9 +47,7 @@ namespace protocol {
    * @param proto Protocol handler
    */
   AdoptionHandler::AdoptionHandler(std::shared_ptr<DataStore> store,
-                                   std::shared_ptr<INIReader> reader,
                                    ProtocolHandler *proto) : store(store),
-                                                             config(reader),
                                                              handler(proto) {
     // just read the API hosts from config
     this->getApiHosts();
@@ -245,13 +244,13 @@ namespace protocol {
    */
   void AdoptionHandler::getApiHosts() {
     // get the API host
-    auto apiRemote = this->config->Get("api", "remoteAddress", "");
+    auto apiRemote = Config::getString("api.remoteAddress");
 
     if(apiRemote != "") {
       this->apiHost = apiRemote;
     } else {
       // is the listen IP unambiguous?
-      auto listenIp = this->config->Get("api", "listen", "0.0.0.0");
+      auto listenIp = Config::getString("api.listen");
 
       if(IPHelpers::isWildcardAddress(listenIp)) {
         // no, so error out
@@ -262,27 +261,27 @@ namespace protocol {
       }
     }
 
-    this->apiPort = this->config->GetInteger("api", "port", 45678);
+    this->apiPort = Config::getNumber("api.port");
 
     // get the realtime service host
-    auto rtRemote = this->config->Get("realtime", "remoteAddress", "");
+    auto rtRemote = Config::getString("realtime.remoteAddress");
 
     if(rtRemote != "") {
       this->rtHost = rtRemote;
     } else {
       // is the listen IP unambiguous?
-      auto listenIp = this->config->Get("realtime", "listen", "0.0.0.0");
+      auto listenIp = Config::getString("realtime.listen");
 
       if(IPHelpers::isWildcardAddress(listenIp)) {
         // no, so error out
         throw std::runtime_error(
-                "api.listen is wildcard address and api.remoteAddress is not specified");
+                "realtime.listen is wildcard address and realtime.remoteAddress is not specified");
       } else {
         this->rtHost = listenIp;
       }
     }
 
-    this->rtPort = this->config->GetInteger("realtime", "port", 7420);
+    this->rtPort = Config::getNumber("realtime.port");
   }
 
 

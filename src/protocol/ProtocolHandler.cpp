@@ -1,11 +1,12 @@
 #include "ProtocolHandler.h"
 #include "AdoptionHandler.h"
 
+#include "../config/Config.h"
+#include "../config/Defaults.h"
+
 #include "../api/API.h"
 #include "../rt/API.h"
 #include "../rt/PixelDataHandler.h"
-
-#include <INIReader.h>
 
 #include <glog/logging.h>
 
@@ -20,14 +21,16 @@ using PixelHandler = rt::PixelDataHandler;
 
 using protocol::AdoptionHandler;
 
+// define defaults
+static bool defaultsRegistered =
+  config::Defaults::registerString("server.uuid", "", "Server UUID value");
+
 
 namespace protocol {
   /**
    * Sets up the lichtenstein protocol server.
    */
-  ProtocolHandler::ProtocolHandler(std::shared_ptr<DataStore> db,
-                                   std::shared_ptr<INIReader> ini) : store(db),
-                                                                     config(ini) {
+  ProtocolHandler::ProtocolHandler(std::shared_ptr<DataStore> db) : store(db) {
     // verify that the protobuf library version is correct
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -36,7 +39,7 @@ namespace protocol {
     SSL_load_error_strings();
 
     // read server uuid
-    auto uuidStr = this->config->Get("server", "uuid", "");
+    auto uuidStr = Config::getString("server.uuid");
     auto uuid = uuids::uuid::from_string(uuidStr);
 
     CHECK(uuid.has_value()) << "Failed to parse UUID: '" << uuidStr << "'";
@@ -46,14 +49,13 @@ namespace protocol {
     LOG(INFO) << "Server UUID is " << to_string(this->uuid);
 
     // set up the API
-    this->serverApi = std::make_unique<ServerAPI>(this->store, this->config);
+    this->serverApi = std::make_unique<ServerAPI>(this->store);
 
     // also, create the realtime API
-    this->rtApi = std::make_unique<RealtimeAPI>(this->store, this->config);
+    this->rtApi = std::make_unique<RealtimeAPI>(this->store);
 
     // set up adoption handler
-    this->orphanage = std::make_unique<AdoptionHandler>(this->store,
-                                                        this->config, this);
+    this->orphanage = std::make_unique<AdoptionHandler>(this->store, this);
 
     // try some shit
     try {

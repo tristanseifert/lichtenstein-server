@@ -14,7 +14,7 @@ namespace config {
   /**
    * Defines the default configuration values.
    */
-  std::map<std::string, std::tuple<std::string, long, double, bool>> *Defaults::data = nullptr;
+  std::map<std::string, Defaults::ValueType> *Defaults::data = nullptr;
 
 
 
@@ -84,11 +84,11 @@ namespace config {
    * @return Whether the default was registered
    */
   bool
-  Defaults::registerString(const std::string &key, const std::string &value) {
+  Defaults::registerString(const std::string &key, const std::string &value, const std::optional<std::string> description) {
     Defaults::allocData();
 //    LOG(INFO) << "Registered string '" << value << "' for key '" << key << "'";
 
-    ValueType tuple = {value, 0, NAN, false};
+    ValueType tuple = {value, 0, NAN, false, description};
     data->insert_or_assign(key, tuple);
     return true;
   }
@@ -100,11 +100,11 @@ namespace config {
    * @param value String value to set as default
    * @return Whether the default was registered
    */
-  bool Defaults::registerLong(const std::string &key, const long value) {
+  bool Defaults::registerLong(const std::string &key, const long value, const std::optional<std::string> description) {
     Defaults::allocData();
 //    LOG(INFO) << "Registered long " << value << " for key '" << key << "'";
 
-    ValueType tuple = {"", value, NAN, false};
+    ValueType tuple = {"", value, NAN, false, description};
     data->insert_or_assign(key, tuple);
     return true;
   }
@@ -116,11 +116,11 @@ namespace config {
    * @param value String value to set as default
    * @return Whether the default was registered
    */
-  bool Defaults::registerDouble(const std::string &key, const double value) {
+  bool Defaults::registerDouble(const std::string &key, const double value, const std::optional<std::string> description) {
     Defaults::allocData();
 //    LOG(INFO) << "Registered double " << value << " for key '" << key << "'";
 
-    ValueType tuple = {"", 0, value, false};
+    ValueType tuple = {"", 0, value, false, description};
     data->insert_or_assign(key, tuple);
     return true;
   }
@@ -132,11 +132,11 @@ namespace config {
    * @param value String value to set as default
    * @return Whether the default was registered
    */
-  bool Defaults::registerBool(const std::string &key, const bool value) {
+  bool Defaults::registerBool(const std::string &key, const bool value, const std::optional<std::string> description) {
     Defaults::allocData();
 //    LOG(INFO) << "Registered bool " << value << " for key '" << key << "'";
 
-    ValueType tuple = {"", 0, NAN, value};
+    ValueType tuple = {"", 0, NAN, value, description};
     data->insert_or_assign(key, tuple);
     return true;
   }
@@ -151,14 +151,14 @@ namespace config {
 
     std::call_once(flag, []{
       // allocate that shit here
-      data = new std::map<std::string, std::tuple<std::string, long, double, bool>>();
+      data = new std::map<std::string, ValueType>();
     });
   }
 
   /**
    * Prints the defaults data.
    */
-  void Defaults::printData() {
+  std::string Defaults::printData() {
     std::stringstream str;
 
     // write header
@@ -182,6 +182,47 @@ namespace config {
       str << std::endl;
     }
 
-    LOG(INFO) << "Registered defaults:" << std::endl << str.str();
+    return str.str();
+  }
+
+  /**
+   * Returns a string containing
+   */
+  std::string Defaults::printDescriptions() {
+    std::stringstream str;
+
+    // write header
+    str << std::right << std::setw(24) << "Key";
+    str << "|";
+    str << std::left << std::setw(55) << "Description";
+    str << std::endl;
+
+    // divider
+    str << std::right << std::setfill('-') << std::setw(25) << '+';
+    str << std::setfill('-') << std::setw(55) << ' ';
+    str << std::endl << std::setfill(' ');
+
+    // iterate over the map
+    for(auto &[key, value] : *data) {
+      auto desc = std::get<4>(value);
+
+      str << std::right << std::setw(24) << key;
+
+      // divider
+      str << "|";
+
+      // print description (if available)
+      str << std::left << std::setw(55);
+
+      if(desc.has_value()) {
+        str << desc.value();
+      } else {
+        str << "";
+      }
+
+      str << std::endl;
+    }
+
+    return str.str();
   }
 }
