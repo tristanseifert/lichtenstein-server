@@ -22,7 +22,7 @@ using PixelHandler = rt::PixelDataHandler;
 using protocol::AdoptionHandler;
 
 // define defaults
-static bool defaultsRegistered =
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
   config::Defaults::registerString("server.uuid", "", "Server UUID value");
 
 

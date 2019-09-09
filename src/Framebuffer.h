@@ -2,7 +2,7 @@
  * Implements a thin wrapper around a region of memory – the framebuffer – into
  * which all effects write their data.
  *
- * This framebuffer can be resized at runtime to accomodate for changes in the
+ * This framebuffer can be resized at runtime to accommodate for changes in the
  * grouping configuration, and is safe for concurrent access by multiple threads
  * so long as no two threads attempt to WRITE to the same region of the buffer.
  *
@@ -20,16 +20,13 @@
 #include <iostream>
 #include <memory>
 
-#include "INIReader.h"
-
 class DataStore;
 
 class Framebuffer {
 	friend class EffectRunner;
 
 	public:
-    Framebuffer(std::shared_ptr<DataStore> store,
-                std::shared_ptr<INIReader> reader);
+    Framebuffer(std::shared_ptr<DataStore> store);
 		~Framebuffer();
 
 		void recalculateMinSize();
@@ -48,7 +45,6 @@ class Framebuffer {
 
 	private:
     std::shared_ptr<DataStore> store;
-    std::shared_ptr<INIReader> config;
 
 		std::vector<HSIPixel> data;
 };

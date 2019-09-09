@@ -29,7 +29,7 @@ using SSLError = liblichtenstein::io::OpenSSLError;
 using DTLSServer = liblichtenstein::io::DTLSServer;
 
 // register defaults
-static bool defaultsRegistered =
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
   config::Defaults::registerString("realtime.listen", "0.0.0.0", "Address on which the rt API listens") &&
   config::Defaults::registerString("realtime.remoteAddress", "", "External address of the rt API") &&
   config::Defaults::registerLong("realtime.port", 7420, "Port on which rt API listens") &&

@@ -31,7 +31,7 @@ using SSLError = liblichtenstein::io::OpenSSLError;
 using TLSServer = liblichtenstein::io::TLSServer;
 
 // register defaults
-static bool defaultsRegistered =
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
   config::Defaults::registerString("api.listen", "0.0.0.0", "Address on which the API listens") &&
   config::Defaults::registerString("api.remoteAddress", "", "External address of the API") &&
   config::Defaults::registerLong("api.port", 45678, "Port on which the API listens") &&

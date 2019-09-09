@@ -12,7 +12,7 @@
 using json = nlohmann::json;
 
 // register defaults
-static bool defaultsRegistered =
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
         config::Defaults::registerString("db.path", "", "Path to data store") &&
         config::Defaults::registerBool("db.serializeAccess", false,
                                        "Force all database accesses to happen serially") &&

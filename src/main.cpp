@@ -8,8 +8,6 @@
 
 #include <pthread.h>
 
-#include "INIReader.h"
-
 #include <memory>
 #include <iostream>
 #include <atomic>
@@ -43,11 +41,8 @@ static std::shared_ptr<EffectRunner> runner = nullptr;
 DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
 DEFINE_int32(verbosity, 4, "Debug logging verbosity");
 
-// parsing of the config file
-static std::shared_ptr<INIReader> configReader = nullptr;
-
 // config defaults
-static bool defaultsRegistered =
+static bool defaultsRegistered = // NOLINT(cert-err58-cpp)
         config::Defaults::registerLong("logging.verbosity", 0, "Verbosity level") &&
         config::Defaults::registerBool("logging.stderr", true, "Logging is output to stderr");
 
@@ -113,7 +108,7 @@ int main(int argc, char *argv[]) {
   protocolHandler = std::make_shared<ProtocolHandler>(store);
 
 	// start the effect evaluator
-  runner = std::make_shared<EffectRunner>(store, configReader, protocolHandler);
+  runner = std::make_shared<EffectRunner>(store, protocolHandler);
 
 	// XXX: Test the routine code
 	/*std::vector<DbRoutine *> routines = store->getAllRoutines();
