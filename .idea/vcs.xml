@@ -8,6 +8,7 @@
     <mapping directory="$PROJECT_DIR$/libs/inih" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/libs/json" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/libs/liblichtenstein" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/libs/sqlite_orm" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/libs/stduuid" vcs="Git" />
   </component>
 </project>

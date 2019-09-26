@@ -17,7 +17,8 @@
 #include "config/Config.h"
 #include "config/Defaults.h"
 
-#include "DataStore.h"
+#include "db/DataStore2.h"
+#include "db/DataStore.h"
 #include "protocol/ProtocolHandler.h"
 #include "EffectRunner.h"
 #include "Routine.h"
@@ -32,6 +33,7 @@ std::atomic_bool keepRunning = true;
 
 // data store
 static std::shared_ptr<DataStore> store = nullptr;
+static std::shared_ptr<db::DataStore2> store2 = nullptr;
 
 // various components of the server
 static std::shared_ptr<ProtocolHandler> protocolHandler = nullptr;
@@ -102,7 +104,8 @@ int main(int argc, char *argv[]) {
 	sigaction(SIGINT, &sigIntHandler, nullptr);
 
 	// load the datastore from disk
-  store = std::make_shared<DataStore>();
+//  store = std::make_shared<DataStore>();
+  store2 = std::make_shared<db::DataStore2>();
 
 	// start the protocol parser (binary lichtenstein protocol)
   protocolHandler = std::make_shared<ProtocolHandler>(store);
@@ -199,5 +202,5 @@ void parseConfigFile(const std::string &path) {
   FLAGS_logtostderr = Config::getBool("logging.stderr");
 
 	// YEET
-	LOG(INFO) << "Registered keys:" << std::endl << config::Defaults::printDescriptions();
+//	LOG(INFO) << "Registered keys:" << std::endl << config::Defaults::printDescriptions();
 }
