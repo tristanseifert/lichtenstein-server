@@ -6,14 +6,12 @@
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 
-#include <pthread.h>
-
-#include <libconfig.h++>
-
 #include <iostream>
 #include <atomic>
 
 #include <signal.h>
+
+#include "ConfigManager.h"
 
 // when set to false, the server terminates
 std::atomic_bool keepRunning;
@@ -29,48 +27,62 @@ DEFINE_int32(verbosity, 4, "Debug logging verbosity");
  * - SIGINT
  */
 void signalHandler(int sig) {
-	LOG(WARNING) << "Caught signal " << sig << "; shutting down!";
-	keepRunning = false;
+    LOG(WARNING) << "Caught signal " << sig << "; shutting down!";
+    keepRunning = false;
 }
 
 /**
  * Main function
  */
 int main(int argc, char *argv[]) {
-	// set up logging
-	FLAGS_logtostderr = 1;
-	FLAGS_colorlogtostderr = 1;
+    // set up logging
+    FLAGS_logtostderr = 1;
+    FLAGS_colorlogtostderr = 1;
 
-	google::InitGoogleLogging(argv[0]);
-	google::InstallFailureSignalHandler();
+    google::InitGoogleLogging(argv[0]);
+    google::InstallFailureSignalHandler();
 
-	LOG(INFO) << "lichtenstein server " << gVERSION_HASH << "/" << gVERSION_BRANCH << " starting up";
+    LOG(INFO) << "lichtenstein server " << gVERSION_HASH << "/" << gVERSION_BRANCH << " starting up";
 
-	// interpret command-line flags and read config
-	gflags::ParseCommandLineFlags(&argc, &argv, true);
+    // interpret command-line flags and read config
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-	// set thread name
-	#ifdef __APPLE__
-		pthread_setname_np("Main Thread");
-	#else
-    #ifdef pthread_setname_np
-		  pthread_setname_np(pthread_self(), "Main Thread");
-    #endif
-	#endif
+    try {
+        ConfigManager::readConfig(FLAGS_config_path);
+    } catch(ConfigManager::ParseException &e) { 
+        LOG(FATAL) << "Parse error on line " << e.getLine() << " of config: "
+            << e.what();
+    } catch(std::exception &e) {
+        LOG(FATAL) << "Failed to read config from '" << FLAGS_config_path 
+            << "' (" << e.what() << ")";
+    }
 
-	// set up a signal handler for termination so we can close down cleanly
-	keepRunning = true;
+    int verbosity = ConfigManager::getNumber("logging.verbosity", 0);
+    if (verbosity < 0) {
+        FLAGS_v = abs(verbosity);
+        FLAGS_minloglevel = 0;
+    } else {
+        // don't disallow logging of fatal errors
+        FLAGS_v = 0;
+        FLAGS_minloglevel = std::min(verbosity, 2);
+    }
 
-	struct sigaction sigIntHandler;
+    FLAGS_logtostderr = ConfigManager::getBool("logging.stderr", true) ? 1 : 0;
+    FLAGS_colorlogtostderr = ConfigManager::getBool("logging.stderr_color", true) ? 1 : 0;
 
-	sigIntHandler.sa_handler = signalHandler;
-	sigemptyset(&sigIntHandler.sa_mask);
-	sigIntHandler.sa_flags = 0;
+    // set up a signal handler for termination so we can close down cleanly
+    keepRunning = true;
 
-	sigaction(SIGINT, &sigIntHandler, nullptr);
+    struct sigaction sigIntHandler;
 
-	// wait for a signal
-	while(keepRunning) {
-		pause();
-	}
+    sigIntHandler.sa_handler = signalHandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = 0;
+
+    sigaction(SIGINT, &sigIntHandler, nullptr);
+
+    // wait for a signal
+    while(keepRunning) {
+        pause();
+    }
 }
