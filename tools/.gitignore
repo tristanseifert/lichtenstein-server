@@ -1,6 +1,0 @@
-wireshark_dissector.dylib
-multicast_sender
-crctabgen
-
-# ignore glib hacks
-glibconfig.h

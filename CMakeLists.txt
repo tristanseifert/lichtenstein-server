@@ -8,15 +8,11 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
 set(CMAKE_CXX_STANDARD 17)
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
-# include directories
+# include directories (in our source)
 include_directories(src)
-include_directories(src/crc32)
-include_directories(src/db)
-include_directories(src/libb64)
 
-# libraries in the "libs" folder
-include_directories(libs/inih)
-include_directories(libs)
+# libraries in the "libs" folder (header only)
+include_directories(libs/CTPL)
 include_directories(libs/cpptime)
 
 # compile in the git version file
@@ -37,49 +33,18 @@ set(version_file "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
 
 # build all of the sources
 add_executable(server
-        src/crc32/crc32.cpp
-        src/crc32/crc32.h
-        src/crc32/crclut.h
-        src/db/Channel.cpp
-        src/db/Channel.h
-        src/db/DataStore.cpp
-        src/db/DataStore.h
-        src/db/Group.cpp
-        src/db/Group.h
-        src/db/Node.cpp
-        src/db/Node.h
-        src/db/Routine.cpp
-        src/db/Routine.h
-        src/libb64/cdecode.c
-        src/libb64/cdecode.h
-        src/libb64/cencode.c
-        src/libb64/cencode.h
-        src/libb64/decode.h
-        src/libb64/encode.h
-        src/CommandServer.cpp
-        src/CommandServer.h
-        src/EffectRunner.cpp
-        src/EffectRunner.h
-        src/Framebuffer.cpp
-        src/Framebuffer.h
-        src/HSIPixel.cpp
-        src/HSIPixel.h
-        src/lichtenstein_proto.h
-        src/LichtensteinUtils.cpp
-        src/LichtensteinUtils.h
         src/main.cpp
-        src/NodeDiscovery.cpp
-        src/NodeDiscovery.h
-        src/OutputMapper.cpp
-        src/OutputMapper.h
-        src/ProtocolHandler.cpp
-        src/ProtocolHandler.h
-        src/Routine.cpp
-        src/Routine.h
         ${version_file} src/version.h)
 
+# compile libconfig and link against it
+set(BUILD_EXAMPLES OFF CACHE BOOL "Enable examples" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "Enable tests" FORCE)
+add_subdirectory(libs/libconfig)
+target_link_libraries(server config)
 
-# compile/link angelscript, and the add-ons wfe want
+include_directories(libs/libconfig/lib)
+
+# compile/link angelscript, and the add-ons we want
 add_subdirectory(libs/angelscript/sdk/angelscript/projects/cmake)
 target_link_libraries(server ${ANGELSCRIPT_LIBRARY_NAME})
 
@@ -104,12 +69,6 @@ target_sources(server PRIVATE
         libs/angelscript/sdk/add_on/debugger/debugger.cpp)
 
 
-# JSON library
-set(JSON_BuildTests OFF CACHE INTERNAL "")
-add_subdirectory(libs/json)
-
-target_link_libraries(server nlohmann_json::nlohmann_json)
-
 # link against SQLite
 find_package(SQLite3 REQUIRED)
 target_link_libraries(server SQLite::SQLite3)
@@ -117,12 +76,3 @@ target_link_libraries(server SQLite::SQLite3)
 find_package(glog REQUIRED)
 target_link_libraries(server glog::glog)
 
-# lastly, link in all the pieces we need from the lichtenstein library
-add_subdirectory(libs/liblichtenstein EXCLUDE_FROM_ALL)
-
-target_link_libraries(server lichtensteinIo)
-target_link_libraries(server lichtensteinProto)
-
-include_directories(libs/liblichtenstein/client)
-include_directories(libs/liblichtenstein/protocol)
-include_directories(${CMAKE_BINARY_DIR}/libs/liblichtenstein/protocol)
