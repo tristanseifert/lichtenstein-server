@@ -4,12 +4,15 @@
 [submodule "libs/cpptime"]
 	path = libs/cpptime
 	url = git@github.com:eglimi/cpptime.git
-[submodule "libs/liblichtenstein"]
-	path = libs/liblichtenstein
-	url = git@github.com:tristanseifert/lichtenstein-lib.git
 [submodule "libs/angelscript"]
 	path = libs/angelscript
 	url = git@github.com:codecat/angelscript-mirror.git
 [submodule "libs/libconfig"]
 	path = libs/libconfig
 	url = https://github.com/hyperrealm/libconfig.git
+[submodule "libs/spdlog"]
+	path = libs/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "libs/cxxopts"]
+	path = libs/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git

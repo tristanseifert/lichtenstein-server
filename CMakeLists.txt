@@ -14,6 +14,7 @@ include_directories(src)
 # libraries in the "libs" folder (header only)
 include_directories(libs/CTPL)
 include_directories(libs/cpptime)
+include_directories(libs/cxxopts/include)
 
 # compile in the git version file
 include(GetGitRevisionDescription)
@@ -35,17 +36,28 @@ set(version_file "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
 add_executable(lichtenstein_server
     src/main.cpp
     src/ConfigManager.cpp
+    src/Logging.cpp
     ${version_file} src/version.h)
+
+
+# link against SQLite
+find_package(SQLite3 REQUIRED)
+target_link_libraries(lichtenstein_server PRIVATE SQLite::SQLite3)
 
 # link against libconfig
 set(BUILD_EXAMPLES OFF CACHE BOOL "Enable examples" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "Enable tests" FORCE)
 add_subdirectory(libs/libconfig)
-target_link_libraries(lichtenstein_server config++)
+include_directories(libs/libconfig/lib)
+target_link_libraries(lichtenstein_server PRIVATE config++)
+
+# compile/link spdlog (logging)
+add_subdirectory(libs/spdlog)
+target_link_libraries(lichtenstein_server PRIVATE spdlog::spdlog)
 
 # compile/link angelscript, and the add-ons we want
 add_subdirectory(libs/angelscript/sdk/angelscript/projects/cmake)
-target_link_libraries(lichtenstein_server ${ANGELSCRIPT_LIBRARY_NAME})
+target_link_libraries(lichtenstein_server PRIVATE ${ANGELSCRIPT_LIBRARY_NAME})
 
 include_directories(libs/angelscript/sdk/angelscript/include)
 include_directories(libs/angelscript/sdk/add_on)
@@ -66,12 +78,4 @@ target_sources(lichtenstein_server PRIVATE
     libs/angelscript/sdk/add_on/datetime/datetime.cpp
 
     libs/angelscript/sdk/add_on/debugger/debugger.cpp)
-
-
-# link against SQLite
-find_package(SQLite3 REQUIRED)
-target_link_libraries(lichtenstein_server SQLite::SQLite3)
-# link against glog
-find_package(glog REQUIRED)
-target_link_libraries(lichtenstein_server glog::glog)
 

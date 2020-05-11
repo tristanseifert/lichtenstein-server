@@ -3,22 +3,29 @@
  */
 #include "version.h"
 
-#include <glog/logging.h>
-#include <gflags/gflags.h>
-
-#include <iostream>
 #include <atomic>
+#include <iostream>
+#include <sstream>
 
+#include <unistd.h>
 #include <signal.h>
 
+#include <cxxopts.hpp>
+
 #include "ConfigManager.h"
+#include "Logging.h"
+
+// bring all our namespaces into scope
+using namespace Lichtenstein::Server;
 
 // when set to false, the server terminates
-std::atomic_bool keepRunning;
+static std::atomic_bool keepRunning;
 
-// define flags
-DEFINE_string(config_path, "./lichtenstein.conf", "Path to the server configuration file");
-DEFINE_int32(verbosity, 4, "Debug logging verbosity");
+// command line configuration
+static struct {
+    // config file path
+    std::string cfgPath = "./lichtenstein.conf";
+} cmdline;
 
 /**
  * Signal handler. This handler is invoked for the following signals to enable
@@ -26,49 +33,89 @@ DEFINE_int32(verbosity, 4, "Debug logging verbosity");
  *
  * - SIGINT
  */
-void signalHandler(int sig) {
-    LOG(WARNING) << "Caught signal " << sig << "; shutting down!";
+static void signalHandler(int sig) {
+    Logging::warn("Caught signal {}; shutting down!", sig);
     keepRunning = false;
 }
+
+/**
+ * Parses the command line. If false is returned, the program should not
+ * continue further.
+ */
+static bool ParseCmdLine(int argc, char *argv[]) {
+    using namespace cxxopts;
+
+    Options opt("lichtenstein_server", "Lichtenstein effects server");
+
+    opt.add_options()
+        ("c,config", "Path to config file")
+        ("version", "Print program version and exit")
+        ("h,help", "Print usage and exit")
+    ;
+
+    // parse the options
+    try {
+        auto result = opt.parse(argc, argv);
+
+        if(result.count("config")) {
+            cmdline.cfgPath = result["config"].as<std::string>();
+        }
+
+        // print help?
+        if(result.count("help")) {
+            std::cout << opt.help() << std::endl;
+            return false;
+        }
+        // print version?
+        else if(result.count("version")) {
+            std::cout << "lichtenstein_server " << gVERSION << " (" 
+                << std::string(gVERSION_HASH).substr(0, 8) << ")" << std::endl;
+            return false;
+        }
+    } catch(option_not_exists_exception &e) {
+        std::cerr << "Failed to parse command line: " << e.what() << std::endl;
+        return false;
+    }
+
+    // we good
+    return true;
+}
+
+/**
+ * Reads the config file and configures early settings. Returns false if an
+ * error took place, true otherwise.
+ */
+static bool LoadConfig(void) {
+    // try to read the config file
+    try {
+        ConfigManager::readConfig(cmdline.cfgPath);
+    } catch(ConfigManager::ParseException &e) { 
+        std::cerr << "Parse error on line " << e.getLine() << " of config: "
+            << e.what() << std::endl;
+        return false;
+    } catch(std::exception &e) {
+        std::cerr << "Failed to read config from '" << cmdline.cfgPath
+            << "' (" << e.what() << ")" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 
 /**
  * Main function
  */
 int main(int argc, char *argv[]) {
-    // set up logging
-    FLAGS_logtostderr = 1;
-    FLAGS_colorlogtostderr = 1;
-
-    google::InitGoogleLogging(argv[0]);
-    google::InstallFailureSignalHandler();
-
-    LOG(INFO) << "lichtenstein server " << gVERSION_HASH << "/" << gVERSION_BRANCH << " starting up";
-
-    // interpret command-line flags and read config
-    gflags::ParseCommandLineFlags(&argc, &argv, true);
-
-    try {
-        ConfigManager::readConfig(FLAGS_config_path);
-    } catch(ConfigManager::ParseException &e) { 
-        LOG(FATAL) << "Parse error on line " << e.getLine() << " of config: "
-            << e.what();
-    } catch(std::exception &e) {
-        LOG(FATAL) << "Failed to read config from '" << FLAGS_config_path 
-            << "' (" << e.what() << ")";
+    // parse command line, load config and set up logging
+    if(!ParseCmdLine(argc, argv)) {
+        return 0;
+    }
+    if(!LoadConfig()) {
+        return -1;
     }
 
-    int verbosity = ConfigManager::getNumber("logging.verbosity", 0);
-    if (verbosity < 0) {
-        FLAGS_v = abs(verbosity);
-        FLAGS_minloglevel = 0;
-    } else {
-        // don't disallow logging of fatal errors
-        FLAGS_v = 0;
-        FLAGS_minloglevel = std::min(verbosity, 2);
-    }
-
-    FLAGS_logtostderr = ConfigManager::getBool("logging.stderr", true) ? 1 : 0;
-    FLAGS_colorlogtostderr = ConfigManager::getBool("logging.stderr_color", true) ? 1 : 0;
+    Logging::start();
 
     // set up a signal handler for termination so we can close down cleanly
     keepRunning = true;
@@ -83,6 +130,9 @@ int main(int argc, char *argv[]) {
 
     // wait for a signal
     while(keepRunning) {
-        pause();
+        ::pause();
     }
+
+    // clean up
+    Logging::stop();
 }

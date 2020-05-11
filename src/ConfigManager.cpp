@@ -7,6 +7,8 @@
 
 #include <libconfig.h++>
 
+using namespace Lichtenstein::Server;
+
 /// This will hold the shared instance 
 static std::shared_ptr<ConfigManager> instance;
 
