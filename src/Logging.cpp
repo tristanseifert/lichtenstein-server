@@ -26,6 +26,7 @@ std::unique_ptr<Logging> shared = nullptr;
  */
 void Logging::start() {
     shared = std::make_unique<Logging>();
+    Logging::debug("Initialized logging");
 }
 
 /**
@@ -39,9 +40,17 @@ void Logging::stop() {
  * Configure spdlog to log to stdout, file, and/or syslog as configured.
  */
 Logging::Logging() {
-    using spdlog::logger, spdlog::sink_ptr, std::make_shared, std::vector;
+    using spdlog::async_logger, spdlog::sink_ptr, std::make_shared, std::vector;
 
     vector<sink_ptr> sinks;
+
+    // configure the queue size
+    auto queueSz = ConfigManager::getUnsigned("logging.queue.size", 8192);
+    queueSz = std::min(1024UL, queueSz);
+    auto threads = ConfigManager::getUnsigned("logging.queue.threads", 1);
+    threads = std::min(1UL, threads);
+
+    spdlog::init_thread_pool(queueSz, threads);
 
     // do we want logging to the console?
     if(ConfigManager::getBool("logging.console.enabled", true)) {
@@ -62,7 +71,8 @@ Logging::Logging() {
     }
 
     // create a multi-logger for this
-    this->logger = make_shared<logger>("", sinks.begin(), sinks.end());
+    this->logger = make_shared<async_logger>("", sinks.begin(), sinks.end(), 
+            spdlog::thread_pool(), spdlog::async_overflow_policy::block);
     spdlog::set_default_logger(this->logger);
 }
 /**
