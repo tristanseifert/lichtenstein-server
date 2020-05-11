@@ -62,7 +62,8 @@ namespace Lichtenstein::Server {
             void configFileLog(std::vector<spdlog::sink_ptr> &);
             void configSyslog(std::vector<spdlog::sink_ptr> &);
 
-            spdlog::level::level_enum getLogLevel(const std::string &, unsigned long);
+            static spdlog::level::level_enum getLogLevel(const std::string &, unsigned long);
+            static int getSyslogFacility(const std::string &path, int);
 
         private:
             std::shared_ptr<spdlog::logger> logger;
