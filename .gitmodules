@@ -16,3 +16,6 @@
 [submodule "libs/cxxopts"]
 	path = libs/cxxopts
 	url = https://github.com/jarro2783/cxxopts.git
+[submodule "libs/sqlite_orm"]
+	path = libs/sqlite_orm
+	url = https://github.com/fnc12/sqlite_orm.git

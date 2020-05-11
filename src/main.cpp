@@ -15,6 +15,8 @@
 #include "ConfigManager.h"
 #include "Logging.h"
 
+#include "db/DataStore.h"
+
 // bring all our namespaces into scope
 using namespace Lichtenstein::Server;
 
@@ -128,11 +130,16 @@ int main(int argc, char *argv[]) {
 
     sigaction(SIGINT, &sigIntHandler, nullptr);
 
+    // start the required services
+    DB::DataStore::open();
+
     // wait for a signal
     while(keepRunning) {
         ::pause();
     }
 
     // clean up
+    DB::DataStore::close();
+
     Logging::stop();
 }
