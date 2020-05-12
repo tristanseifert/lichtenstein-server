@@ -73,6 +73,8 @@ Logging::Logging() {
     // create a multi-logger for this
     this->logger = make_shared<async_logger>("", sinks.begin(), sinks.end(), 
             spdlog::thread_pool(), spdlog::async_overflow_policy::block);
+    this->logger->set_level(spdlog::level::trace);
+
     spdlog::set_default_logger(this->logger);
 }
 /**

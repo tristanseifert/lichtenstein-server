@@ -16,6 +16,7 @@
 #include "Logging.h"
 
 #include "db/DataStore.h"
+#include "api/Server.h"
 
 // bring all our namespaces into scope
 using namespace Lichtenstein::Server;
@@ -132,6 +133,7 @@ int main(int argc, char *argv[]) {
 
     // start the required services
     DB::DataStore::open();
+    API::Server::start();
 
     // wait for a signal
     while(keepRunning) {
@@ -139,6 +141,7 @@ int main(int argc, char *argv[]) {
     }
 
     // clean up
+    API::Server::stop();
     DB::DataStore::close();
 
     Logging::stop();

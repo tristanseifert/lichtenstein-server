@@ -19,3 +19,9 @@
 [submodule "libs/sqlite_orm"]
 	path = libs/sqlite_orm
 	url = https://github.com/fnc12/sqlite_orm.git
+[submodule "libs/cpp-httplib"]
+	path = libs/cpp-httplib
+	url = https://github.com/yhirose/cpp-httplib.git
+[submodule "libs/json"]
+	path = libs/json
+	url = https://github.com/nlohmann/json.git

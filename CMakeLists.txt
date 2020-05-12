@@ -16,6 +16,7 @@ include_directories(libs/CTPL)
 include_directories(libs/cpptime)
 include_directories(libs/cxxopts/include)
 include_directories(libs/sqlite_orm/include/sqlite_orm)
+include_directories(libs/cpp-httplib)
 
 # compile in the git version file
 include(GetGitRevisionDescription)
@@ -40,6 +41,10 @@ add_executable(lichtenstein_server
     src/Logging.cpp
     src/db/DataStore.cpp
     src/db/DataStorePrimitives.cpp
+    src/api/Server.cpp
+    src/api/HandlerFactory.cpp
+    src/api/IController.cpp
+    src/api/controllers/ServerInfo.cpp
     ${version_file} src/version.h)
 
 
@@ -48,7 +53,7 @@ find_package(CapnProto REQUIRED)
 target_include_directories(lichtenstein_server PRIVATE ${CAPNP_INCLUDE_DIRS})
 add_definitions(${CAPNP_DEFINITIONS})
 
-capnp_generate_cpp(CAPNP_SOURCES CAPNP_HEADERS src/proto/lichtenstein_v1.capnp src/db/packed_v1.capnp)
+capnp_generate_cpp(CAPNP_SOURCES CAPNP_HEADERS src/db/packed_v1.capnp)
 target_sources(lichtenstein_server PRIVATE ${CAPNP_SOURCES} ${CAPNP_HEADERS})
 
 # then, link against the cap'n proto runtime and include the generated headers
@@ -70,6 +75,12 @@ target_link_libraries(lichtenstein_server PRIVATE config++)
 add_subdirectory(libs/spdlog)
 target_link_libraries(lichtenstein_server PRIVATE spdlog::spdlog)
 
+# include the JSON library (without tests)
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+set(JSON_Install OFF CACHE INTERNAL "")
+
+add_subdirectory(libs/json)
+target_link_libraries(lichtenstein_server PRIVATE nlohmann_json::nlohmann_json)
 
 # compile/link angelscript, and the add-ons we want
 add_subdirectory(libs/angelscript/sdk/angelscript/projects/cmake)
