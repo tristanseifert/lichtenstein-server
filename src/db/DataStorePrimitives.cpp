@@ -2,21 +2,23 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <chrono>
 
 // Cap'n Proto stuff 
 #include <capnp/message.h>
 #include <capnp/serialize-packed.h>
 #include <db/packed_v1.capnp.h>
 
+#include "../Logging.h"
 
+using Logging = Lichtenstein::Server::Logging;
 using namespace Lichtenstein::Server::DB::Types;
 using namespace Lichtenstein::Server::DB::Types::IceChest;
 
 /**
  * Deserializes a byte array back to an unordered map.
  */
-static void deserialize(const std::vector<char> &bytes, 
-        std::unordered_map<std::string, std::any> &map) {
+static void deserialize(const std::vector<char> &bytes, ParamMapType &map) {
     using ValueType = RoutineParams::Entry::Value::Which;
 
     // create a message reader from the blob
@@ -28,32 +30,30 @@ static void deserialize(const std::vector<char> &bytes,
     RoutineParams::Reader params = reader.getRoot<RoutineParams>();
 
     for(auto entry : params.getEntries()) {
-        // massage the value into std::any
-        std::any value;
-
+        // get the value into the variant type in the map
         auto entryValue = entry.getValue();
         std::string key = entry.getKey();
 
         switch(entryValue.which()) {
             // Boolean
             case ValueType::BOOL:
-                value.emplace<bool>(entryValue.getBool());
+                map.emplace(key, entryValue.getBool());
                 break;
             // Floating point 
             case ValueType::FLOAT:
-                value.emplace<double>(entryValue.getFloat());
+                map.emplace(key, entryValue.getFloat());
                 break;
             // Unsigned integer
             case ValueType::UINT:
-                value.emplace<uint64_t>(entryValue.getUint());
+                map.emplace(key, entryValue.getUint());
                 break;
             // Signed integer
             case ValueType::INT:
-                value.emplace<bool>(entryValue.getInt());
+                map.emplace(key, entryValue.getInt());
                 break;
             // Character string
             case ValueType::STRING:
-                value.emplace<std::string>(entryValue.getString());
+                map.emplace(key, entryValue.getString());
                 break;
 
             // unknown type
@@ -66,16 +66,12 @@ static void deserialize(const std::vector<char> &bytes,
                 break;
             }
         }
-
-        // insert it into the map
-        map[key] = value;
     }
 }
 /**
  * Serializes an unordered map into a byte array.
  */
-static void serialize(const std::unordered_map<std::string, std::any> &map, 
-        std::vector<char> &bytes) {
+static void serialize(const ParamMapType &map, std::vector<char> &bytes) {
     // create a memory buffer to serialize the message into
     capnp::MallocMessageBuilder writer;
     RoutineParams::Builder params = writer.initRoot<RoutineParams>();
@@ -88,24 +84,24 @@ static void serialize(const std::unordered_map<std::string, std::any> &map,
         entries[i].setKey(key);
         auto entryValue = entries[i].initValue();
 
-        if(value.type() == typeid(bool)) {
-            entryValue.setBool(std::any_cast<bool>(value));
+        if(std::holds_alternative<bool>(value)) {
+            entryValue.setBool(std::get<bool>(value));
         }
-        else if(value.type() == typeid(double)) {
-            entryValue.setFloat(std::any_cast<double>(value));
+        else if(std::holds_alternative<double>(value)) {
+            entryValue.setFloat(std::get<double>(value));
         }
-        else if(value.type() == typeid(uint64_t)) {
-            entryValue.setUint(std::any_cast<uint64_t>(value));
+        else if(std::holds_alternative<uint64_t>(value)) {
+            entryValue.setUint(std::get<uint64_t>(value));
         }
-        else if(value.type() == typeid(int64_t)) {
-            entryValue.setInt(std::any_cast<int64_t>(value));
+        else if(std::holds_alternative<int64_t>(value)) {
+            entryValue.setInt(std::get<int64_t>(value));
         }
-        else if(value.type() == typeid(std::string)) {
-            entryValue.setString(std::any_cast<std::string>(value));
+        else if(std::holds_alternative<std::string>(value)) {
+            entryValue.setString(std::get<std::string>(value));
         }
         else {
             std::stringstream what;
-            what << "Invalid type '" << value.type().name() << "' for key '" 
+            what << "Invalid type '" << value.index() << "' for key '" 
                 << key << "''"; 
 
             throw std::invalid_argument(what.str());
@@ -119,7 +115,24 @@ static void serialize(const std::unordered_map<std::string, std::any> &map,
     auto dataBytes = data.asBytes();
 
     bytes.assign(dataBytes.begin(), dataBytes.end());
+
+    Logging::debug("Serialized params into {} bytes", dataBytes.size());
 }
+
+
+
+/**
+ * Updates the last modified timestamp to the current timestamp.
+ */
+void BaseType::updateLastModified() {
+    using namespace std::chrono;
+
+    const auto p1 = system_clock::now();
+    const auto sec = duration_cast<seconds>(p1.time_since_epoch()).count();
+
+    this->lastModified = sec;
+}
+
 
 
 

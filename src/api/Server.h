@@ -28,6 +28,11 @@ namespace Lichtenstein::Server::API {
             Server();
             virtual ~Server();
 
+        public:
+            bool shouldMinify() const {
+                return this->minifyResponses;
+            }
+
         private:
             void terminate();
 
@@ -42,6 +47,9 @@ namespace Lichtenstein::Server::API {
             std::shared_ptr<httplib::Server> http = nullptr;
 
             std::vector<std::unique_ptr<IController>> handlers;
+
+        private:
+            bool minifyResponses;
     };
 }
 

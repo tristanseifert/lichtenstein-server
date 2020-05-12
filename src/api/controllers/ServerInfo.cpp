@@ -1,6 +1,7 @@
 #include "ServerInfo.h"
 
 #include <functional>
+#include <httplib.h>
 #include <nlohmann/json.hpp>
 
 #include "../../version.h"
@@ -49,6 +50,6 @@ void ServerInfo::getVersion(const ReqType &req, ResType &res) {
     j["git_rev"] = std::string(gVERSION_HASH);
 
     // send it
-    res.set_content(j.dump(), "application/json");
+    this->respond(j, res);
 }
 

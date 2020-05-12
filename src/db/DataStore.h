@@ -9,7 +9,8 @@
 #include <string>
 #include <memory>
 #include <functional>
-#include <list>
+#include <vector>
+#include <algorithm>
 
 #include <sqlite_orm.h>
 
@@ -46,8 +47,9 @@ namespace Lichtenstein::Server::DB {
                     make_column("format", &NodeChannel::format),
                     make_column("lastModified", &NodeChannel::lastModified),
                     foreign_key(&NodeChannel::nodeId).references(&Node::id)),
-                make_table("group",
+                make_table("groups",
                     make_column("id", &Group::id, autoincrement(), primary_key()),
+                    make_column("name", &Group::name),
                     make_column("enabled", &Group::enabled),
                     make_column("start", &Group::startOff),
                     make_column("end", &Group::endOff),
@@ -62,12 +64,15 @@ namespace Lichtenstein::Server::DB {
         public:
             static void open();
             static void close();
+            
+            static std::shared_ptr<DataStore> db();
 
             // you should not call this!
             DataStore(const std::string &);
             virtual ~DataStore();
 
         public:
+
             /**
              * Returns a transaction goard; this works like std::lock_guard but
              * with database transactions. You need to call commit() before the
@@ -97,7 +102,7 @@ namespace Lichtenstein::Server::DB {
                         "T must be one of the data store table types");
                 try {
                     auto obj = this->storage->get<T>(id);
-                    obj->thaw();
+                    obj.thaw();
 
                     out = obj;
                     return true;
@@ -110,13 +115,15 @@ namespace Lichtenstein::Server::DB {
             /**
              * Gets all rows of a particular type.
              */
-            template <class T> std::list<T> getAll() {
+            template <class T> std::vector<T> getAll() {
                 static_assert(std::is_base_of<Types::BaseType, T>::value, 
                         "T must be one of the data store table types");
                 auto all = this->storage->get_all<T>();
-                for(auto i : all) {
-                    i->thaw();
-                }
+                std::transform(all.begin(), all.end(), all.begin(), [](auto obj) {
+                    obj.thaw();
+                    return obj;
+                });
+                
                 return all;
             }
 
@@ -127,7 +134,8 @@ namespace Lichtenstein::Server::DB {
             template <class T> int insert(T &obj) {
                 static_assert(std::is_base_of<Types::BaseType, T>::value, 
                         "T must be one of the data store table types");
-                obj->freeze();
+                obj.freeze();
+                obj.updateLastModified();
 
                 int newId = this->storage->insert(obj);
                 obj.id = newId;
@@ -138,12 +146,12 @@ namespace Lichtenstein::Server::DB {
              * Updates an existing row in the data store. The row is located
              * by its id.
              */
-            template <class T> void update(const T &obj) {
+            template <class T> void update(T &obj) {
                 static_assert(std::is_base_of<Types::BaseType, T>::value, 
                         "T must be one of the data store table types");
-                obj->freeze();
+                obj.freeze();
                 
-                    this->storage->update(obj);
+                this->storage->update(obj);
             }
             
             /**
@@ -153,7 +161,12 @@ namespace Lichtenstein::Server::DB {
             template <class T> void remove(const T &obj) {
                 static_assert(std::is_base_of<Types::BaseType, T>::value, 
                         "T must be one of the data store table types");
-                this->storage->remove(obj);
+                this->remove<T>(obj.id);
+            }
+            template <class T> void remove(const int id) {
+                static_assert(std::is_base_of<Types::BaseType, T>::value, 
+                        "T must be one of the data store table types");
+                this->storage->remove<T>(id);
             }
 
         private:

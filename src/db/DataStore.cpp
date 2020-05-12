@@ -29,7 +29,12 @@ void DataStore::close() {
     shared = nullptr;
 }
 
-
+/**
+ * Returns the shared data store instance.
+ */
+std::shared_ptr<DataStore> DataStore::db() {
+    return shared;
+}
 
 /**
  * Tries to open the data store at the given path. If there is no such file, it

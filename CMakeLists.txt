@@ -41,10 +41,13 @@ add_executable(lichtenstein_server
     src/Logging.cpp
     src/db/DataStore.cpp
     src/db/DataStorePrimitives.cpp
+    src/db/DataStorePrimitives+Json.cpp
     src/api/Server.cpp
     src/api/HandlerFactory.cpp
     src/api/IController.cpp
     src/api/controllers/ServerInfo.cpp
+    src/api/controllers/Routines.cpp
+    src/api/controllers/Groups.cpp
     ${version_file} src/version.h)
 
 
@@ -78,6 +81,7 @@ target_link_libraries(lichtenstein_server PRIVATE spdlog::spdlog)
 # include the JSON library (without tests)
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 set(JSON_Install OFF CACHE INTERNAL "")
+set(JSON_MultipleHeaders ON CACHE INTERNAL "")
 
 add_subdirectory(libs/json)
 target_link_libraries(lichtenstein_server PRIVATE nlohmann_json::nlohmann_json)

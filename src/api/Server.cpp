@@ -3,6 +3,7 @@
 #include <memory>
 
 #include <httplib.h>
+#include <nlohmann/json.hpp>
 
 #include "../Logging.h"
 #include "../ConfigManager.h"
@@ -38,6 +39,9 @@ void Server::stop() {
  * requests, and configures the HTTP server.
  */
 Server::Server() {
+    // load the minification settings
+    this->minifyResponses = ConfigManager::getBool("api.minify", true);
+
     // set up the worker thread
     this->terminateWorker = false;
     this->worker = std::make_unique<std::thread>(&Server::workerEntry, this);
@@ -110,10 +114,28 @@ void Server::allocServer() {
         Logging::trace("Allocated API controller '{}'", tag);
     });
 
-    // register a request logger
+    // register a request logger and error handler
     this->http->set_logger([this](const auto &req, const auto &res) {
         Logging::trace("API request: {:>7s} {} {}:{} {}", req.method, req.path, 
                 req.remote_addr, req.remote_port, res.status);
+    });
+
+    this->http->set_error_handler([this](const auto &req, auto &res) {
+        // get exception info if 500
+        if(res.status == 500) {
+            auto what = res.get_header_value("EXCEPTION_WHAT");
+            Logging::error("Exception while handling request {} from {}:{}: {}", 
+                    req.path, req.remote_addr, req.remote_port, what);
+        } else {
+            Logging::warn("Error {} while handling request {} from {}:{}",
+                    res.status, req.path, req.remote_addr, req.remote_port);
+        }
+
+        // either way, respond with a json structure
+        nlohmann::json j = {
+            {"status", res.status}
+        };
+        IController::respond(j, res, this->shouldMinify());
     });
 }
 

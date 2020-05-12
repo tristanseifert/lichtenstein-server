@@ -6,21 +6,37 @@
 
 #include <functional>
 
-namespace httplib { class Server; }
+#include <nlohmann/json_fwd.hpp>
+
+namespace httplib {
+    class Server;
+    class Request;
+    class Response;
+    class ContentReader;
+}
 
 namespace Lichtenstein::Server::API {
     class Server;
 
     class IController {
-        using RouteCallback = std::function<void(httplib::Server *)>;
+        protected:
+            using ReqType = httplib::Request;
+            using ResType = httplib::Response;
+            using ReaderType = httplib::ContentReader;
+            using RouteCallback = std::function<void(httplib::Server *)>;
 
         public:
             IController() = delete;
-            IController(Server *server) : api(server) {}
+            IController(Server *api) : api(api) {};
             virtual ~IController() = default;
 
         protected:
             virtual void route(RouteCallback) final;
+
+            virtual void respond(nlohmann::json &, ResType &);
+            virtual void decode(const ReaderType &, nlohmann::json &); 
+        public:
+            static void respond(nlohmann::json &, ResType &, bool);
 
         protected:
             Server *api = nullptr;

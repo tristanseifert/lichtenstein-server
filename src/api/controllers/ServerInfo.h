@@ -13,9 +13,6 @@
 
 namespace Lichtenstein::Server::API::Controllers {
     class ServerInfo: public IController {
-        using ReqType = httplib::Request;
-        using ResType = httplib::Response;
-
         public:
             ServerInfo(Server *srv);
             virtual ~ServerInfo() {};

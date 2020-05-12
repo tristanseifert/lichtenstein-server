@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include <any>
+#include <variant>
 #include <memory>
 
 namespace Lichtenstein::Server::DB {
@@ -17,12 +17,18 @@ namespace Lichtenstein::Server::DB {
 
 namespace Lichtenstein::Server::DB::Types {
     using BlobType = std::vector<char>;
-    using ParamMapType = std::unordered_map<std::string, std::any>; 
+    using ParamValueType = std::variant<bool,double,uint64_t,int64_t,std::string>;
+    using ParamMapType = std::unordered_map<std::string, ParamValueType>; 
 
     struct BaseType {
-        friend class Lichtenstein::Server::DB::DataStore;
+        // last modified timestamp
+        int lastModified;
+
+        // sets the "last modified" timestamp to the current time
+        virtual void updateLastModified();
 
         protected:
+            friend class ::Lichtenstein::Server::DB::DataStore;
             // deserializes properties from blobs
             virtual void thaw() {};
             // re-serializes properties to blobs
@@ -46,8 +52,6 @@ namespace Lichtenstein::Server::DB::Types {
 
         // timestamp when the node last checked in
         int lastCheckin;
-        // last time this node was modified
-        int lastModified;
     };
 
     /**
@@ -64,16 +68,13 @@ namespace Lichtenstein::Server::DB::Types {
         int numPixels;
         int fbOffset;
         int format;
-
-        // last time this channel was modified
-        int lastModified;
     };
 
     /**
      * Routines represent individual effects that can be run.
      */
     using RoutineId = int;
-    struct Routine: public BaseType {
+    struct Routine: public BaseType { 
         RoutineId id;
         std::string name;
         std::string code;
@@ -81,13 +82,11 @@ namespace Lichtenstein::Server::DB::Types {
         // default parameters (in unserialized form)
         ParamMapType params;
 
-        // last time this routine was modified
-        int lastModified;
-
         // default parameters (packed with cap'n proto™)
         std::vector<char> _packedParams;
         
-        protected:
+        private:
+            friend class ::Lichtenstein::Server::DB::DataStore;
             virtual void thaw();
             virtual void freeze();
     };
@@ -100,25 +99,23 @@ namespace Lichtenstein::Server::DB::Types {
     using GroupId = int;
     struct Group: public BaseType {
         GroupId id;
-        
-        bool enabled;
+        std::string name;
+        bool enabled = false;
 
         int startOff;
         int endOff;
 
-        std::unique_ptr<RoutineId> routineId;
+        std::shared_ptr<RoutineId> routineId;
         // Routine state: may be NULL but only if routineId is also NULL
-        std::unique_ptr<ParamMapType> routineState;
+        std::shared_ptr<ParamMapType> routineState;
 
-        double brightness;
+        double brightness = 1;
 
-        // last time this group was modified
-        int lastModified;
-        
         // binary packed routine state (from cap'n proto)
-        std::unique_ptr<BlobType> _packedState;
+        std::shared_ptr<BlobType> _packedState;
         
-        protected:
+        private:
+            friend class ::Lichtenstein::Server::DB::DataStore;
             virtual void thaw();
             virtual void freeze();
     };

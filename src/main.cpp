@@ -39,6 +39,13 @@ static struct {
 static void signalHandler(int sig) {
     Logging::warn("Caught signal {}; shutting down!", sig);
     keepRunning = false;
+
+    // mask the signal now
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, sig);
+
+    sigprocmask(SIG_BLOCK, &set, nullptr);
 }
 
 /**
