@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <mutex>
 
 namespace Lichtenstein::Server::Render {
     class HSIPixel;
@@ -20,14 +21,22 @@ namespace Lichtenstein::Server::Render {
             virtual ~Framebuffer();
 
         public:
+            size_t size() const {
+                return this->numPixels;
+            }
+
             void copyOut(size_t start, size_t num, HSIPixel *out);
             void copyOut(size_t start, size_t num, RGBPixel *out);
             void copyOut(size_t start, size_t num, RGBWPixel *out);
+
+            void copyIn(size_t start, size_t num, const HSIPixel *in);
 
         private:
             void assertInBounds(size_t start, size_t num);
 
         private:
+            std::mutex writeLock;
+
             std::unique_ptr<HSIPixel[]> pixels;
             unsigned int numPixels;
     };

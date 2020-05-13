@@ -34,7 +34,6 @@ std::unique_ptr<IController> Routines::construct(Server *srv) {
 Routines::Routines(Server *srv) : IController(srv) {
     using namespace std::placeholders;
 
-    // register server information routes
     this->route([this] (auto http) mutable {
         http->Get("/routes/", std::bind(&Routines::getAll, this,_1,_2));
         

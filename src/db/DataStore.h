@@ -65,7 +65,9 @@ namespace Lichtenstein::Server::DB {
             static void open();
             static void close();
             
-            static std::shared_ptr<DataStore> db();
+            static std::shared_ptr<DataStore> db() {
+                return sharedInstance;
+            }
 
             // you should not call this!
             DataStore(const std::string &);
@@ -170,6 +172,7 @@ namespace Lichtenstein::Server::DB {
             }
 
         private:
+            static std::shared_ptr<DataStore> sharedInstance;
 
         private:
             using Storage = decltype(initStorage(""));

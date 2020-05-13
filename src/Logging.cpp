@@ -19,13 +19,13 @@
 using namespace Lichtenstein::Server;
 
 // shared instance of the logging handler
-std::unique_ptr<Logging> shared = nullptr;
+std::shared_ptr<Logging> Logging::sharedInstance;
 
 /**
  * When logging starts, create the shared logging handler.
  */
 void Logging::start() {
-    shared = std::make_unique<Logging>();
+    sharedInstance = std::make_unique<Logging>();
     Logging::debug("Initialized logging");
 }
 
@@ -33,7 +33,7 @@ void Logging::start() {
  * When logging is desired to be stopped, delete the shared logging handler.
  */
 void Logging::stop() {
-    shared = nullptr;
+    sharedInstance = nullptr;
 }
 
 /**
@@ -206,4 +206,23 @@ int Logging::getSyslogFacility(const std::string &path, int def) {
     } else {
         return it->second;
     }
-} 
+}
+
+
+
+/**
+ * Handles a failed assertion. This will log the message out, but not
+ * terminate; the XASSERT() macro has a call to std::abort().
+ */
+bool Logging::assertFailed(const char *expr, const char *file, int line,
+        const char *msg) {
+    if(msg) {
+        crit("ASSERTION FAILURE ({}:{}) {}: {}", file, line, expr,
+                msg);
+    } else {
+        crit("ASSERTION FAILURE ({}:{}) {}", file, line, expr);
+    }
+
+    return true;
+}
+

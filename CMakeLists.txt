@@ -52,6 +52,7 @@ add_executable(lichtenstein_server
     src/api/controllers/NodeChannels.cpp
     src/render/Framebuffer.cpp
     src/render/PixelTypes+Json.cpp
+    src/render/Pipeline.cpp
     ${version_file} src/version.h)
 
 
@@ -70,6 +71,10 @@ target_include_directories(lichtenstein_server PRIVATE ${CMAKE_CURRENT_BINARY_DI
 # link against SQLite
 find_package(SQLite3 REQUIRED)
 target_link_libraries(lichtenstein_server PRIVATE SQLite::SQLite3)
+
+# for each of the below libraries we compile ourselves, try to prefer using
+# static libraries
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # link against libconfig
 set(BUILD_EXAMPLES OFF CACHE BOOL "Enable examples" FORCE)
@@ -113,4 +118,3 @@ target_sources(lichtenstein_server PRIVATE
     libs/angelscript/sdk/add_on/datetime/datetime.cpp
 
     libs/angelscript/sdk/add_on/debugger/debugger.cpp)
-

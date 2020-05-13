@@ -17,6 +17,7 @@
 
 #include "db/DataStore.h"
 #include "api/Server.h"
+#include "render/Pipeline.h"
 
 // bring all our namespaces into scope
 using namespace Lichtenstein::Server;
@@ -138,17 +139,27 @@ int main(int argc, char *argv[]) {
 
     sigaction(SIGINT, &sigIntHandler, nullptr);
 
-    // start the required services
+    /* During startup, open the data store, followed by network handlers, any
+     * producers of data, externally visible APIs, and everything else. This
+     * way, the full protocol stack is set up when producers start secreting
+     * new data. */
     DB::DataStore::open();
+    Render::Pipeline::start();
     API::Server::start();
 
     // wait for a signal
+    Logging::info("lichtenstein_server is ready");
+
     while(keepRunning) {
         ::pause();
     }
 
-    // clean up
+    /* When we're quitting, first stop services that can change the internal
+     * state of the server; then all producers of content; followed by the
+     * network protocol handlers, followed by everything else. That should help
+     * ensure that we don't deadlock during shutdown. */
     API::Server::stop();
+    Render::Pipeline::stop();
     DB::DataStore::close();
 
     Logging::stop();

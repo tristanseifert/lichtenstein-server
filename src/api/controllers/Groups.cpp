@@ -34,7 +34,6 @@ std::unique_ptr<IController> Groups::construct(Server *srv) {
 Groups::Groups(Server *srv) : IController(srv) {
     using namespace std::placeholders;
 
-    // register server information routes
     this->route([this] (auto http) mutable {
         http->Get("/groups/", std::bind(&Groups::getAll, this,_1,_2));
         

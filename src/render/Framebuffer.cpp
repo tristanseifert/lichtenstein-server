@@ -36,6 +36,7 @@ Framebuffer::~Framebuffer() {
  * hold at least `num` pixels.
  */
 void Framebuffer::copyOut(size_t start, size_t num, HSIPixel *out) {
+    XASSERT(out, "Output pointer cannot be null");
     this->assertInBounds(start, num);
     std::copy(this->pixels.get(), (this->pixels.get())+num, out);
 
@@ -45,6 +46,7 @@ void Framebuffer::copyOut(size_t start, size_t num, HSIPixel *out) {
  * process.
  */
 void Framebuffer::copyOut(size_t start, size_t num, RGBPixel *out) {
+    XASSERT(out, "Output pointer cannot be null");
     this->assertInBounds(start, num);
     std::copy(this->pixels.get(), (this->pixels.get())+num, out);
 }
@@ -53,8 +55,24 @@ void Framebuffer::copyOut(size_t start, size_t num, RGBPixel *out) {
  * process.
  */
 void Framebuffer::copyOut(size_t start, size_t num, RGBWPixel *out) {
+    XASSERT(out, "Output pointer cannot be null");
     this->assertInBounds(start, num);
     std::copy(this->pixels.get(), (this->pixels.get())+num, out);
+}
+
+
+/**
+ * Copies pixels into the framebuffer.
+ */
+void Framebuffer::copyIn(size_t start, size_t num, const HSIPixel *in) {
+    XASSERT(in, "Input ptr cannot be null");
+    this->assertInBounds(start, num);
+
+    // perform the copy while we hold the write lock
+    {
+        std::lock_guard g(this->writeLock);
+        std::copy(in, in+num, this->pixels.get());
+    }
 }
 
 

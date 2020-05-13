@@ -41,7 +41,9 @@ namespace Lichtenstein::Server::API {
             void listen();
 
         private:
-            std::atomic_bool terminateWorker = false;
+            static std::shared_ptr<Server> sharedInstance;
+
+            std::atomic_bool shouldTerminate = false;
             std::unique_ptr<std::thread> worker = nullptr;
 
             std::shared_ptr<httplib::Server> http = nullptr;

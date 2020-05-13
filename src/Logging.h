@@ -7,8 +7,10 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 #include <spdlog/spdlog.h>
+
 
 namespace Lichtenstein::Server {
     class Logging {
@@ -57,6 +59,9 @@ namespace Lichtenstein::Server {
                 spdlog::critical(fmt, args...);
             }
 
+            /// Assertion failure handler
+            static bool assertFailed(const char *, const char *, int,
+                    const char *);
         private:
             void configTtyLog(std::vector<spdlog::sink_ptr> &);
             void configFileLog(std::vector<spdlog::sink_ptr> &);
@@ -66,8 +71,13 @@ namespace Lichtenstein::Server {
             static int getSyslogFacility(const std::string &path, int);
 
         private:
+            static std::shared_ptr<Logging> sharedInstance;
+
             std::shared_ptr<spdlog::logger> logger;
     };
 }
+
+// include this below here, as it depends on calling into the logger
+#include "LoggingAssert.h"
 
 #endif

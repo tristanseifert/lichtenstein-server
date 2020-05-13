@@ -13,14 +13,14 @@
 using namespace Lichtenstein::Server::API;
 
 // global shared API server; created by the start() call
-static std::shared_ptr<Server> shared;
+std::shared_ptr<Server> Server::sharedInstance;
 
 
 /**
  * Initializes the shared API server.
  */
 void Server::start() {
-    shared = std::make_shared<Server>();
+    sharedInstance = std::make_shared<Server>();
 }
 
 /**
@@ -28,8 +28,8 @@ void Server::start() {
  */
 void Server::stop() {
     // request termination and release our reference
-    shared->terminate();
-    shared = nullptr;
+    sharedInstance->terminate();
+    sharedInstance = nullptr;
 }
 
 
@@ -43,7 +43,7 @@ Server::Server() {
     this->minifyResponses = ConfigManager::getBool("api.minify", true);
 
     // set up the worker thread
-    this->terminateWorker = false;
+    this->shouldTerminate = false;
     this->worker = std::make_unique<std::thread>(&Server::workerEntry, this);
 }
 /**
@@ -52,8 +52,9 @@ Server::Server() {
  */
 Server::~Server() {
     // make sure to tell the worker to terminate
-    if(!this->terminateWorker) {
-       this->terminate(); 
+    if(!this->shouldTerminate) {
+        Logging::error("You should call API::Server::terminate() before deleting");
+        this->terminate();
     }
     this->worker->join();
 }
@@ -63,14 +64,14 @@ Server::~Server() {
  */
 void Server::terminate() {
     // catch repeated calls
-    if(this->terminateWorker) {
+    if(this->shouldTerminate) {
         Logging::error("Ignoring repeated call of API::Server::terminate()!");
         return;
     }
 
     // set the termination flag
     Logging::debug("Requesting API server termination");
-    this->terminateWorker = true;
+    this->shouldTerminate = true;
 
     // if HTTP server exists, kill that
     if(this->http) {
@@ -89,7 +90,7 @@ void Server::workerEntry() {
     this->listen();
 
     // clean up
-    if(this->terminateWorker) {
+    if(this->shouldTerminate) {
         Logging::debug("API server is shutting down");
     } else {
         Logging::error("API::Server::listen() returned unexpectedly");
@@ -107,9 +108,7 @@ void Server::allocServer() {
     this->http = std::make_shared<httplib::Server>();
 
     // …then register all handlers.
-    HandlerFactory::dump();
     HandlerFactory::forEach([this] (const std::string &tag, HandlerFactory::HandlerCtor ctor) mutable {
-        // try to construct it
         this->handlers.push_back(ctor(this));
         Logging::trace("Allocated API controller '{}'", tag);
     });
@@ -148,7 +147,7 @@ void Server::listen() {
     std::string host = ConfigManager::get("api.listen.address", "127.0.0.1");
     int port = ConfigManager::getUnsigned("api.listen.port", 42000);
 
-    Logging::debug("Starting API server: {}:{}", host, port);
+    Logging::info("Starting API server: {}:{}", host, port);
 
     // begin listening
     if(!this->http->listen(host.c_str(), port)) {

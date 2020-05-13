@@ -8,7 +8,7 @@
 using namespace Lichtenstein::Server::DB;
 
 // shared data store instance
-static std::shared_ptr<DataStore> shared;
+std::shared_ptr<DataStore> DataStore::sharedInstance;
 
 
 /**
@@ -19,21 +19,14 @@ void DataStore::open() {
     std::string path = ConfigManager::get("db.path", "");
     Logging::info("Reading data store from '{}'", path);
 
-    shared = std::make_shared<DataStore>(path);
+    sharedInstance = std::make_shared<DataStore>(path);
 }
 
 /**
  * Closes the datastore. No further access will be possible beyond this point.
  */
 void DataStore::close() {
-    shared = nullptr;
-}
-
-/**
- * Returns the shared data store instance.
- */
-std::shared_ptr<DataStore> DataStore::db() {
-    return shared;
+    sharedInstance = nullptr;
 }
 
 /**
