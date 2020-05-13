@@ -48,6 +48,8 @@ add_executable(lichtenstein_server
     src/api/controllers/ServerInfo.cpp
     src/api/controllers/Routines.cpp
     src/api/controllers/Groups.cpp
+    src/api/controllers/Nodes.cpp
+    src/api/controllers/NodeChannels.cpp
     ${version_file} src/version.h)
 
 
