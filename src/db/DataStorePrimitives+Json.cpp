@@ -95,13 +95,13 @@ void to_json(json &j, const Routine &r) {
 void from_json(const json &j, Routine &r) {
     // ID is optional when reading from json
     try {
-        r.id = j.at("id").get<int>();
+        j.at("id").get_to(r.id);
     } catch(json::out_of_range &) {
         r.id = -1;
     }
 
-    r.name = j.at("name").get<std::string>();
-    r.code = j.at("code").get<std::string>();
+    j.at("name").get_to(r.name);
+    j.at("code").get_to(r.code);
 
     // params can be omitted
     try {
@@ -139,16 +139,16 @@ void to_json(json &j, const Group &g) {
 void from_json(const json &j, Group &g) {
     // ID is optional when reading from json
     try {
-        g.id = j.at("id").get<int>();
+        j.at("id").get_to(g.id);
     } catch(json::out_of_range &) {
         g.id = -1;
     }
 
     // mandatory fields
-    g.name = j.at("name").get<std::string>();
-    g.enabled = j.at("enabled").get<bool>();
-    g.startOff = j.at("start").get<int>();
-    g.endOff = j.at("end").get<int>();
+    j.at("name").get_to(g.name);
+    j.at("enabled").get_to(g.enabled);
+    j.at("start").get_to(g.startOff);
+    j.at("end").get_to(g.endOff);
 
     // routine id or state is _not_ input from json
 } 
@@ -180,7 +180,7 @@ void to_json(json &j, const Node &n) {
 void from_json(const json &j, Node &n) {
     // ID is optional when reading from json
     try {
-        n.id = j.at("id").get<int>();
+        j.at("id").get_to(n.id);
     } catch(json::out_of_range &) {
         n.id = -1;
     }
@@ -218,7 +218,7 @@ void to_json(json &j, const NodeChannel &c) {
 void from_json(const json &j, NodeChannel &c) {
     // ID is optional when reading from json
     try {
-        c.id = j.at("id").get<int>();
+        j.at("id").get_to(c.id);
     } catch(json::out_of_range &) {
         c.id = -1;
     }
@@ -231,6 +231,6 @@ void from_json(const json &j, NodeChannel &c) {
     }
 
     // framebuffer offset is mandatory
-    c.fbOffset = j.at("fbOffset").get<int>();
+    j.at("fbOffset").get_to(c.fbOffset);
 }
 }

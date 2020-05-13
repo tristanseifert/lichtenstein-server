@@ -5,7 +5,7 @@ project(lichtenstein_server)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 # set global C++ options
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # include directories (in our source)
@@ -50,6 +50,8 @@ add_executable(lichtenstein_server
     src/api/controllers/Groups.cpp
     src/api/controllers/Nodes.cpp
     src/api/controllers/NodeChannels.cpp
+    src/render/Framebuffer.cpp
+    src/render/PixelTypes+Json.cpp
     ${version_file} src/version.h)
 
 
