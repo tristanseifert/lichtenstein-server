@@ -152,4 +152,85 @@ void from_json(const json &j, Group &g) {
 
     // routine id or state is _not_ input from json
 } 
+
+
+
+/**
+ * JSON (de)serialization for nodes
+ */
+void to_json(json &j, const Node &n) {
+    j = {
+        {"id", n.id},
+        {"label", nullptr},
+        {"address", n.address},
+        {"hostname", n.hostname},
+        {"versions", json({
+            {"sw", n.swVersion},
+            {"hw", n.hwVersion},
+        })},
+        {"lastCheckin", n.lastCheckin},
+        {"lastModified", n.lastModified}
+    };
+
+    if(n.label) {
+        j["label"] = *n.label;
+    }
+}
+
+void from_json(const json &j, Node &n) {
+    // ID is optional when reading from json
+    try {
+        n.id = j.at("id").get<int>();
+    } catch(json::out_of_range &) {
+        n.id = -1;
+    }
+
+    // if label is omitted, set it to null
+    try {
+        n.label = std::make_shared<std::string>(j.at("label").get<std::string>());
+    } catch(json::out_of_range &) {
+        n.label = nullptr;
+    }
+}
+
+
+
+/**
+ * JSON (de)serialization for node channels
+ */
+void to_json(json &j, const NodeChannel &c) {
+    j = {
+        {"id", c.id},
+        {"nodeId", c.nodeId},
+        {"label", nullptr},
+        {"index", c.nodeChannelIndex},
+        {"numPixels", c.numPixels},
+        {"fbOffset", c.fbOffset},
+        {"format", c.format},
+        {"lastModified", c.lastModified}
+    };
+
+    if(c.label) {
+        j["label"] = *c.label;
+    }
+}
+
+void from_json(const json &j, NodeChannel &c) {
+    // ID is optional when reading from json
+    try {
+        c.id = j.at("id").get<int>();
+    } catch(json::out_of_range &) {
+        c.id = -1;
+    }
+
+    // if label is omitted, set it to null
+    try {
+        c.label = std::make_shared<std::string>(j.at("label").get<std::string>());
+    } catch(json::out_of_range &) {
+        c.label = nullptr;
+    }
+
+    // framebuffer offset is mandatory
+    c.fbOffset = j.at("fbOffset").get<int>();
+}
 }

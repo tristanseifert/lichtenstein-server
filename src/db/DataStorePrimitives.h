@@ -43,7 +43,7 @@ namespace Lichtenstein::Server::DB::Types {
     struct Node: public BaseType {
         NodeId id;
 
-        std::unique_ptr<std::string> label;
+        std::shared_ptr<std::string> label;
         std::string address;
         std::string hostname;
 
@@ -62,7 +62,7 @@ namespace Lichtenstein::Server::DB::Types {
         NodeChannelId id;
         NodeId nodeId;
 
-        std::unique_ptr<std::string> label;
+        std::shared_ptr<std::string> label;
 
         int nodeChannelIndex;
         int numPixels;
