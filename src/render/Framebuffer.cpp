@@ -19,7 +19,7 @@ Framebuffer::Framebuffer() {
     this->numPixels = ConfigManager::getUnsigned("render.fb.size", 5000);
     this->pixels = std::make_unique<HSIPixel[]>(this->numPixels);
 
-    Logging::debug("Framebuffer is {} pixels at 0x{:x}", this->numPixels, 
+    Logging::debug("Framebuffer is {} pixels at {}", this->numPixels,
             (void*)&this->pixels);
 }
 /**
@@ -75,6 +75,18 @@ void Framebuffer::copyIn(size_t start, size_t num, const HSIPixel *in) {
     }
 }
 
+/**
+ * Returns a pointer to the start of the requested region. The region is
+ * checked to ensure that it falls entirely within the framebuffer.
+ *
+ * The responsibility lies with the caller not to write more than `num` bytes!
+ * Doing so WILL create bugs and security issues.
+ */
+HSIPixel *Framebuffer::getPtr(size_t start, size_t num) {
+    this->assertInBounds(start, num);
+
+    return (this->pixels.get() + start);
+}
 
 
 /**

@@ -23,6 +23,7 @@ namespace ctpl {
 }
 
 namespace Lichtenstein::Server::Render {
+    class Framebuffer;
     class IRenderable;
     class IRenderTarget;
 
@@ -37,11 +38,17 @@ namespace Lichtenstein::Server::Render {
             static void start();
             static void stop();
 
+            static std::shared_ptr<Pipeline> pipeline() {
+                return sharedInstance;
+            }
+
             // you shouldn't call this
             Pipeline();
             virtual ~Pipeline();
 
         public:
+            void addMapping(RenderablePtr renderable, TargetPtr target);
+
             double getActualFps() const {
                 return this->actualFps;
             }
@@ -60,9 +67,13 @@ namespace Lichtenstein::Server::Render {
             void computeActualFps();
 
         private:
-            std::atomic_bool shouldTerminate;
-            std::unique_ptr<std::thread> worker = nullptr;
+            std::shared_ptr<Framebuffer> fb;
 
+            // worker thread
+            std::atomic_bool shouldTerminate;
+            std::unique_ptr<std::thread> worker;
+
+            // configuration
             double targetFps;
             unsigned int numRenderThreads;
 

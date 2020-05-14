@@ -1,6 +1,8 @@
 #include "Pipeline.h"
 #include "HSIPixel.h"
 #include "IRenderable.h"
+#include "IRenderTarget.h"
+#include "Framebuffer.h"
 
 #include <functional>
 
@@ -8,6 +10,9 @@
 
 #include "../Logging.h"
 #include "../ConfigManager.h"
+
+#include "FillRenderable.h"
+#include "GroupTarget.h"
 
 using thread_pool = ctpl::thread_pool;
 using namespace Lichtenstein::Server::Render;
@@ -37,6 +42,9 @@ void Pipeline::stop() {
  * Initializes the rendering pipeline.
  */
 Pipeline::Pipeline() {
+    // allocate the framebuffer
+    this->fb = std::make_shared<Framebuffer>();
+
     // start up our worker thread
     this->shouldTerminate = false;
     this->worker = std::make_unique<std::thread>(&Pipeline::workerEntry, this);
@@ -177,7 +185,7 @@ void Pipeline::renderOne(RenderablePtr renderable, TargetPtr target) {
     renderable->render();
 
     // then, copy out the data into the framebuffer and notify
-    // TODO
+    target->inscreteFrame(renderable);
 }
 
 
@@ -258,5 +266,23 @@ void Pipeline::computeActualFps() {
         this->actualFramesCounter = 0;
         this->fpsStart = high_resolution_clock::now();
     }
+}
+
+
+
+/**
+ * Adds a mapping of renderable -> target to be dealt with the next time we
+ * render a frame.
+ *
+ * This will ensure that no output group is specified twice. If there is a
+ * mapping with the same target, it will be replaced.
+ */
+void Pipeline::addMapping(RenderablePtr renderable, TargetPtr target) {
+    std::lock_guard<std::mutex> lg(this->planLock);
+
+    // TODO: check for duplicate groups
+
+    // insert it
+    this->plan[target] = renderable;
 }
 

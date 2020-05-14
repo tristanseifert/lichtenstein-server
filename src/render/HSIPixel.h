@@ -6,6 +6,7 @@
 #define RENDER_HSIPIXEL_H
 
 #include <nlohmann/json_fwd.hpp>
+#include <spdlog/fmt/bundled/format.h>
 
 namespace Lichtenstein::Server::Render {
     class HSIPixel {
@@ -44,5 +45,29 @@ namespace Lichtenstein::Server::Render {
     void from_json(const nlohmann::json &, HSIPixel &);
     void to_json(nlohmann::json &, const HSIPixel &);
 }
+
+template <>
+struct fmt::formatter<Lichtenstein::Server::Render::HSIPixel> {
+  constexpr auto parse(format_parse_context& ctx) {
+    // Parse the presentation format and store it in the formatter:
+    auto it = ctx.begin(), end = ctx.end();
+
+    // Check if reached the end of the range:
+    if (it != end && *it != '}')
+      throw format_error("invalid format");
+
+    // Return an iterator past the end of the parsed range:
+    return it;
+  }
+
+  template <typename FormatContext>
+  auto format(const Lichtenstein::Server::Render::HSIPixel& p,
+          FormatContext& ctx) {
+    return format_to(
+        ctx.out(),
+        "({:.5g}, {:.4g}, {:.4g})",
+        p.h, p.s, p.i);
+  }
+};
 
 #endif

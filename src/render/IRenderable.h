@@ -58,7 +58,7 @@ namespace Lichtenstein::Server::Render {
              *
              * Hint: using std::copy() will satisfy these requirements.
              */
-            virtual void copyOut(size_t offset, size_t num, HSIPixel *out) = 0;
+            virtual void copyOut(size_t offset, size_t num, HSIPixel *out) const = 0;
 
         public:
             size_t getNumPixels() const {

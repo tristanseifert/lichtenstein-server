@@ -30,6 +30,7 @@ namespace Lichtenstein::Server::Render {
             void copyOut(size_t start, size_t num, RGBWPixel *out);
 
             void copyIn(size_t start, size_t num, const HSIPixel *in);
+            HSIPixel *getPtr(size_t start, size_t num);
 
         private:
             void assertInBounds(size_t start, size_t num);

@@ -22,12 +22,12 @@ void FillRenderable::render() {
  * We effectively ignore the offset, since we fill the same value everywhere,
  * but we bounds check it for consistency anyways.
  */
-void FillRenderable::copyOut(size_t offset, size_t num, HSIPixel *out) {
+void FillRenderable::copyOut(size_t offset, size_t num, HSIPixel *out) const {
     // validate args
     XASSERT(out, "Output pointer cannot be null");
     
     XASSERT(offset < this->numPixels, "Offset must be in bounds");
-    XASSERT((offset + num) < this->numPixels, "Length must be in bounds");
+    XASSERT((offset + num) <= this->numPixels, "Length must be in bounds");
 
     // fill the output buffer
     std::fill(out, out+num, this->value);
