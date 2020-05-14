@@ -53,6 +53,7 @@ add_executable(lichtenstein_server
     src/render/Framebuffer.cpp
     src/render/PixelTypes+Json.cpp
     src/render/Pipeline.cpp
+    src/render/FillRenderable.cpp
     ${version_file} src/version.h)
 
 
