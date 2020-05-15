@@ -10,6 +10,7 @@
 #include <memory>
 
 #include <spdlog/spdlog.h>
+#include <fmt/format.h>
 
 
 namespace Lichtenstein::Server {
@@ -59,9 +60,18 @@ namespace Lichtenstein::Server {
                 spdlog::critical(fmt, args...);
             }
 
-            /// Assertion failure handler
-            static bool assertFailed(const char *, const char *, int,
-                    const char *);
+            /**
+             * Handles a failed assertion. This will log the message out, but
+             * not terminate; the XASSERT() macro has a call to std::abort().
+             */
+            template<typename... Args>
+            static bool assertFailed(const char *expr, const char *file, 
+                    int line, const std::string msg, const Args &... args) {
+                auto fmtMsg = fmt::format(msg, args...);
+                crit("ASSERTION FAILURE ({}:{}) {} {}", file, line, expr, 
+                        fmtMsg);
+                return true;
+            }
         private:
             void configTtyLog(std::vector<spdlog::sink_ptr> &);
             void configFileLog(std::vector<spdlog::sink_ptr> &);

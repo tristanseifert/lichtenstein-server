@@ -210,19 +210,4 @@ int Logging::getSyslogFacility(const std::string &path, int def) {
 
 
 
-/**
- * Handles a failed assertion. This will log the message out, but not
- * terminate; the XASSERT() macro has a call to std::abort().
- */
-bool Logging::assertFailed(const char *expr, const char *file, int line,
-        const char *msg) {
-    if(msg) {
-        crit("ASSERTION FAILURE ({}:{}) {}: {}", file, line, expr,
-                msg);
-    } else {
-        crit("ASSERTION FAILURE ({}:{}) {}", file, line, expr);
-    }
-
-    return true;
-}
 

@@ -86,7 +86,12 @@ add_subdirectory(libs/libconfig)
 include_directories(libs/libconfig/lib)
 target_link_libraries(lichtenstein_server PRIVATE config++)
 
-# compile/link spdlog (logging)
+# fmt (string formatting; spdlog depends on it)
+add_subdirectory(libs/fmt)
+target_link_libraries(lichtenstein_server PRIVATE fmt::fmt)
+
+# compile/link spdlog (logging; use external libfmt)
+set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
 add_subdirectory(libs/spdlog)
 target_link_libraries(lichtenstein_server PRIVATE spdlog::spdlog)
 

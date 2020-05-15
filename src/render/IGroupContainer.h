@@ -16,7 +16,7 @@
 #include <iostream>
 #include <sstream>
 
-#include <spdlog/fmt/bundled/format.h>
+#include <fmt/format.h>
 
 #include "../db/DataStorePrimitives.h"
 
