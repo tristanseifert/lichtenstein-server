@@ -14,9 +14,9 @@ using namespace Lichtenstein::Server::Render;
  * Initializes a group target that will output to the specified group's
  * framebuffer area.
  */
-GroupTarget::GroupTarget(FbPtr fb, const DbGroup &group) {
-    GroupTarget(fb, group.startOff, (group.endOff - group.startOff));
-    
+GroupTarget::GroupTarget(FbPtr fb, const DbGroup &group) : fb(fb) {
+    this->fbOffset = group.startOff;
+    this->length = (group.endOff - group.startOff);
     this->groupId = group.id;
 }
 
@@ -25,7 +25,7 @@ GroupTarget::GroupTarget(FbPtr fb, const DbGroup &group) {
  * framebuffer.
  */
 GroupTarget::GroupTarget(FbPtr fb, size_t fbOffset, size_t numPixels) : fb(fb),
-fbOffset(fbOffset), numPixels(numPixels) {
+fbOffset(fbOffset), length(numPixels) {
     // nothing
 }
 
@@ -35,7 +35,15 @@ fbOffset(fbOffset), numPixels(numPixels) {
 void GroupTarget::inscreteFrame(std::shared_ptr<IRenderable> in) {
     XASSERT(in, "Input renderable is required");
 
-    auto fbPtr = this->fb->getPtr(this->fbOffset, this->numPixels);
-    in->copyOut(0, this->numPixels, fbPtr);
+    auto fbPtr = this->fb->getPtr(this->fbOffset, this->length);
+    in->copyOut(0, this->length, fbPtr);
 }
 
+/**
+ * Gets the group ID we were created with.
+ */
+void GroupTarget::getGroupIds(std::vector<int> &out) const {
+    XASSERT(this->groupId > 0, "No group id in group target");
+
+    out.push_back(this->groupId);
+}

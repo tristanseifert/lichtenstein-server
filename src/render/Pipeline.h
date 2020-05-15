@@ -26,10 +26,12 @@ namespace Lichtenstein::Server::Render {
     class Framebuffer;
     class IRenderable;
     class IRenderTarget;
+    class IGroupContainer;
 
     class Pipeline {
         using RenderablePtr = std::shared_ptr<IRenderable>;
         using TargetPtr = std::shared_ptr<IRenderTarget>;
+        using GroupContainerPtr = std::shared_ptr<IRenderTarget>;
         using RenderPlan = std::unordered_map<TargetPtr, RenderablePtr>;
 
         using Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>; 
@@ -47,7 +49,10 @@ namespace Lichtenstein::Server::Render {
             virtual ~Pipeline();
 
         public:
-            void addMapping(RenderablePtr renderable, TargetPtr target);
+            void add(RenderablePtr renderable, TargetPtr target);
+            void remove(TargetPtr target);
+
+            void dump();
 
             double getActualFps() const {
                 return this->actualFps;
@@ -78,13 +83,15 @@ namespace Lichtenstein::Server::Render {
             unsigned int numRenderThreads;
 
             // compensating for nanosleep() inaccuracies
-            double sleepInaccuracy;
-            double sleepInaccuracySamples;
+            double sleepInaccuracy = 0;
+            double sleepInaccuracySamples = 0;
 
             // fps accounting
-            double actualFps;
+            double actualFps = -1;
             int actualFramesCounter;
             Timestamp fpsStart;
+
+            unsigned long long totalFrames = 0;
 
             // render thread pool
             std::unique_ptr<ctpl::thread_pool> pool;

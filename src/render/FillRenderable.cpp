@@ -33,3 +33,9 @@ void FillRenderable::copyOut(size_t offset, size_t num, HSIPixel *out) const {
     std::fill(out, out+num, this->value);
 }
 
+/**
+ * To support resizing, we just need to update our internal length counter.
+ */
+void FillRenderable::resize(size_t numPixels) {
+    this->numPixels = numPixels;
+}

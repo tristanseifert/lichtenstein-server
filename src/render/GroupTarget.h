@@ -7,15 +7,12 @@
 #define RENDER_GROUPTARGET_H
 
 #include "IRenderTarget.h"
-
-namespace Lichtenstein::Server::DB::Types {
-    class Group;
-}
+#include "IGroupContainer.h"
 
 namespace Lichtenstein::Server::Render {
     class Framebuffer;
 
-    class GroupTarget: public IRenderTarget {
+    class GroupTarget: public IRenderTarget, public IGroupContainer {
         using FbPtr = std::shared_ptr<Framebuffer>;
         using DbGroup = Lichtenstein::Server::DB::Types::Group;
 
@@ -27,12 +24,42 @@ namespace Lichtenstein::Server::Render {
             void inscreteFrame(std::shared_ptr<IRenderable> in);
 
         public:
+            /**
+             * Compares the given group ID against the one this group was
+             * created with.
+             */
+            bool contains(int id) const {
+                return (this->groupId == id);
+            }
+
+            /**
+             * Gets the size of this group's container. Since we handle only a
+             * single group, it will always be 1.
+             */
+            size_t numGroups() const {
+                return 1;
+            }
+
+            /**
+             * Returns the number of pixels required as input.
+             */
+            size_t numPixels() const {
+                return this->length;
+            }
+
+        protected:
+            /**
+             * Gets out the group id we were created with.
+             */
+            void getGroupIds(std::vector<int> &out) const;
+
+        public:
             inline bool operator==(const GroupTarget &rhs) const noexcept {
                 if(rhs.groupId != -1 && this->groupId != -1) {
                     return (rhs.groupId == this->groupId);
                 } else {
                     return (rhs.fbOffset == this->fbOffset) && 
-                        (rhs.numPixels == this->numPixels);
+                        (rhs.length == this->length);
                 }
             }
 
@@ -42,7 +69,7 @@ namespace Lichtenstein::Server::Render {
 
             // destination region of framebuffer
             size_t fbOffset;
-            size_t numPixels;
+            size_t length;
 
             // framebuffer into which we write data
             FbPtr fb;

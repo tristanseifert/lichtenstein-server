@@ -2,9 +2,12 @@
 #include "HSIPixel.h"
 #include "IRenderable.h"
 #include "IRenderTarget.h"
+#include "IGroupContainer.h"
 #include "Framebuffer.h"
 
 #include <functional>
+#include <iomanip>
+#include <sstream>
 
 #include <ctpl_stl.h>
 
@@ -118,7 +121,9 @@ void Pipeline::workerEntry() {
         if(!currentPlan.empty()) {
             // set up for the rendering
             for(auto const &[target, renderable] : currentPlan) {
+                renderable->lock();
                 renderable->prepare();
+                renderable->unlock();
             }
 
             // dispatch render jobs to the work pool
@@ -135,11 +140,14 @@ void Pipeline::workerEntry() {
             }
 
             for(auto const &[target, renderable] : currentPlan) {
+                renderable->lock();
                 renderable->finish();
+                renderable->unlock();
             }
         }
 
         // sleep to maintain framerate
+        this->totalFrames++;
         this->sleep(start);
     }
 
@@ -181,11 +189,15 @@ std::shared_future<void> Pipeline::submitRenderJob(RenderablePtr render,
  * output framebuffer.
  */
 void Pipeline::renderOne(RenderablePtr renderable, TargetPtr target) {
-    // start off with the most important part lol
-    renderable->render();
+    // acquire locks
+    renderable->lock();
 
-    // then, copy out the data into the framebuffer and notify
+    // render and copy data out
+    renderable->render();
     target->inscreteFrame(renderable);
+
+    // release locks
+    renderable->unlock();
 }
 
 
@@ -277,12 +289,145 @@ void Pipeline::computeActualFps() {
  * This will ensure that no output group is specified twice. If there is a
  * mapping with the same target, it will be replaced.
  */
-void Pipeline::addMapping(RenderablePtr renderable, TargetPtr target) {
+void Pipeline::add(RenderablePtr renderable, TargetPtr target) {
+    using std::dynamic_pointer_cast;
+
     std::lock_guard<std::mutex> lg(this->planLock);
 
-    // TODO: check for duplicate groups
+    auto inContainer = dynamic_pointer_cast<IGroupContainer>(target);
 
-    // insert it
-    this->plan[target] = renderable;
+    // is the input mapping a container?
+    if(inContainer) {
+        // iterate over all targets and see if they intersect with this one
+        for(auto it = this->plan.cbegin(); it != this->plan.cend(); ) {
+            auto t = it->first;
+            auto const r = it->second;
+
+            // is this entry a group container?
+            auto c = dynamic_pointer_cast<IGroupContainer>(t);
+            if(!c) {
+                goto next;
+            }
+
+            // check whether there are any conflicts
+            if(c->contains(*inContainer)) {
+                Logging::debug("Conflict between input {} and entry {}",
+                        *inContainer, *c);
+
+                // are the groups identical?
+                if(*c == *inContainer) {
+                    // if so, replace this entry
+                    Logging::trace("Identical groups in existing container; removing existing");
+                    it = this->plan.erase(it);
+                    goto beach;
+                }
+                // they aren't, but the container is mutable
+                else if(c->isMutable()) {
+                    // update the target by removing the intersection
+                    std::vector<int> intersection;
+                    c->getUnion(*inContainer, intersection);
+
+                    Logging::trace("Removing {} groups from conflicting entry",
+                            intersection.size());
+
+                    t->lock();
+                    for(const int id : intersection) {
+                        c->removeGroup(id);
+                    }
+                    t->unlock();
+
+                    // if this emptied the conflicting group, remove it
+                    if(t->numPixels() == 0) {
+                        Logging::trace("Removing empty conflicting target and inserting");
+                        it = this->plan.erase(it);
+                        continue;
+                    }
+
+                    // take a lock on the renderable and resize
+                    r->lock();
+
+                    auto requiredSize = t->numPixels();
+                    Logging::trace("Resizing renderable {} to {} pixels",
+                            (void*) r.get(), requiredSize);
+                    r->resize(requiredSize);
+
+                    r->unlock();
+                }
+                // if the conflicting container is immutable but only one remove it
+                else if(c->numGroups() == 1) {
+                    Logging::trace("Removing single group conflicting entry");
+
+                    it = this->plan.erase(it);
+                    continue;
+                }
+                // container is immutable so we can't handle this
+                else {
+                    Logging::trace("Immutable container, cannot satisfy mapping");
+                    throw std::runtime_error("Unable to add mapping");
+                }
+            }
+
+            // there are no conflicts with this container, check the next
+next: ;
+            ++it;
+        }
+
+beach: ;
+        // if we get here, go ahead and insert it. conflicts have been resolved
+        this->plan[target] = renderable;
+    }
+    // it is not; we should just insert it
+    else {
+        Logging::warn("Inserting non-container render target {}",
+                (void*)target.get());
+
+        this->plan[target] = renderable;
+    }
+}
+
+/**
+ * Removes the mapping to the given target.
+ */
+void Pipeline::remove(TargetPtr target) {
+    std::lock_guard<std::mutex> lg(this->planLock);
+
+    if(this->plan.find(target) == this->plan.end()) {
+        throw std::invalid_argument("No such target in render pipeline");
+    }
+    
+    this->plan.erase(target);
+}
+
+/**
+ * Dumps the current output mapping to the log output.
+ */
+void Pipeline::dump() {
+    std::lock_guard<std::mutex> lg(this->planLock);
+    std::stringstream out;
+        
+    // loop over the entire plan
+    for(auto it = this->plan.begin(); it != this->plan.end(); it++) {
+        if(it != this->plan.begin()) out << std::endl;
+            
+        auto target = it->first;
+        auto renderable = it->second;
+
+        auto container = std::dynamic_pointer_cast<IGroupContainer>(target);
+
+        // print container value
+        out << std::setw(20) << std::setfill(' ');
+        if(container) {
+            out << *container;
+        } else {
+            out << std::hex << (uintptr_t) target.get();
+        }
+        out << std::setw(0);
+
+        // print the renderable
+        out << " 0x" << std::hex << (uintptr_t) renderable.get();
+    }
+
+    // print that shit
+    Logging::debug("Pipeline state\n{}", out.str());
 }
 

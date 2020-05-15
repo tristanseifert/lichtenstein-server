@@ -7,6 +7,8 @@
 #define RENDER_IRENDERTARGET_H
 
 #include <memory>
+#include <mutex>
+#include <iostream>
 
 namespace Lichtenstein::Server::Render {
     class IRenderable;
@@ -22,6 +24,31 @@ namespace Lichtenstein::Server::Render {
              * be called on.
              */
             virtual void inscreteFrame(std::shared_ptr<IRenderable> in) = 0;
+
+            /**
+             * Returns the total number of pixels of input data required by
+             * this target.
+             */
+            virtual size_t numPixels() const = 0;
+
+            /**
+             * Locks the render target. This should be done before dumping
+             * data into it.
+             */
+            virtual void lock() {
+                this->useLock.lock();
+            }
+
+            /**
+             * Unlocks the render target.
+             */
+            virtual void unlock() {
+                this->useLock.unlock();
+            }
+
+        protected:
+            /// per instance lock
+            std::recursive_mutex useLock;
     };
 }
 

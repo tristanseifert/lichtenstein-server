@@ -6,6 +6,7 @@
 #define RENDER_IRENDERABLE_H
 
 #include <cstddef>
+#include <mutex>
 
 namespace Lichtenstein::Server::Render {
     class HSIPixel;
@@ -60,6 +61,31 @@ namespace Lichtenstein::Server::Render {
              */
             virtual void copyOut(size_t offset, size_t num, HSIPixel *out) const = 0;
 
+            /**
+             * Resizes the renderable. To abort the resize, throw an exception.
+             */
+            virtual void resize(size_t numPixels) = 0;
+
+
+
+            /**
+             * Attempts to lock the renderable for use. This must be done 
+             * before rendering, or modifying it. Note that the lock is
+             * recursive, meaning the same thread can take the lock multiple
+             * times. However, each call to `lock()` must be balanced with a
+             * call to `unlock()`.
+             */
+            virtual void lock() {
+                this->useLock.lock();
+            }
+            /**
+             * Unlocks the renderable. This should be done immediately after
+             * the owner is done with the renderable operation.
+             */
+            virtual void unlock() {
+                this->useLock.unlock();
+            }
+
         public:
             size_t getNumPixels() const {
                 return this->numPixels;
@@ -68,6 +94,8 @@ namespace Lichtenstein::Server::Render {
         protected:
             /// total number of pixels output for each frame
             size_t numPixels;
+            /// per instance lock
+            std::recursive_mutex useLock;
     };
 }
 
