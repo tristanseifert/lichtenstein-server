@@ -22,6 +22,10 @@ namespace ctpl {
     class thread_pool;
 }
 
+namespace Lichtenstein::Server::DB::Types {
+    class Group;
+}
+
 namespace Lichtenstein::Server::Render {
     class Framebuffer;
     class IRenderable;
@@ -33,7 +37,7 @@ namespace Lichtenstein::Server::Render {
         using TargetPtr = std::shared_ptr<IRenderTarget>;
         using GroupContainerPtr = std::shared_ptr<IRenderTarget>;
         using RenderPlan = std::unordered_map<TargetPtr, RenderablePtr>;
-
+        using Group = Lichtenstein::Server::DB::Types::Group;
         using Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>; 
 
         public:
@@ -50,10 +54,16 @@ namespace Lichtenstein::Server::Render {
 
         public:
             void add(RenderablePtr renderable, TargetPtr target);
+            TargetPtr add(RenderablePtr renderable, const Group &g);
+            TargetPtr add(RenderablePtr renderable, const std::vector<Group> &g);
+
             void remove(TargetPtr target);
 
             void dump();
 
+            /**
+             * Gets the actual framerate accomplished by the renderer.
+             */
             double getActualFps() const {
                 return this->actualFps;
             }

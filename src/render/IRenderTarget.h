@@ -12,6 +12,7 @@
 
 namespace Lichtenstein::Server::Render {
     class IRenderable;
+    class Framebuffer;
 
     class IRenderTarget {
         public:
@@ -23,7 +24,8 @@ namespace Lichtenstein::Server::Render {
              * thread safe in that there are no guarantees which thread it will
              * be called on.
              */
-            virtual void inscreteFrame(std::shared_ptr<IRenderable> in) = 0;
+            virtual void inscreteFrame(std::shared_ptr<Framebuffer> fb,
+                    std::shared_ptr<IRenderable> in) = 0;
 
             /**
              * Returns the total number of pixels of input data required by

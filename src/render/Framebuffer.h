@@ -21,6 +21,8 @@ namespace Lichtenstein::Server::Render {
             virtual ~Framebuffer();
 
         public:
+            using FrameToken = unsigned long long;
+
             size_t size() const {
                 return this->numPixels;
             }
@@ -32,6 +34,9 @@ namespace Lichtenstein::Server::Render {
             void copyIn(size_t start, size_t num, const HSIPixel *in);
             HSIPixel *getPtr(size_t start, size_t num);
 
+            FrameToken startFrame();
+            void endFrame(const FrameToken);
+
         private:
             void assertInBounds(size_t start, size_t num);
 
@@ -40,6 +45,8 @@ namespace Lichtenstein::Server::Render {
 
             std::unique_ptr<HSIPixel[]> pixels;
             unsigned int numPixels;
+
+            unsigned long long frameCounter = 0;
     };
 }
 

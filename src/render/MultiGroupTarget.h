@@ -20,12 +20,11 @@ namespace Lichtenstein::Server::Render {
         using DbGroup = Lichtenstein::Server::DB::Types::Group;
         
         public:
-            MultiGroupTarget() = delete;
-            MultiGroupTarget(FbPtr fb) : fb(fb) {}
-            MultiGroupTarget(FbPtr fb, const DbGroup &group);
-            MultiGroupTarget(FbPtr fb, const std::vector<DbGroup> &groups);
+            MultiGroupTarget() {}
+            MultiGroupTarget(const DbGroup &group);
+            MultiGroupTarget(const std::vector<DbGroup> &groups);
 
-            void inscreteFrame(std::shared_ptr<IRenderable> in);
+            void inscreteFrame(FbPtr fb, std::shared_ptr<IRenderable> in);
             size_t numPixels() const;
 
         public:
@@ -60,6 +59,7 @@ namespace Lichtenstein::Server::Render {
 
                 int fbOffset;
                 int length;
+                bool mirrored;
             
                 inline bool operator==(const OutputGroup &rhs) const noexcept {
                     return (this->groupId == rhs.groupId);
@@ -68,10 +68,6 @@ namespace Lichtenstein::Server::Render {
 
             std::recursive_mutex groupsLock;
             std::vector<OutputGroup> groups;
-
-        private:
-            // framebuffer into which we write data
-            FbPtr fb;
     };
 }
 

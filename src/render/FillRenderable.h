@@ -15,7 +15,7 @@ namespace Lichtenstein::Server::Render {
                 value(value), IRenderable(numPixels) {}
 
             void render();
-            void copyOut(size_t offset, size_t num, HSIPixel *out) const;
+            void copyOut(size_t offset, size_t num, HSIPixel *out, bool mirrored = false) const;
             void resize(size_t numPixels);
 
             HSIPixel getValue() const {

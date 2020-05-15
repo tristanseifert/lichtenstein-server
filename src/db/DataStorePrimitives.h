@@ -101,6 +101,7 @@ namespace Lichtenstein::Server::DB::Types {
         GroupId id;
         std::string name;
         bool enabled = false;
+        bool mirrored = false;
 
         int startOff;
         int endOff;

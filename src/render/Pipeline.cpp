@@ -119,6 +119,8 @@ void Pipeline::workerEntry() {
         this->planLock.unlock();
 
         if(!currentPlan.empty()) {
+            auto token = this->fb->startFrame();
+            
             // set up for the rendering
             for(auto const &[target, renderable] : currentPlan) {
                 renderable->lock();
@@ -144,6 +146,8 @@ void Pipeline::workerEntry() {
                 renderable->finish();
                 renderable->unlock();
             }
+
+            this->fb->endFrame(token);
         }
 
         // sleep to maintain framerate
@@ -178,6 +182,8 @@ void Pipeline::readConfig() {
 std::shared_future<void> Pipeline::submitRenderJob(RenderablePtr render,
         TargetPtr target) {
     using namespace std::placeholders;
+    XASSERT(render, "Renderable is required");
+    XASSERT(target, "Target is required");
 
     auto fxn = std::bind(&Pipeline::renderOne, this, render, target);
     auto f = this->pool->push(fxn);
@@ -194,7 +200,7 @@ void Pipeline::renderOne(RenderablePtr renderable, TargetPtr target) {
 
     // render and copy data out
     renderable->render();
-    target->inscreteFrame(renderable);
+    target->inscreteFrame(this->fb, renderable);
 
     // release locks
     renderable->unlock();
@@ -292,6 +298,12 @@ void Pipeline::computeActualFps() {
 void Pipeline::add(RenderablePtr renderable, TargetPtr target) {
     using std::dynamic_pointer_cast;
 
+    if(!renderable) {
+        throw std::invalid_argument("Renderable is required");
+    } else if(!target) {
+        throw std::invalid_argument("Target is required");
+    }
+
     std::lock_guard<std::mutex> lg(this->planLock);
 
     auto inContainer = dynamic_pointer_cast<IGroupContainer>(target);
@@ -384,11 +396,14 @@ beach: ;
         this->plan[target] = renderable;
     }
 }
-
 /**
  * Removes the mapping to the given target.
  */
 void Pipeline::remove(TargetPtr target) {
+    if(!target) {
+        throw std::invalid_argument("Target is required");
+    }
+
     std::lock_guard<std::mutex> lg(this->planLock);
 
     if(this->plan.find(target) == this->plan.end()) {
@@ -397,6 +412,29 @@ void Pipeline::remove(TargetPtr target) {
     
     this->plan.erase(target);
 }
+
+/**
+ * Adds a single group with the given renderable to the pipeline.
+ */
+Pipeline::TargetPtr Pipeline::add(RenderablePtr renderable, const Group &g) {
+    auto t = std::make_shared<GroupTarget>(g);
+    this->add(renderable, t);
+    return t;
+}
+
+/**
+ * Creates a multigroup from the specified list of groups ands adds it to the
+ * render pipeline.
+ */
+Pipeline::TargetPtr Pipeline::add(RenderablePtr renderable, 
+        const std::vector<Group> &g) {
+    auto t = std::make_shared<MultiGroupTarget>(g);
+    this->add(renderable, t);
+    return t;
+}
+
+
+
 
 /**
  * Dumps the current output mapping to the log output.

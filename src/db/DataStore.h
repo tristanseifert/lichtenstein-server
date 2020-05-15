@@ -51,6 +51,7 @@ namespace Lichtenstein::Server::DB {
                     make_column("id", &Group::id, autoincrement(), primary_key()),
                     make_column("name", &Group::name),
                     make_column("enabled", &Group::enabled),
+                    make_column("mirrored", &Group::mirrored),
                     make_column("start", &Group::startOff),
                     make_column("end", &Group::endOff),
                     make_column("routineId", &Group::routineId),

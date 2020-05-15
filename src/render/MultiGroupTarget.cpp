@@ -13,7 +13,7 @@ using namespace Lichtenstein::Server::Render;
 /**
  * Initializes a multigroup with a single group as its sole member.
  */
-MultiGroupTarget::MultiGroupTarget(FbPtr fb, const DbGroup &group) : fb(fb) {
+MultiGroupTarget::MultiGroupTarget(const DbGroup &group) {
     this->appendGroup(group);
 }
 
@@ -21,7 +21,7 @@ MultiGroupTarget::MultiGroupTarget(FbPtr fb, const DbGroup &group) : fb(fb) {
  * Creates a multigroup with all of the groups from the input vector in the
  * identical order.
  */
-MultiGroupTarget::MultiGroupTarget(FbPtr fb, const std::vector<DbGroup> &groups) : fb(fb) {
+MultiGroupTarget::MultiGroupTarget(const std::vector<DbGroup> &groups) {
     this->groups.reserve(groups.size());
 
     for(const auto &group : groups) {
@@ -63,7 +63,8 @@ void MultiGroupTarget::insertGroup(int index, const DbGroup &group) {
     OutputGroup entry = {
         .groupId = group.id,
         .fbOffset = group.startOff,
-        .length = (group.endOff - group.startOff)
+        .length = (group.endOff - group.startOff),
+        .mirrored = group.mirrored
     };
 
     // insert it where needed
@@ -110,14 +111,14 @@ void MultiGroupTarget::getGroupIds(std::vector<int> &outIds) const {
  * The renderable has finished rendering, so copy the data into the framebuffer
  * per the groups offsets.
  */
-void MultiGroupTarget::inscreteFrame(std::shared_ptr<IRenderable> in) {
+void MultiGroupTarget::inscreteFrame(FbPtr fb, std::shared_ptr<IRenderable> in) {
     XASSERT(in, "Input renderable is required");
     
     std::lock_guard lg(this->groupsLock);
 
     for(const auto &e : this->groups) {
-        auto fbPtr = this->fb->getPtr(e.fbOffset, e.length);
-        in->copyOut(0, e.length, fbPtr);
+        auto fbPtr = fb->getPtr(e.fbOffset, e.length);
+        in->copyOut(0, e.length, fbPtr, e.mirrored);
         
         Logging::debug("Fb offset {} = {}", e.fbOffset, *fbPtr);
     }

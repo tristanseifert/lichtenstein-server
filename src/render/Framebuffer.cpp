@@ -104,3 +104,19 @@ void Framebuffer::assertInBounds(size_t start, size_t num) {
     }
 }
 
+/**
+ * Indicates a new frame is beginning. We return our current frame counter
+ * value here.
+ */
+Framebuffer::FrameToken Framebuffer::startFrame() {
+    return this->frameCounter;
+}
+
+/**
+ * Rendering into the framebuffer has completed. The passed frame token must
+ * match the value of the frame counter.
+ */
+void Framebuffer::endFrame(const FrameToken token) {
+    XASSERT(token == this->frameCounter, "Invalid frame token");
+    this->frameCounter += 1;
+}

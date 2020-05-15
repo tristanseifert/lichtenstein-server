@@ -18,10 +18,10 @@ namespace Lichtenstein::Server::Render {
 
         public:
             GroupTarget() = delete;
-            GroupTarget(FbPtr fb, const DbGroup &group);
-            GroupTarget(FbPtr fb, size_t fbOffset, size_t numPixels);
+            GroupTarget(const DbGroup &group);
+            GroupTarget(size_t fbOffset, size_t numPixels, bool mirrored);
 
-            void inscreteFrame(std::shared_ptr<IRenderable> in);
+            void inscreteFrame(FbPtr fb, std::shared_ptr<IRenderable> in);
 
         public:
             /**
@@ -59,7 +59,8 @@ namespace Lichtenstein::Server::Render {
                     return (rhs.groupId == this->groupId);
                 } else {
                     return (rhs.fbOffset == this->fbOffset) && 
-                        (rhs.length == this->length);
+                        (rhs.length == this->length) && 
+                        (rhs.mirrored == this->mirrored);
                 }
             }
 
@@ -71,8 +72,8 @@ namespace Lichtenstein::Server::Render {
             size_t fbOffset;
             size_t length;
 
-            // framebuffer into which we write data
-            FbPtr fb;
+            // whether the pixels are flipped
+            bool mirrored;
     };
 };
 

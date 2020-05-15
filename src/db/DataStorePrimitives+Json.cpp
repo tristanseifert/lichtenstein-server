@@ -122,7 +122,7 @@ void to_json(json &j, const Group &g) {
         {"start", g.startOff},
         {"end", g.endOff},
         {"brightness", g.brightness},
-
+        {"mirrored", g.mirrored},
         {"routineId", nullptr},
         {"routineState", nullptr},
         
@@ -149,6 +149,7 @@ void from_json(const json &j, Group &g) {
     j.at("enabled").get_to(g.enabled);
     j.at("start").get_to(g.startOff);
     j.at("end").get_to(g.endOff);
+    j.at("mirrored").get_to(g.mirrored);
 
     // routine id or state is _not_ input from json
 } 
