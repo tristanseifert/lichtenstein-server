@@ -38,7 +38,7 @@ Routines::Routines(Server *srv) : IController(srv) {
         http->Get("/routines/", std::bind(&Routines::getAll, this,_1,_2));
         
         http->Get(R"(/routines/(\d+))", std::bind(&Routines::getOne, this,_1,_2));
-        http->Delete(R"(/routines/(\d+))", std::bind(&Routines::remove, this,_1,_2,_3));
+        http->Delete(R"(/routines/(\d+))", std::bind(&Routines::remove, this,_1,_2));
         http->Put(R"(/routines/(\d+))", std::bind(&Routines::update, this,_1,_2,_3));
         
         http->Post("/routines/new", std::bind(&Routines::create, this,_1,_2,_3));
@@ -146,7 +146,7 @@ void Routines::update(const ReqType &req, ResType &res, const ReaderType &read) 
 /**
  * Deletes an existing routine.
  */
-void Routines::remove(const ReqType &req, ResType &res, const ReaderType &read) {
+void Routines::remove(const ReqType &req, ResType &res) {
     Routine r;
 
     // fetch the routine from the data store so we can delete it

@@ -38,7 +38,7 @@ Groups::Groups(Server *srv) : IController(srv) {
         http->Get("/groups/", std::bind(&Groups::getAll, this,_1,_2));
         
         http->Get(R"(/groups/(\d+))", std::bind(&Groups::getOne, this,_1,_2));
-        http->Delete(R"(/groups/(\d+))", std::bind(&Groups::remove, this,_1,_2,_3));
+        http->Delete(R"(/groups/(\d+))", std::bind(&Groups::remove, this,_1,_2));
         http->Put(R"(/groups/(\d+))", std::bind(&Groups::update, this,_1,_2,_3));
         
         http->Post("/groups/new", std::bind(&Groups::create, this,_1,_2,_3));
@@ -147,7 +147,7 @@ void Groups::update(const ReqType &req, ResType &res, const ReaderType &read) {
 /**
  * Deletes an existing group.
  */
-void Groups::remove(const ReqType &req, ResType &res, const ReaderType &read) {
+void Groups::remove(const ReqType &req, ResType &res) {
     Group g;
 
     // fetch the group from the data store so we can delete it

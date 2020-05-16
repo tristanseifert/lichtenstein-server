@@ -77,6 +77,8 @@ void Server::terminate() {
     if(this->http) {
         this->http->stop();
     }
+
+    this->handlers.clear();
 }
 
 
@@ -117,24 +119,6 @@ void Server::allocServer() {
     this->http->set_logger([this](const auto &req, const auto &res) {
         Logging::trace("API request: {:>7s} {} {}:{} {}", req.method, req.path, 
                 req.remote_addr, req.remote_port, res.status);
-    });
-
-    this->http->set_error_handler([this](const auto &req, auto &res) {
-        // get exception info if 500
-        if(res.status == 500) {
-            auto what = res.get_header_value("EXCEPTION_WHAT");
-            Logging::error("Exception while handling request {} from {}:{}: {}", 
-                    req.path, req.remote_addr, req.remote_port, what);
-        } else {
-            Logging::warn("Error {} while handling request {} from {}:{}",
-                    res.status, req.path, req.remote_addr, req.remote_port);
-        }
-
-        // either way, respond with a json structure
-        nlohmann::json j = {
-            {"status", res.status}
-        };
-        IController::respond(j, res, this->shouldMinify());
     });
 }
 

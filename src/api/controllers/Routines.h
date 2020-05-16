@@ -20,7 +20,7 @@ namespace Lichtenstein::Server::API::Controllers {
             void create(const ReqType &, ResType &, const ReaderType &);
             
             void getOne(const ReqType &, ResType &);
-            void remove(const ReqType &q, ResType &, const ReaderType &);
+            void remove(const ReqType &q, ResType &);
             void update(const ReqType &, ResType &, const ReaderType &);
 
         private:
