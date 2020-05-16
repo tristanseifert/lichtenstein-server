@@ -96,12 +96,6 @@ namespace Lichtenstein::Server::Render {
             void engineMsg(const asSMessageInfo *, void *);
             void scriptPrint(std::string &);
             int scriptRandom(int, int);
-        
-        // HSIPixel support
-        private:
-            void hsiConstruct(void *);
-            void hsiConstructList(double *, void *);
-            void hsiDestruct(void *);
 
         private:
             // output pixel buffer

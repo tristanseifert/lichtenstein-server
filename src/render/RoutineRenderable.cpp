@@ -76,7 +76,7 @@ void RoutineRenderable::copyOut(size_t offset, size_t num,
     std::lock_guard bufLock(this->bufferLock);
 
     if(mirrored) {
-        // TODO: implement this
+        std::reverse_copy(this->buffer.begin(), this->buffer.end(), out);
     } else {
         std::copy(this->buffer.begin(), this->buffer.end(), out);
     }
@@ -215,8 +215,6 @@ void RoutineRenderable::createContext() {
     // allocate the context and prepare it to execute the render function
     this->scriptCtx = this->engine->CreateContext();
     this->scriptCtx->Prepare(this->renderFxn);
-
-    // if(this->scriptCtx->GetState() == asEXECUTION_PREPARED) 
 }
 
 
@@ -323,36 +321,6 @@ void RoutineRenderable::registerPixelType() {
             asOBJ_VALUE | asOBJ_POD);
     XASSERT(err >= 0, "Couldn't register HSIPixel type {}", err);
 
-    // then its constructors and destructor
-    err = e->RegisterObjectBehaviour("HSIPixel", asBEHAVE_CONSTRUCT, "void f()",
-            asMETHOD(RoutineRenderable,hsiConstruct),
-            asCALL_THISCALL_OBJLAST, this);
-    XASSERT(err >= 0, "Couldn't register HSIPixel constructor {}", err);
-    
-    err = e->RegisterObjectBehaviour("HSIPixel", asBEHAVE_LIST_CONSTRUCT, 
-            "void f(const int &in) {double, double, double}",
-            asMETHOD(RoutineRenderable,hsiConstructList),
-            asCALL_THISCALL_OBJLAST, this);
-    XASSERT(err >= 0, "Couldn't register HSIPixel list constructor {}", err);
-    
-    err = e->RegisterObjectBehaviour("HSIPixel", asBEHAVE_DESTRUCT, "void f()",
-            asMETHOD(RoutineRenderable,hsiDestruct),
-            asCALL_THISCALL_OBJLAST, this);
-    XASSERT(err >= 0, "Couldn't register HSIPixel destructor {}", err);
-
-    // we also need the comparison and assignment operators
-    err = e->RegisterObjectMethod("HSIPixel",
-            "bool opEquals(const HSIPixel &in) const",
-            asMETHODPR(HSIPixel, operator==,(const HSIPixel&) const, bool),
-            asCALL_THISCALL, this);
-    XASSERT(err >= 0, "Couldn't register HSIPixel compare operator {}", err);
-    
-    err = e->RegisterObjectMethod("HSIPixel",
-            "HSIPixel &opAssign(const HSIPixel &in)",
-            asMETHODPR(HSIPixel,operator =, (const HSIPixel &), HSIPixel&),
-            asCALL_THISCALL, this);
-    XASSERT(err >= 0, "Couldn't register HSIPixel assign operator {}", err);
-
     // also register the fields in the type
     err = this->engine->RegisterObjectProperty("HSIPixel", "double h",
             asOFFSET(HSIPixel, h));
@@ -365,24 +333,6 @@ void RoutineRenderable::registerPixelType() {
     err = this->engine->RegisterObjectProperty("HSIPixel", "double i",
             asOFFSET(HSIPixel, i));
     XASSERT(err >= 0, "Couldn't register HSIPixel.i: err={}", err);
-}
-/**
- * Allocates a new HSIPixel in the script engine.
- */
-void RoutineRenderable::hsiConstruct(void *mem) {
-    new(mem) HSIPixel();
-}
-/**
- * Allocates a new HSIPixel from a list of double values.
- */
-void RoutineRenderable::hsiConstructList(double *list, void *mem) {
-    new(mem) HSIPixel(list[0], list[1], list[2]);
-}
-/**
- * Deallocates a previously allocated HSIPixel.
- */
-void RoutineRenderable::hsiDestruct(void *mem) {
-    (static_cast<HSIPixel *>(mem))->~HSIPixel();
 }
 
 
