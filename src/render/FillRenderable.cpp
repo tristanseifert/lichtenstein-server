@@ -22,7 +22,7 @@ void FillRenderable::render() {
  * We effectively ignore the offset, since we fill the same value everywhere,
  * but we bounds check it for consistency anyways.
  */
-void FillRenderable::copyOut(size_t offset, size_t num, HSIPixel *out, bool mirrored) const {
+void FillRenderable::copyOut(size_t offset, size_t num, HSIPixel *out, bool mirrored) {
     // validate args
     XASSERT(out, "Output pointer cannot be null");
     

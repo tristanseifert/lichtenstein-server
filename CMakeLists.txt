@@ -54,6 +54,7 @@ add_executable(lichtenstein_server
     src/render/PixelTypes+Json.cpp
     src/render/Pipeline.cpp
     src/render/FillRenderable.cpp
+    src/render/RoutineRenderable.cpp
     src/render/GroupTarget.cpp
     src/render/MultiGroupTarget.cpp
     ${version_file} src/version.h)

@@ -139,6 +139,9 @@ void Pipeline::workerEntry() {
             // wait for all render jobs to complete and finish
             for(auto const &f : jobs) {
                 f.wait();
+
+                // this will re-throw the exception if we get one
+                f.get();
             }
 
             for(auto const &[target, renderable] : currentPlan) {

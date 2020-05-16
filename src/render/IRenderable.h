@@ -59,7 +59,7 @@ namespace Lichtenstein::Server::Render {
              *
              * Hint: using std::copy() will satisfy these requirements.
              */
-            virtual void copyOut(size_t offset, size_t num, HSIPixel *out, bool mirrored = false) const = 0;
+            virtual void copyOut(size_t offset, size_t num, HSIPixel *out, bool mirrored = false) = 0;
 
             /**
              * Resizes the renderable. To abort the resize, throw an exception.
