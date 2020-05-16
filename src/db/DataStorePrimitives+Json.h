@@ -10,6 +10,9 @@
 using json = nlohmann::json;
 
 namespace Lichtenstein::Server::DB::Types {
+json ParamMapToJson(const ParamMapType &m);
+ParamMapType JsonToParamMap(const json &j);
+
 void to_json(json &, const Routine &);
 void to_json(json &j, const Group &g);
 void to_json(json &j, const Node &g);

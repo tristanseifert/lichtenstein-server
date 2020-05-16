@@ -15,7 +15,7 @@ namespace Lichtenstein::Server::DB::Types {
 /**
  * Serializes a ParamMap to json.
  */
-static json ParamMapToJson(const ParamMapType &m) {
+json ParamMapToJson(const ParamMapType &m) {
     json j;
 
     for(auto const &[key, value] : m) {
@@ -46,7 +46,7 @@ static json ParamMapToJson(const ParamMapType &m) {
 /**
  * Converts JSON to a ParamMap.
  */
-static ParamMapType JsonToParamMap(const json &j) {
+ParamMapType JsonToParamMap(const json &j) {
     ParamMapType m;
 
     // iterate over each key in the json object

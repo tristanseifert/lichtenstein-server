@@ -67,6 +67,19 @@ namespace Lichtenstein::Server::Render {
             double getActualFps() const {
                 return this->actualFps;
             }
+            /**
+             * Gets the calculated inaccuracy of the sleep. The return value is
+             * in nanoseconds.
+             */
+            double getSleepInaccuracy() const {
+                return this->sleepInaccuracy;
+            }
+            /**
+             * Gets the total number of frames this pipeline has rendered.
+             */
+            unsigned long long getTotalFrames() const {
+                return this->totalFrames;
+            }
 
         private:
             void terminate();

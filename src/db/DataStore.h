@@ -116,6 +116,24 @@ namespace Lichtenstein::Server::DB {
             }
 
             /**
+             * Reads one or more row whose IDs are specified. Only objects that
+             * could be found will be returned.
+             */
+            template <class T> std::vector<T> getSome(const std::vector<int> &ids) {
+                using namespace sqlite_orm;
+                static_assert(std::is_base_of<Types::BaseType, T>::value, 
+                        "T must be one of the data store table types");
+            
+                auto all = this->storage->get_all<T>(where(in(&T::id, ids)));
+                std::transform(all.begin(), all.end(), all.begin(), [](auto obj) {
+                    obj.thaw();
+                    return obj;
+                });
+                
+                return all;
+            }
+
+            /**
              * Gets all rows of a particular type.
              */
             template <class T> std::vector<T> getAll() {

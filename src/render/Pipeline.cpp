@@ -8,6 +8,7 @@
 #include <functional>
 #include <iomanip>
 #include <sstream>
+#include <tuple>
 
 #include <ctpl_stl.h>
 
@@ -16,6 +17,7 @@
 
 #include "FillRenderable.h"
 #include "GroupTarget.h"
+#include "MultiGroupTarget.h"
 
 using thread_pool = ctpl::thread_pool;
 using namespace Lichtenstein::Server::Render;
@@ -129,20 +131,38 @@ void Pipeline::workerEntry() {
             }
 
             // dispatch render jobs to the work pool
-            std::vector<std::shared_future<void>> jobs;
+            using JobTuple = std::tuple<std::shared_future<void>, 
+                  TargetPtr, RenderablePtr>;
+            std::vector<JobTuple> jobs;
 
             for(auto const &[target, renderable] : currentPlan) {
-                auto f = this->submitRenderJob(renderable, target);
-                jobs.push_back(f);
+                auto future = this->submitRenderJob(renderable, target);
+
+                jobs.push_back(std::make_tuple(future, target, renderable));
             }
 
             // wait for all render jobs to complete and finish
-            for(auto const &f : jobs) {
-                f.wait();
+            for(auto const &job : jobs) {
+                auto future = std::get<0>(job);
+                auto target = std::get<1>(job);
+                auto renderable = std::get<2>(job);
 
                 // this will re-throw the exception if we get one
-                f.get();
+                try {
+                    future.wait();
+                    future.get();
+                } catch(std::exception &ex) {
+                    // the renderable is in an unknown state. get rid of it
+                    Logging::error("Exception while evaluating {}: {}", 
+                            (void*)renderable.get(), ex.what());
+
+                    currentPlan.erase(target);
+
+                    // try to remove it from the main plan as well
+                    this->remove(target);
+                }
             }
+            jobs.clear();
 
             for(auto const &[target, renderable] : currentPlan) {
                 renderable->lock();

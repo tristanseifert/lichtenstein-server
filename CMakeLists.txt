@@ -50,6 +50,7 @@ add_executable(lichtenstein_server
     src/api/controllers/Groups.cpp
     src/api/controllers/Nodes.cpp
     src/api/controllers/NodeChannels.cpp
+    src/api/controllers/Pipeline.cpp
     src/render/Framebuffer.cpp
     src/render/PixelTypes+Json.cpp
     src/render/Pipeline.cpp

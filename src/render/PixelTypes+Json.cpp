@@ -7,8 +7,7 @@
 using namespace Lichtenstein::Server::Render;
 using json = nlohmann::json;
 
-
-
+namespace Lichtenstein::Server::Render {
 /**
  * Attempts to extract an HSI pixel value from the provided JSON.
  */
@@ -57,3 +56,4 @@ void to_json(nlohmann::json &j, const RGBWPixel &p) {
     j = {{"r", p.r}, {"g", p.g}, {"b", p.b}, {"w", p.w}};
 }
 
+};
