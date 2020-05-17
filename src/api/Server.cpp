@@ -77,8 +77,6 @@ void Server::terminate() {
     if(this->http) {
         this->http->stop();
     }
-
-    this->handlers.clear();
 }
 
 
@@ -100,6 +98,7 @@ void Server::workerEntry() {
 
     // This will deallocate all handlers
     Logging::trace("Deallocating {} API controllers", this->handlers.size());
+    this->handlers.clear();
 }
 
 /**

@@ -58,6 +58,7 @@ add_executable(lichtenstein_server
     src/render/RoutineRenderable.cpp
     src/render/GroupTarget.cpp
     src/render/MultiGroupTarget.cpp
+    src/render/BrightnessTransformer.cpp
     ${version_file} src/version.h)
 
 

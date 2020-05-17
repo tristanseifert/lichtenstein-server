@@ -119,8 +119,6 @@ void MultiGroupTarget::inscreteFrame(FbPtr fb, std::shared_ptr<IRenderable> in) 
     for(const auto &e : this->groups) {
         auto fbPtr = fb->getPtr(e.fbOffset, e.length);
         in->copyOut(0, e.length, fbPtr, e.mirrored);
-        
-        Logging::debug("Fb offset {} = {}", e.fbOffset, *fbPtr);
     }
 }
 

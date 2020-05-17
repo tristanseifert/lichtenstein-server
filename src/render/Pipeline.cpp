@@ -1,9 +1,10 @@
 #include "Pipeline.h"
+#include "Framebuffer.h"
 #include "HSIPixel.h"
 #include "IRenderable.h"
 #include "IRenderTarget.h"
 #include "IGroupContainer.h"
-#include "Framebuffer.h"
+#include "IPixelTransformer.h"
 
 #include <functional>
 #include <iomanip>
@@ -111,14 +112,19 @@ void Pipeline::workerEntry() {
     // main loop
     while(!this->shouldTerminate) {
         RenderPlan currentPlan;
+        TransformPlan currentTrans;
 
         // timestamp the start of frame
         auto start = high_resolution_clock::now();
 
-        // get the render plan for this frame
+        // get the render plan and transforms for this frame
         this->planLock.lock();
         currentPlan = this->plan;
         this->planLock.unlock();
+
+        this->transformsLock.lock();
+        currentTrans = this->transforms;
+        this->transformsLock.unlock();
 
         if(!currentPlan.empty()) {
             auto token = this->fb->startFrame();
@@ -137,7 +143,6 @@ void Pipeline::workerEntry() {
 
             for(auto const &[target, renderable] : currentPlan) {
                 auto future = this->submitRenderJob(renderable, target);
-
                 jobs.push_back(std::make_tuple(future, target, renderable));
             }
 
@@ -155,7 +160,6 @@ void Pipeline::workerEntry() {
                     // the renderable is in an unknown state. get rid of it
                     Logging::error("Exception while evaluating {}: {}", 
                             (void*)renderable.get(), ex.what());
-
                     currentPlan.erase(target);
 
                     // try to remove it from the main plan as well
@@ -170,6 +174,27 @@ void Pipeline::workerEntry() {
                 renderable->unlock();
             }
 
+            // apply transformations
+            for(auto it = currentTrans.begin(); it != currentTrans.end();) {
+                auto range = it->first;
+                auto transformer = it->second;
+                try {
+                    transformer->lock();
+                    transformer->transform(this->fb, range);
+                    transformer->unlock();
+
+                    ++it;
+                } catch(std::exception &ex) {
+                    // the transform is in an unknown state. get rid of it
+                    Logging::error("Exception in transformer {}: {}", 
+                            (void*)transformer.get(), ex.what());
+                    // attempt to remove it
+                    it = currentTrans.erase(it);
+                    this->remove(transformer);
+                }
+            }
+
+            // end frame rendering; this will send data and sync
             this->fb->endFrame(token);
         }
 
@@ -316,9 +341,10 @@ void Pipeline::computeActualFps() {
  * render a frame.
  *
  * This will ensure that no output group is specified twice. If there is a
- * mapping with the same target, it will be replaced.
+ * mapping with the same target, it will be replaced, or an exception thrown
+ * depending on the `remove` argument.
  */
-void Pipeline::add(RenderablePtr renderable, TargetPtr target) {
+void Pipeline::add(RenderablePtr renderable, TargetPtr target, bool remove) {
     using std::dynamic_pointer_cast;
 
     if(!renderable) {
@@ -353,11 +379,23 @@ void Pipeline::add(RenderablePtr renderable, TargetPtr target) {
                 if(*c == *inContainer) {
                     // if so, replace this entry
                     Logging::trace("Identical groups in existing container; removing existing");
-                    it = this->plan.erase(it);
-                    goto beach;
+
+                    if(remove) {
+                        it = this->plan.erase(it);
+                        goto beach;
+                    } else {
+                        auto what = fmt::format("Conflict with group {}", *c);
+                        throw std::runtime_error(what);
+                    }
                 }
                 // they aren't, but the container is mutable
                 else if(c->isMutable()) {
+                    // abort if we cannot remove anything
+                    if(!remove) {
+                        auto what = fmt::format("Conflict with mutable container {}", *c);
+                        throw std::runtime_error(what);
+                    }
+
                     // update the target by removing the intersection
                     std::vector<int> intersection;
                     c->getUnion(*inContainer, intersection);
@@ -392,8 +430,13 @@ void Pipeline::add(RenderablePtr renderable, TargetPtr target) {
                 else if(c->numGroups() == 1) {
                     Logging::trace("Removing single group conflicting entry");
 
-                    it = this->plan.erase(it);
-                    continue;
+                    if(remove) {
+                        it = this->plan.erase(it);
+                        continue;
+                    } else {
+                        auto what = fmt::format("Conflict with single entry group {}", *c);
+                        throw std::runtime_error(what);
+                    }
                 }
                 // container is immutable so we can't handle this
                 else {
@@ -430,7 +473,7 @@ void Pipeline::remove(TargetPtr target) {
     std::lock_guard<std::mutex> lg(this->planLock);
 
     if(this->plan.find(target) == this->plan.end()) {
-        throw std::invalid_argument("No such target in render pipeline");
+        throw std::runtime_error("No such target in render pipeline");
     }
     
     this->plan.erase(target);
@@ -439,9 +482,9 @@ void Pipeline::remove(TargetPtr target) {
 /**
  * Adds a single group with the given renderable to the pipeline.
  */
-Pipeline::TargetPtr Pipeline::add(RenderablePtr renderable, const Group &g) {
+Pipeline::TargetPtr Pipeline::add(RenderablePtr renderable, const Group &g, bool remove) {
     auto t = std::make_shared<GroupTarget>(g);
-    this->add(renderable, t);
+    this->add(renderable, t, remove);
     return t;
 }
 
@@ -450,10 +493,103 @@ Pipeline::TargetPtr Pipeline::add(RenderablePtr renderable, const Group &g) {
  * render pipeline.
  */
 Pipeline::TargetPtr Pipeline::add(RenderablePtr renderable, 
-        const std::vector<Group> &g) {
+        const std::vector<Group> &g, bool remove) {
     auto t = std::make_shared<MultiGroupTarget>(g);
-    this->add(renderable, t);
+    this->add(renderable, t, remove);
     return t;
+}
+
+
+
+/**
+ * Adds a new transformer to the pipeline that operates over the given range.
+ * If there are any conflicts with existing transformers, they will either be
+ * removed or an error returned, depending on the `remove` argument.
+ */
+void Pipeline::add(TransformerPtr transform, const FbRange &range, bool remove) {
+    if(!transform) {
+        throw std::invalid_argument("Transformer is required");
+    }
+
+    std::lock_guard<std::mutex> lg(this->transformsLock);
+
+    // check to see if there's any overlapping ranges
+    for(auto it = this->transforms.begin(); it != this->transforms.end();) {
+        if(it->first.intersects(range)) {
+            if(remove) {
+                Logging::trace("Removing conflicting range {}", it->first);
+                it = this->transforms.erase(it);
+                continue;
+            } else {
+                auto what = fmt::format("Conflict with range {}", it->first);
+                throw std::runtime_error(what);
+            }
+        }
+    }
+
+    // all conflicts were removed or there were none. insert it
+    this->transforms[range] = transform;
+}
+/**
+ * Creates a single entry for a range encompassing the given group.
+ */
+void Pipeline::add(TransformerPtr transformer, const Group &g, bool remove) {
+    this->add(transformer, FbRange(g.startOff, (g.endOff - g.startOff)), remove);
+}
+
+/**
+ * Creates an entry for a range covering each of the specified groups.
+ */
+void Pipeline::add(TransformerPtr transformer,const std::vector<Group> &groups,
+        bool remove) {
+    for(auto const &group : groups) {
+        this->add(transformer, group, remove);
+    }
+}
+
+/**
+ * Removes a transformer from the transforms map.
+ */
+void Pipeline::remove(TransformerPtr transform) {
+    if(!transform) {
+        throw std::invalid_argument("Transformer is required");
+    }
+
+    std::lock_guard<std::mutex> lg(this->transformsLock);
+
+    // since we're searching by value, traverse the entire map
+    for(auto it = this->transforms.begin(); it != this->transforms.end();) {
+        if(it->second == transform) {
+            it = this->transforms.erase(it);
+            return;
+        }
+    }
+
+    // if we get down here, we couldn't find it in the list
+    throw std::runtime_error("No such transform");
+}
+/**
+ * Removes transformers for the given range. If it is an exact match, only that
+ * entry is removed; otherwise, all ranges that overlap with this range are
+ * removed.
+ */
+void Pipeline::remove(const FbRange &range) {
+    std::lock_guard<std::mutex> lg(this->transformsLock);
+    
+    // can we find the exact range?
+    if(this->transforms.find(range) != this->transforms.end()) {
+        this->transforms.erase(range);
+        return;
+    }
+
+    // iterate all ranges and remove intersecting ones
+    for(auto it = this->transforms.begin(); it != this->transforms.end();) {
+        if(it->first.intersects(range)) {
+            it = this->transforms.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 

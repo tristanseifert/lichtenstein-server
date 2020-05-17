@@ -18,6 +18,8 @@
 #include <future>
 #include <chrono>
 
+#include "FbRange.h"
+
 namespace ctpl {
     class thread_pool;
 }
@@ -31,13 +33,20 @@ namespace Lichtenstein::Server::Render {
     class IRenderable;
     class IRenderTarget;
     class IGroupContainer;
+    class IPixelTransformer;
 
     class Pipeline {
+
         using RenderablePtr = std::shared_ptr<IRenderable>;
         using TargetPtr = std::shared_ptr<IRenderTarget>;
         using GroupContainerPtr = std::shared_ptr<IRenderTarget>;
+        using TransformerPtr = std::shared_ptr<IPixelTransformer>;
+
         using RenderPlan = std::unordered_map<TargetPtr, RenderablePtr>;
+        using TransformPlan = std::unordered_map<FbRange, TransformerPtr>;
+        
         using Group = Lichtenstein::Server::DB::Types::Group;
+        
         using Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>; 
 
         public:
@@ -53,11 +62,16 @@ namespace Lichtenstein::Server::Render {
             virtual ~Pipeline();
 
         public:
-            void add(RenderablePtr renderable, TargetPtr target);
-            TargetPtr add(RenderablePtr renderable, const Group &g);
-            TargetPtr add(RenderablePtr renderable, const std::vector<Group> &g);
+            void add(RenderablePtr renderable, TargetPtr target, bool remove = true);
+            TargetPtr add(RenderablePtr renderable, const Group &g, bool remove = true);
+            TargetPtr add(RenderablePtr renderable, const std::vector<Group> &g, bool remove = true);
+            void add(TransformerPtr transformer, const FbRange &range, bool remove = true);
+            void add(TransformerPtr transformer, const Group &g, bool remove = true);
+            void add(TransformerPtr transformer, const std::vector<Group> &g, bool remove = true);
 
             void remove(TargetPtr target);
+            void remove(TransformerPtr transformer);
+            void remove(const FbRange &transformRange);
 
             void dump();
 
@@ -122,6 +136,10 @@ namespace Lichtenstein::Server::Render {
             // render plan modified by function calls. copied at each frame
             RenderPlan plan;
             std::mutex planLock;
+
+            // transformations applied to framebuffer after rendering
+            TransformPlan transforms;
+            std::mutex transformsLock;
 
         private:
             static std::shared_ptr<Pipeline> sharedInstance;

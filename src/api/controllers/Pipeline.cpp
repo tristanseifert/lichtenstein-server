@@ -19,6 +19,7 @@
 #include "../../render/RoutineRenderable.h"
 #include "../../render/GroupTarget.h"
 #include "../../render/MultiGroupTarget.h"
+#include "../../render/BrightnessTransformer.h"
 
 using namespace Lichtenstein::Server::API::Controllers;
 using IController = Lichtenstein::Server::API::IController;
@@ -44,7 +45,7 @@ PipelineController::PipelineController(Server *srv) : IController(srv) {
     this->route([this] (auto http) mutable {
         http->Get("/pipeline/", std::bind(&PipelineController::getState, this,_1,_2));
         http->Post("/pipeline/mapping/add", std::bind(&PipelineController::setState, this,_1,_2,_3));
-        http->Post("/pipeline/brightness/set", std::bind(&PipelineController::setState, this,_1,_2,_3));
+        http->Post("/pipeline/brightness/set", std::bind(&PipelineController::setBrightness, this,_1,_2,_3));
     });
 }
 
@@ -135,12 +136,40 @@ void PipelineController::setState(const ReqType &req, ResType &res,
  */
 void PipelineController::setBrightness(const ReqType &req, ResType &res,
         const ReaderType &read) {
-    // parse the request body
-    json toInsert;
-    this->decode(read, toInsert);
+    using namespace Render;
+    auto pipe = Lichtenstein::Server::Render::Pipeline::pipeline();
 
-    // TODO: implement this
-    throw std::runtime_error("Unimplemented");
+    // parse the request body
+    json body;
+    this->decode(read, body);
+
+    // get the list of group ids and then groups
+    auto target = body.at("target");
+
+    std::vector<int> groupIds;
+    target.at("groupIds").get_to(groupIds);
+
+    auto groups = DB::DataStore::db()->getSome<Group>(groupIds);
+
+    if(groups.size() != groupIds.size()) {
+        Logging::error("Found {} records but got {} ids", groups.size(), 
+                groupIds.size());
+        throw std::runtime_error("Unable to find all groups");
+    }
+
+    // get brightness and create the transformer
+    double brightness = 1;
+    body.at("brightness").get_to(brightness);
+
+    auto transformer = std::make_shared<BrightnessTransformer>(brightness);
+
+    // add the mapping
+    pipe->add(transformer, groups);
+
+    json r = {
+        {"status", 0}
+    };
+    this->respond(r, res);
 }
 
 
