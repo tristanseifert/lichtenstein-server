@@ -59,6 +59,8 @@ add_executable(lichtenstein_server
     src/render/GroupTarget.cpp
     src/render/MultiGroupTarget.cpp
     src/render/BrightnessTransformer.cpp
+    src/proto/Server.cpp
+    src/proto/ServerWorker.cpp
     ${version_file} src/version.h)
 
 
@@ -67,7 +69,9 @@ find_package(CapnProto REQUIRED)
 target_include_directories(lichtenstein_server PRIVATE ${CAPNP_INCLUDE_DIRS})
 add_definitions(${CAPNP_DEFINITIONS})
 
-capnp_generate_cpp(CAPNP_SOURCES CAPNP_HEADERS src/db/packed_v1.capnp)
+capnp_generate_cpp(CAPNP_SOURCES CAPNP_HEADERS
+    src/db/packed_v1.capnp
+    src/proto/lichtenstein_v1.capnp)
 target_sources(lichtenstein_server PRIVATE ${CAPNP_SOURCES} ${CAPNP_HEADERS})
 
 # then, link against the cap'n proto runtime and include the generated headers
@@ -77,6 +81,16 @@ target_include_directories(lichtenstein_server PRIVATE ${CMAKE_CURRENT_BINARY_DI
 # link against SQLite
 find_package(SQLite3 REQUIRED)
 target_link_libraries(lichtenstein_server PRIVATE SQLite::SQLite3)
+
+# find LibreSSL and link with it, with a fun Apple hack
+find_package(LibreSSL REQUIRED)
+if (APPLE)
+    # force linking with the Homebrew version
+    target_include_directories(lichtenstein_server SYSTEM BEFORE PUBLIC /usr/local/opt/libressl/include)
+    target_link_libraries(lichtenstein_server PRIVATE /usr/local/opt/libressl/lib/libcrypto.dylib /usr/local/opt/libressl/lib/libssl.dylib /usr/local/opt/libressl/lib/libtls.dylib)
+else ()
+    target_link_libraries(lichtenstein_server PRIVATE LibreSSL::TLS)
+endif()
 
 # for each of the below libraries we compile ourselves, try to prefer using
 # static libraries

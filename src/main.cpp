@@ -18,6 +18,7 @@
 #include "db/DataStore.h"
 #include "api/Server.h"
 #include "render/Pipeline.h"
+#include "proto/Server.h"
 
 // bring all our namespaces into scope
 using namespace Lichtenstein::Server;
@@ -113,6 +114,42 @@ static bool LoadConfig(void) {
     return true;
 }
 
+/**
+ * Starts all required services. Any exceptions during this process will result
+ * in an immediate termination.
+ */
+void StartServices() {
+    try {
+        DB::DataStore::open();
+        Render::Pipeline::start();
+        Proto::Server::start();
+        API::Server::start();
+    } catch(std::exception &e) {
+        Logging::crit("StartServices() failed: {}", e.what());
+        Logging::stop();
+
+        std::abort();
+    }
+}
+
+/**
+ * Stops all services that were started earlier.
+ */
+void StopServices() {
+    try {
+        API::Server::stop();
+        Render::Pipeline::stop();
+        Proto::Server::stop();
+        DB::DataStore::close();
+    } catch(std::exception &e) {
+        Logging::crit("StopServices() failed: {}", e.what());
+        Logging::stop();
+
+        std::abort();
+    }
+}
+
+
 
 /**
  * Main function
@@ -139,13 +176,8 @@ int main(int argc, char *argv[]) {
 
     sigaction(SIGINT, &sigIntHandler, nullptr);
 
-    /* During startup, open the data store, followed by network handlers, any
-     * producers of data, externally visible APIs, and everything else. This
-     * way, the full protocol stack is set up when producers start secreting
-     * new data. */
-    DB::DataStore::open();
-    Render::Pipeline::start();
-    API::Server::start();
+    // start all required services
+    StartServices();
 
     // wait for a signal
     Logging::info("lichtenstein_server is ready");
@@ -154,13 +186,8 @@ int main(int argc, char *argv[]) {
         ::pause();
     }
 
-    /* When we're quitting, first stop services that can change the internal
-     * state of the server; then all producers of content; followed by the
-     * network protocol handlers, followed by everything else. That should help
-     * ensure that we don't deadlock during shutdown. */
-    API::Server::stop();
-    Render::Pipeline::stop();
-    DB::DataStore::close();
-
+    // shut down all allocated services
+    StopServices();
     Logging::stop();
 }
+

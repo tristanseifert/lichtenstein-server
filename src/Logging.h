@@ -70,6 +70,8 @@ namespace Lichtenstein::Server {
                 auto fmtMsg = fmt::format(msg, args...);
                 crit("ASSERTION FAILURE ({}:{}) {} {}", file, line, expr, 
                         fmtMsg);
+                // required to flush the log queue before terminating
+                spdlog::shutdown();
                 return true;
             }
         private:
