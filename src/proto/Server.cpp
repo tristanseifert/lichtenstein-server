@@ -11,6 +11,7 @@
 #include <functional>
 #include <algorithm>
 #include <iostream>
+#include <cmath>
 
 #include <termios.h>
 #include <unistd.h>
@@ -81,6 +82,17 @@ Server::~Server() {
     if(!this->shouldTerminate) {
         Logging::error("You should call Proto::Server::terminate() before dealloc");
         this->terminate();
+    }
+
+    // signal the clients to terminate
+    Logging::debug("Signaling {} client handlers to terminate",
+            this->clients.size());
+    
+    {
+        std::lock_guard lg(this->clientsLock);
+        for(auto client : this->clients) {
+            client->signalShutdown();
+        }
     }
 
     // wait on the worker thread to exit
@@ -284,8 +296,11 @@ open: ;
     Logging::info("Protocol server is listening on {}", servaddr);
 
     // read some more config info
-    this->acceptTimeout = ConfigManager::getUnsigned("server.accept_timeout", 5);
-    Logging::debug("Accept timeout is {} seconds", this->acceptTimeout);
+    this->acceptTimeout = ConfigManager::getDouble("server.accept_timeout", 2.5);
+    Logging::trace("Accept timeout is {} seconds", this->acceptTimeout);
+    
+    this->clientReadTimeout = ConfigManager::getDouble("server.read_timeout", 0.3);
+    Logging::trace("Client read timeout is {} seconds", this->clientReadTimeout);
 }
 
 /**
@@ -356,18 +371,20 @@ void Server::main() {
             auto client = this->acceptClient();
             if(!client) {
                 // ignore null return values
-                continue;
+                goto beach;
             }
 
             // add the clients to our internal bookkeeping
-            Logging::trace("Accepted protocol client {}", (void*) client.get());
-
             this->clientsLock.lock();
             this->clients.push_back(client);
             this->clientsLock.unlock();
         } catch(std::exception &e) {
             Logging::error("Exception while handling client: {}", e.what());
         }
+
+beach: ;
+        // garbage collect old clients
+        this->garbageCollectClients();
     }
 
     Logging::debug("Protocol handler is shutting down");
@@ -410,7 +427,11 @@ Server::WorkerPtr Server::acceptClient() {
         throw SSLError("BIO_new_dgram() failed");
     }
 
-    timeout.tv_sec = this->acceptTimeout;
+    double fraction, whole;
+    fraction = modf(this->acceptTimeout, &whole);
+
+    timeout.tv_sec = whole;
+    timeout.tv_usec = (fraction * 1000 * 1000);
     BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
 
     // create a new SSL context to accept the connection into
@@ -439,6 +460,8 @@ Server::WorkerPtr Server::acceptClient() {
             Logging::warn("DTLSv1_listen() non-fatal error: {}", errStr);
         } else if(err < 0) {
             // ignore "fatal" errors
+            // the accept handler is idle so garbage collect old workers
+            this->garbageCollectClients();
         }
     } while(err != 1);
 
@@ -583,7 +606,11 @@ Server::WorkerPtr Server::newClient(int clientSock,
     struct timeval timeout;
     memset(&timeout, 0, sizeof(timeout));
 
-    timeout.tv_sec = this->clientReadTimeout;
+    double fraction, whole;
+    fraction = modf(this->clientReadTimeout, &whole);
+
+    timeout.tv_sec = whole;
+    timeout.tv_usec = (fraction * 1000 * 1000);
 
     BIO *bio = SSL_get_rbio(ssl);
     if(!bio) {
@@ -592,8 +619,20 @@ Server::WorkerPtr Server::newClient(int clientSock,
 
     BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
 
-    // we can now create the client
-    return std::make_shared<ServerWorker>(clientSock, clientAddr, ssl);
+    // create the client
+    auto client = std::make_shared<ServerWorker>(clientSock, clientAddr, ssl);
+
+    client->addShutdownHandler([&](int cause) {
+        Logging::trace("Client {} exiting: {}", (void*)client.get(), cause);
+
+        // on terminations not initiated by us, garbage collect it
+        if(cause == 0) {
+            std::lock_guard lg(this->finishedClientsLock);
+            this->finishedClients.push_back(client);
+        }
+    });
+
+    return client;
 }
 
 
@@ -762,6 +801,41 @@ void Server::dtlsCookieMake(SSL *ssl, unsigned char *result,
 
     if(!res) {
         throw std::runtime_error("Failed to calculate DTLS cookie HMAC");
+    }
+}
+
+/**
+ * Removes any clients that have recently terminated from the clients list.
+ */
+void Server::garbageCollectClients() {
+    // acquire the lock on the recently flinished clients and iterate over it
+    std::lock_guard finishedLg(this->finishedClientsLock);
+
+    if(this->finishedClients.empty()) {
+        return;
+    }
+
+    Logging::debug("Garbage collecting {} clients", 
+            this->finishedClients.size());
+
+    for(auto it = this->finishedClients.begin(); 
+            it != this->finishedClients.end();) {
+        // skip the client if it is not yet done executing
+        if(!((*it)->isDone())) {
+            Logging::warn("Skipping client handler {}, not yet done", (void*) it->get());
+            ++it;
+            continue;
+        }
+
+        // try to remove this one from the clients list
+        {
+            std::lock_guard clientsLg(this->clientsLock);
+            this->clients.erase(std::remove(this->clients.begin(), 
+                        this->clients.end(), *it), this->clients.end());
+        }
+
+        // remove it from the "to remove" list
+        it = this->finishedClients.erase(it);
     }
 }
 

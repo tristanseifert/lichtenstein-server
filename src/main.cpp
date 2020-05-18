@@ -147,6 +147,8 @@ void StopServices() {
 
         std::abort();
     }
+
+    Logging::info("All services stopped");
 }
 
 

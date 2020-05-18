@@ -50,6 +50,7 @@ namespace Lichtenstein::Server::Proto {
             void loadCert();
 
             void main();
+            void garbageCollectClients();
 
         // client accept and authentication
         private:
@@ -79,14 +80,17 @@ namespace Lichtenstein::Server::Proto {
             // all accepted clients
             std::mutex clientsLock;
             std::vector<WorkerPtr> clients;
+            // clients that have terminated that need to be deallocated
+            std::mutex finishedClientsLock;
+            std::vector<WorkerPtr> finishedClients;
 
             // listening socket 
             int socket = -1;
 
             // accept timeout
-            unsigned int acceptTimeout = 5;
+            double acceptTimeout = 2.5;
             // read timeout for clients
-            unsigned int clientReadTimeout = 5;
+            double clientReadTimeout = 0.3;
 
             // SSL context
             SSL_CTX *ctx = nullptr;
@@ -100,7 +104,7 @@ namespace Lichtenstein::Server::Proto {
             // name/path of the file we're currently reading in
             std::string currentInFile;
 
-        private:
+        public:
             class SSLError: public std::runtime_error {
                 public:
                     SSLError() = delete;
