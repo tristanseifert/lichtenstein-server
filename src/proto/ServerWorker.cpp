@@ -2,6 +2,7 @@
 #include "Server.h"
 #include "SocketTypes+fmt.h"
 #include "WireMessage.h"
+#include "IMessageHandler.h"
 
 #include "../Logging.h"
 #include "../ConfigManager.h"
@@ -26,6 +27,12 @@ ServerWorker::ServerWorker(int fd, const struct sockaddr_storage &addr,
     this->shouldTerminate = this->workerDone = false;
     this->worker = std::make_unique<std::thread>(&ServerWorker::main, this);
 }
+/**
+ * Allocates all required message handlers.
+ */
+void ServerWorker::initHandlers() {
+    // TODO: implement
+}
 
 /**
  * When deallocating, force SSL session closure, if not done already, and wait
@@ -43,7 +50,7 @@ ServerWorker::~ServerWorker() {
     if(!this->shouldTerminate) {
         int clientFd = this->socket;
         this->socket = -1;
-        this->shutdownCause = 2;
+        this->shutdownCause = Destructor;
         this->shouldTerminate = true;
 
         if(!this->skipShutdown) {
@@ -65,20 +72,47 @@ ServerWorker::~ServerWorker() {
 void ServerWorker::main() {
     Logging::debug("Starting client worker {}/{}", (void*)this, this->addr);
 
+    // allocate message handlers
+    this->initHandlers();
+
     // main read loop
     while(!this->shouldTerminate) {
         struct MessageHeader header;
+        std::vector<std::byte> payload;
 
         try {
             // read the message header and try to handle the message type
             if(!this->readHeader(header)) {
-                // couldn't get a message but not an error, try again
+                // couldn't get a message but not a fatal error, try again
                 goto beach;
             }
+
+            // validate the version
+            if(header.version != kLichtensteinProtoVersion) {
+                Logging::error("Invalid protocol version {:02x} from client {} (expected {:02x})",
+                        header.version, this->addr, kLichtensteinProtoVersion);
+                this->shutdownCause = InvalidVersion;
+                this->shouldTerminate = true;
+                goto beach;
+            }
+
             Logging::trace("Message type {:x} len {} from client {}",
                     header.type, header.length, this->addr);
 
-            // TODO: deserialize
+            // check if we can find a handler
+            for(auto &handler : this->handlers) {
+                if(handler->canHandle(header.type)) {
+                    // if so, read and handle it; then read next message
+                    this->readMessage(header, payload);
+                    handler->handle(header, payload);
+
+                    goto beach;
+                }
+            }
+
+            // if we get here, no suitable handler found
+            Logging::warn("Unsupported message type {:x} from {}", header.type,
+                    this->addr);
         } catch(std::exception &e) {
             Logging::error("Exception while processing request from {}: {}",
                     this->addr, e.what());
@@ -95,6 +129,8 @@ beach: ;
 
     // clean up
     Logging::debug("Shutting down client {}/{}", (void*)this, this->addr);
+
+    this->handlers.clear();
     
     if(this->socket > 0) {
         if(!this->skipShutdown) {
@@ -126,47 +162,134 @@ bool ServerWorker::readHeader(struct MessageHeader &outHdr) {
     struct MessageHeader buf;
 
     // try to read the header length of bytes from the context
-    err = SSL_read(this->ssl, &buf, sizeof(buf));
+    err = this->readBytes(&buf, sizeof(buf));
 
-    if(err != sizeof(buf)) {
-        // didn't read enough bytes?
-        if(err >= 1) {
-            auto what = fmt::format("readHeader() failed, expected {} bytes, got {}",
-                    sizeof(buf), err);
-            throw std::runtime_error(what);
-        }
-        // it's some form of error
-        else {
-            int err2 = SSL_get_error(this->ssl, err);
-
-            switch(err2) {
-                // SSL lib wants to read (e.g. read timeout)
-                case SSL_ERROR_WANT_READ:
-                    return false;
-                // connection was closed by peer
-                case SSL_ERROR_ZERO_RETURN:
-                    this->shouldTerminate = true;
-                    return false;
-                // syscall error
-                case SSL_ERROR_SYSCALL:
-                    this->skipShutdown = true;
-                    throw std::system_error(errno, std::generic_category(),
-                            "Client read failed");
-                // protocol error
-                case SSL_ERROR_SSL:
-                    this->skipShutdown = true;
-                    this->shouldTerminate = true;
-                    throw SSLError("SSL_read() for header failed");
-                // other, unknown error
-                default:
-                    auto what = fmt::format("Unexpected SSL_read() error {}", err2);
-                    throw std::runtime_error(what);
-            }
-        }
+    if(err == 0) {
+        // retry later
+        return false;
+    } else if(err != sizeof(buf)) {
+        // didn't get expected message length
+        auto what = fmt::format("readHeader() failed, expected {} bytes, got {}",
+                sizeof(buf), err);
+        throw std::runtime_error(what);
     }
 
     // the header was read successfully
+    outHdr.length = ntohs(outHdr.type);
+
     outHdr = buf;
 
     return true;
+}
+
+/**
+ * Reads the entire amount of payload bytes into the given buffer. If the
+ * entire payload cannot be read, an exception is thrown.
+ */
+void ServerWorker::readMessage(struct MessageHeader &header, 
+        std::vector<std::byte> &buf) {
+    int err;
+
+    // resize output buffer and try to read message
+    buf.resize(header.length, std::byte(0));
+
+    err = this->readBytes(buf.data(), header.length);
+
+    if(err == 0) {
+        throw std::runtime_error("Failed to read message body");
+    } else if(err != header.length) {
+        auto what = fmt::format("Only read {} of {} payload bytes", err, 
+                header.length);
+        throw std::runtime_error(what);
+    }
+}
+
+
+
+/**
+ * General read bytes from client routine. Returned is the total number of
+ * bytes read, or 0 in case of a non-fatal error indicating that the read
+ * should be retried.
+ */
+size_t ServerWorker::readBytes(void *buf, size_t numBytes) {
+    int err, err2;
+
+    // try to read from SSL context
+    err = SSL_read(this->ssl, buf, numBytes);
+
+    // handle errors
+    if(err <= 0) {
+        err2 = SSL_get_error(this->ssl, err);
+
+        switch(err2) {
+            // SSL lib wants to read (e.g. read timeout)
+            case SSL_ERROR_WANT_READ:
+                return 0;
+            // connection was closed by peer
+            case SSL_ERROR_ZERO_RETURN:
+                this->shouldTerminate = true;
+                throw std::runtime_error("Connection closed");
+            // syscall error
+            case SSL_ERROR_SYSCALL:
+                this->skipShutdown = true;
+                throw std::system_error(errno, std::generic_category(),
+                        "Client read failed");
+            // protocol error
+            case SSL_ERROR_SSL:
+                this->skipShutdown = true;
+                this->shouldTerminate = true;
+                throw SSLError("SSL_read() failed");
+            // other, unknown error
+            default:
+                auto what = fmt::format("Unexpected SSL_read() error {}", err2);
+                throw std::runtime_error(what);
+        }
+    }
+    // otherwise, a partial read was accomplished
+    else {
+        return err;
+    }
+}
+
+/**
+ * General write bytes to client routine. The entire buffer must be written to
+ * the client for the call to be treated as a success.
+ *
+ * The total number of bytes written is returned.
+ */
+size_t ServerWorker::writeBytes(const void *buf, size_t numBytes) {
+    int err, err2;
+    
+    // attempt writing
+    err = SSL_write(this->ssl, buf, numBytes);
+
+    if(err <= 0) {
+        err2 = SSL_get_error(this->ssl, err);
+
+        switch(err2) {
+            // connection was closed by peer
+            case SSL_ERROR_ZERO_RETURN:
+                this->shouldTerminate = true;
+                throw std::runtime_error("Connection closed");
+            // syscall error
+            case SSL_ERROR_SYSCALL:
+                this->skipShutdown = true;
+                throw std::system_error(errno, std::generic_category(),
+                        "Client write failed");
+            // protocol error
+            case SSL_ERROR_SSL:
+                this->skipShutdown = true;
+                this->shouldTerminate = true;
+                throw SSLError("SSL_write() failed");
+            // other, unknown error
+            default:
+                auto what = fmt::format("Unexpected SSL_write() error {}", err2);
+                throw std::runtime_error(what);
+        }
+
+    }
+    // if return is positive, that's the number of bytes written
+    else {
+        return err;
+    }
 }

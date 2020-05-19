@@ -626,7 +626,7 @@ Server::WorkerPtr Server::newClient(int clientSock,
         Logging::trace("Client {} exiting: {}", (void*)client.get(), cause);
 
         // on terminations not initiated by us, garbage collect it
-        if(cause == 0) {
+        if((cause & 0x8000) == 0x8000) {
             std::lock_guard lg(this->finishedClientsLock);
             this->finishedClients.push_back(client);
         }

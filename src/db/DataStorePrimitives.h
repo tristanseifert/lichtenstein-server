@@ -38,10 +38,16 @@ namespace Lichtenstein::Server::DB::Types {
     /**
      * A single node that's previously connected to this server. Nodes can have
      * one or more output channels.
+     *
+     * Note that nodes can be disabled, e.g. we basically ignore their
+     * existence. All nodes start out in this state when they first connect,
+     * until their shared secret is configured.
      */
     using NodeId = int;
     struct Node: public BaseType {
         NodeId id;
+
+        bool enabled;
 
         std::shared_ptr<std::string> label;
         std::string address;
@@ -49,6 +55,10 @@ namespace Lichtenstein::Server::DB::Types {
 
         std::string swVersion;
         std::string hwVersion;
+
+        std::vector<char> sharedSecret;
+
+        std::vector<char> _uuidBytes;
 
         // timestamp when the node last checked in
         int lastCheckin;

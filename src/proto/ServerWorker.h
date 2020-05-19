@@ -10,6 +10,7 @@
 #include <thread>
 #include <vector>
 #include <functional>
+#include <cstddef>
 
 #include <sys/socket.h>
 
@@ -17,13 +18,29 @@
 
 namespace Lichtenstein::Server::Proto {
     struct MessageHeader;
+    class IMessageHandler;
 
     class ServerWorker {
+        friend class IMessageHandler;
+
         public:
             ServerWorker() = delete;
             ServerWorker(int, const struct sockaddr_storage &, SSL *);
 
             ~ServerWorker();
+
+        private:
+            /**
+             * Defines why the client handler terminated. If ORed with 0x8000,
+             * that shutdown cause means the client handler can be deallocated
+             * at a later time safely, e.g. for garbage collection.
+             */
+            enum ShutdownType {
+                Normal = 0 | 0x8000,
+                Signalled = 1,
+                Destructor = 2,
+                InvalidVersion = 3 | 0x8000,
+            };
 
         public:
             /**
@@ -34,7 +51,7 @@ namespace Lichtenstein::Server::Proto {
              */
             void signalShutdown() {
                 this->shouldTerminate = true;
-                this->shutdownCause = 1;
+                this->shutdownCause = Signalled;
             }
 
             /**
@@ -58,6 +75,13 @@ namespace Lichtenstein::Server::Proto {
             void main();
 
             bool readHeader(struct MessageHeader &);
+            void readMessage(struct MessageHeader &, std::vector<std::byte> &);
+
+            void initHandlers();
+
+        private:
+            size_t readBytes(void *, size_t);
+            size_t writeBytes(const void *, size_t);
 
         private:
             // File descriptor for the raw client socket
@@ -78,7 +102,10 @@ namespace Lichtenstein::Server::Proto {
 
             // notification handlers for shutdown
             std::vector<std::function<void(int)>> shutdownHandlers;
-            int shutdownCause = 0;
+            ShutdownType shutdownCause = Normal;
+
+            // message handlers, allocated during connection
+            std::vector<std::unique_ptr<IMessageHandler>> handlers;
     };
 }
 

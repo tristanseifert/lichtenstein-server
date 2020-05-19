@@ -5,6 +5,7 @@
 #include <variant>
 
 #include <nlohmann/json.hpp>
+#include <base64.h>
 
 #include "DataStorePrimitives.h"
 
@@ -165,6 +166,7 @@ void to_json(json &j, const Node &n) {
         {"label", nullptr},
         {"address", n.address},
         {"hostname", n.hostname},
+        {"enabled", n.enabled},
         {"versions", json({
             {"sw", n.swVersion},
             {"hw", n.hwVersion},
@@ -191,6 +193,20 @@ void from_json(const json &j, Node &n) {
         n.label = std::make_shared<std::string>(j.at("label").get<std::string>());
     } catch(json::out_of_range &) {
         n.label = nullptr;
+    }
+
+    // get enabled flag
+    j.at("enabled").get_to(n.enabled);
+
+    // read base64-encoded secret if specified
+    try {
+        auto base64Str = j.at("sharedSecret").get<std::string>();
+        auto data = base64_decode(base64Str);
+
+        n.sharedSecret.clear();
+        n.sharedSecret.assign(data.begin(), data.end());
+    } catch(json::out_of_range &) {
+        // nothing
     }
 }
 

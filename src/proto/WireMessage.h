@@ -11,12 +11,19 @@ namespace Lichtenstein::Server::Proto {
 #pragma pack(push, 1)
 
 /**
+ * Current protocol version
+ */
+static const uint8_t kLichtensteinProtoVersion = 0x01;
+
+/**
  * This is the message wrapper and contains length information, which is used
  * to read the received message into.
  */
 struct MessageHeader {
-    // message type
-    uint16_t type;
+    // protocol version; currently, this is 0x01
+    uint8_t version;
+    // message type, roughly corresponds to individual "endpoints"
+    uint8_t type;
     // payload length (bytes)
     uint16_t length;
 

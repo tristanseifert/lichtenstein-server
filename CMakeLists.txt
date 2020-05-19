@@ -61,6 +61,7 @@ add_executable(lichtenstein_server
     src/render/BrightnessTransformer.cpp
     src/proto/Server.cpp
     src/proto/ServerWorker.cpp
+    src/proto/IMessageHandler.cpp
     ${version_file} src/version.h)
 
 
@@ -100,7 +101,8 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(BUILD_EXAMPLES OFF CACHE BOOL "Enable examples" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "Enable tests" FORCE)
 add_subdirectory(libs/libconfig)
-include_directories(libs/libconfig/lib)
+
+target_include_directories(lichtenstein_server PRIVATE libs/libconfig/lib)
 target_link_libraries(lichtenstein_server PRIVATE config++)
 
 # fmt (string formatting; spdlog depends on it)
@@ -120,12 +122,19 @@ set(JSON_MultipleHeaders ON CACHE INTERNAL "")
 add_subdirectory(libs/json)
 target_link_libraries(lichtenstein_server PRIVATE nlohmann_json::nlohmann_json)
 
+# include the c++ base64 library
+target_include_directories(lichtenstein_server PRIVATE libs/cpp-base64)
+
+target_sources(lichtenstein_server PRIVATE
+    libs/cpp-base64/base64.cpp
+)
+
 # compile/link angelscript, and the add-ons we want
 add_subdirectory(libs/angelscript/sdk/angelscript/projects/cmake)
 target_link_libraries(lichtenstein_server PRIVATE ${ANGELSCRIPT_LIBRARY_NAME})
 
-include_directories(libs/angelscript/sdk/angelscript/include)
-include_directories(libs/angelscript/sdk/add_on)
+target_include_directories(lichtenstein_server PRIVATE libs/angelscript/sdk/angelscript/include)
+target_include_directories(lichtenstein_server PRIVATE libs/angelscript/sdk/add_on)
 
 target_sources(lichtenstein_server PRIVATE
     libs/angelscript/sdk/add_on/scriptbuilder/scriptbuilder.cpp

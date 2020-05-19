@@ -28,3 +28,6 @@
 [submodule "libs/fmt"]
 	path = libs/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "libs/cpp-base64"]
+	path = libs/cpp-base64
+	url = https://github.com/ReneNyffenegger/cpp-base64.git
