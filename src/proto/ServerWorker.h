@@ -71,6 +71,24 @@ namespace Lichtenstein::Server::Proto {
                 this->shutdownHandlers.push_back(f);
             }
 
+            /**
+             * Returns the authentication state of the worker.
+             */
+            bool isAuthenticated() const {
+                return this->authenticated;
+            }
+            /**
+             * Gets the node ID served by this worker. If not authenticated,
+             * -1 is returned.
+             */
+            int getNodeId() const {
+                if(!this->authenticated) {
+                    return -1;
+                }
+
+                return this->nodeId;
+            }
+
         private:
             void main();
 
@@ -106,6 +124,10 @@ namespace Lichtenstein::Server::Proto {
 
             // message handlers, allocated during connection
             std::vector<std::unique_ptr<IMessageHandler>> handlers;
+
+            // whether the client has authenticated, and its node id if so
+            bool authenticated = false;
+            int nodeId = -1;
     };
 }
 
