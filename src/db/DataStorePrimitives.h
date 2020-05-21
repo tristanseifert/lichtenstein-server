@@ -11,6 +11,8 @@
 #include <variant>
 #include <memory>
 
+#include <uuid.h>
+
 namespace Lichtenstein::Server::DB {
     class DataStore;
 }
@@ -58,10 +60,16 @@ namespace Lichtenstein::Server::DB::Types {
 
         std::vector<char> sharedSecret;
 
+        uuids::uuid uuid;
         std::vector<char> _uuidBytes;
 
         // timestamp when the node last checked in
         int lastCheckin;
+        
+        private:
+            friend class ::Lichtenstein::Server::DB::DataStore;
+            virtual void thaw();
+            virtual void freeze();
     };
 
     /**

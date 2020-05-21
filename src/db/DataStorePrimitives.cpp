@@ -3,13 +3,18 @@
 #include <sstream>
 #include <stdexcept>
 #include <chrono>
+#include <stdexcept>
+
+#include "../Logging.h"
+
+#include <fmt/format.h>
+#include <spdlog/fmt/bin_to_hex.h>
+#include <uuid.h>
 
 // Cap'n Proto stuff 
 #include <capnp/message.h>
 #include <capnp/serialize-packed.h>
 #include <db/packed_v1.capnp.h>
-
-#include "../Logging.h"
 
 using Logging = Lichtenstein::Server::Logging;
 using namespace Lichtenstein::Server::DB::Types;
@@ -186,3 +191,30 @@ void Group::freeze() {
     }
 }
 
+
+
+/**
+ * Deserializes the node UUID
+ */
+void Node::thaw() {
+    uuids::uuid readUuid(this->_uuidBytes.begin(), this->_uuidBytes.end());
+   
+    if(readUuid.is_nil()) {
+        auto dump = spdlog::to_hex(this->_uuidBytes.begin(), this->_uuidBytes.end());
+        auto what = fmt::format("Failed to decode node UUID from bytes '{}'", dump);
+        throw std::runtime_error(what);
+    }
+
+    this->uuid = readUuid;
+}
+
+/**
+ * Serializes the node UUID to bytes.
+ */
+void Node::freeze() {
+    const auto uuidSpan = this->uuid.as_bytes();
+    auto uuidBytes = reinterpret_cast<const char *>(uuidSpan.data());
+    auto uuidLen = uuidSpan.size_bytes();
+
+    this->_uuidBytes = std::vector(uuidBytes, uuidBytes+uuidLen);
+}

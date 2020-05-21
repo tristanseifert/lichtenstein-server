@@ -31,3 +31,6 @@
 [submodule "libs/cpp-base64"]
 	path = libs/cpp-base64
 	url = https://github.com/ReneNyffenegger/cpp-base64.git
+[submodule "libs/stduuid"]
+	path = libs/stduuid
+	url = https://github.com/mariusbancila/stduuid.git

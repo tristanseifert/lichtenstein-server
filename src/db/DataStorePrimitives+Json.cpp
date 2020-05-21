@@ -6,6 +6,7 @@
 
 #include <nlohmann/json.hpp>
 #include <base64.h>
+#include <uuid.h>
 
 #include "DataStorePrimitives.h"
 
@@ -171,6 +172,7 @@ void to_json(json &j, const Node &n) {
             {"sw", n.swVersion},
             {"hw", n.hwVersion},
         })},
+        {"uuid", uuids::to_string(n.uuid)},
         {"lastCheckin", n.lastCheckin},
         {"lastModified", n.lastModified}
     };
@@ -197,6 +199,14 @@ void from_json(const json &j, Node &n) {
 
     // get enabled flag
     j.at("enabled").get_to(n.enabled);
+
+    // read the uuid
+    auto id = uuids::uuid::from_string(j.at("uuid").get<std::string>());
+    if(id.has_value()) {
+        n.uuid = id.value();
+    } else {
+        throw std::runtime_error("Failed to parse node UUID");
+    }
 
     // read base64-encoded secret if specified
     try {

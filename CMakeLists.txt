@@ -17,6 +17,7 @@ include_directories(libs/cpptime)
 include_directories(libs/cxxopts/include)
 include_directories(libs/sqlite_orm/include/sqlite_orm)
 include_directories(libs/cpp-httplib)
+include_directories(libs/stduuid/include)
 
 # compile in the git version file
 include(GetGitRevisionDescription)
