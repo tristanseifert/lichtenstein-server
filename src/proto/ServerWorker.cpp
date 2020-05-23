@@ -31,7 +31,9 @@ ServerWorker::ServerWorker(int fd, const struct sockaddr_storage &addr,
  * Allocates all required message handlers.
  */
 void ServerWorker::initHandlers() {
-    // TODO: implement
+    IMessageHandler::forEach([this] (auto tag, auto ctor) {
+        this->handlers.push_back(ctor(this));
+    });
 }
 
 /**

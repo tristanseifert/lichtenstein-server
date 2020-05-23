@@ -63,6 +63,7 @@ add_executable(lichtenstein_server
     src/proto/Server.cpp
     src/proto/ServerWorker.cpp
     src/proto/IMessageHandler.cpp
+    src/proto/controllers/Authentication.cpp
     ${version_file} src/version.h)
 
 

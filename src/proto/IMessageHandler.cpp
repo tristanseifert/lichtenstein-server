@@ -7,11 +7,19 @@
 #include <limits>
 #include <stdexcept>
 #include <algorithm>
+#include <sstream>
+#include <iomanip>
 
 #include <fmt/format.h>
 #include <openssl/ssl.h>
 
 using namespace Lichtenstein::Server::Proto;
+
+/// Container for all registered message handlers
+IMessageHandler::MapType *IMessageHandler::registrations = nullptr;
+/// Lock for the above container
+std::mutex IMessageHandler::registerLock;
+
 
 /**
  * Validates that the client ptr is not null on allocation.
@@ -59,3 +67,63 @@ void IMessageHandler::send(uint8_t type, const std::vector<std::byte> &data) {
         throw std::runtime_error(what);
     }
 }
+
+
+
+/**
+ * Registers a protocol message handler.
+ *
+ * @param tag Arbitrary user-defined tag for the controller
+ * @param ctor Constructor function for controller
+ * @return Whether the class was registered successfully
+ */
+bool IMessageHandler::registerClass(const std::string &tag, HandlerCtor ctor) {
+    // ensure only one thread can be allocating at a time
+    std::lock_guard guard(registerLock);
+
+    // allocate the map if needed
+    if(!registrations) {
+        registrations = new MapType;
+    }
+
+    // store the registration if free
+    if(auto it = registrations->find(tag); it == registrations->end()) {
+        registrations->insert(std::make_pair(tag, ctor));
+        return true;
+    }
+
+    // someone already registered this tag
+    Logging::error("Illegal re-registration of tag '{}'", tag);
+    return false;
+}
+
+/**
+ * Iterates over all registered controllers.
+ */
+void IMessageHandler::forEach(std::function<void(const std::string&, HandlerCtor)> f) {
+    if(!registrations) return;
+
+    for(auto const &[key, ctor] : *registrations) {
+        f(key, ctor);
+    }
+}
+
+/**
+ * Dumps all registered functions
+ */
+void IMessageHandler::dumpRegistry() {
+    std::stringstream str;
+
+    if(registrations) {
+        for(auto const &[key, func] : *registrations) {
+            str << std::setw(20) << std::setfill(' ') << key << std::setw(0);
+            str << ": " << func << std::endl;
+        } 
+
+        Logging::debug("{} Proto msg handlers registered\n{}", 
+            registrations->size(), str.str());
+    } else {
+        Logging::debug("0 Proto msg handlers registered");
+    }
+}
+
