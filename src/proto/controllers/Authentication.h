@@ -29,10 +29,8 @@ namespace Lichtenstein::Server::Proto::Controllers {
             enum State {
                 // freshly constructed, waiting for node to request auth
                 Idle,
-                // we've received an auth request. pick an algo and ack
-                HandleAuthReq,
-                // node responded to auth req, authenticate or fail
-                HandleAuthResp,
+                // process an auth response from the client
+                HandleResponse,
                 // authentication was success
                 Authenticated,
                 // something went wrong authenticating
@@ -52,6 +50,10 @@ namespace Lichtenstein::Server::Proto::Controllers {
              * depending on its current state, this may result in an error.
              */
             void handle(struct MessageHeader &, std::vector<std::byte> &);
+
+        private:
+            void handleAuthReq(const WireTypes::AuthRequest::Reader &);
+            void handleAuthRes(const WireTypes::AuthResponse::Reader &);
 
         private:
             // current state machine state

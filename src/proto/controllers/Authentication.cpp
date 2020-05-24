@@ -8,6 +8,8 @@
 
 #include <stdexcept>
 
+#include <fmt/format.h>
+
 // Cap'n Proto stuff 
 #include <capnp/message.h>
 #include <capnp/serialize-packed.h>
@@ -63,9 +65,53 @@ bool Authentication::canHandle(uint8_t type) {
  */
 void Authentication::handle(struct MessageHeader &header,
         std::vector<std::byte> &payload) {
+    using namespace WireTypes;
     // decode the protocol message
     auto msg = this->decode(payload);
+    if(msg.getPayload().isNull()) {
+        throw std::runtime_error("Payload is null");
+    }
 
+    // process the message based on state
+    switch(this->state) {
+        // idle; we expect an auth request
+        case Idle: {
+            auto req = msg.getPayload().getAs<AuthRequest>();
+            this->handleAuthReq(req);
+            break;
+        }
+
+        // parse an authentication response
+        case HandleResponse: {
+            auto res = msg.getPayload().getAs<AuthResponse>();
+            this->handleAuthRes(res);
+            break;
+        }
+
+        // shouldn't get here
+        default: {
+            auto what = fmt::format("Invalid state {}", this->state);
+            throw std::logic_error(what);
+            break;
+        }
+    }
+}
+
+
+
+/**
+ * A client sent an authentication request. Select the strongest algorithm we
+ * have in common with the client, initialize the handler, and respond to the
+ * client with the required information.
+ */
+void Authentication::handleAuthReq(const WireTypes::AuthRequest::Reader &msg) {
+    throw std::runtime_error("Unimplemented");
+}
+
+/**
+ * Validates a client's authentication response.
+ */
+void Authentication::handleAuthRes(const WireTypes::AuthResponse::Reader &msg) {
     throw std::runtime_error("Unimplemented");
 }
 
