@@ -1,5 +1,22 @@
 @0xe50996628ee0a764;
 
+# Place our types into the right namespace
+using Cxx = import "/capnp/c++.capnp";
+$Cxx.namespace("Lichtenstein::Server::Proto::WireTypes");
+
+###############################################################################
+# Message wrapper; all messages will be contained in one of these.
+struct Message {
+    # status code; 0 is success
+    status          @0: Int32;
+
+    # message payload or error info
+    union {
+        payload     @1: AnyPointer;
+        errorStr    @2: Text;
+    }
+}
+
 ###############################################################################
 # Endpoint 0x01 - Node authentication
 #
@@ -25,19 +42,17 @@ struct AuthRequest {
 struct AuthRequestAck {
     # selected auth method
     method          @0: AuthMethod;
-    # status code (negative indicates error, 0 is success)
-    status          @1: Int16;
 
     # method payload
     payload: union {
         # no payload
-        none        @2: Void;
+        none        @1: Void;
         # server-provided auth challenge
         challenge     : group {
             # binary data client computes challenge over
-            bytes   @3: Data;
+            bytes   @2: Data;
             # nonce to include in computation
-            nonce   @4: UInt64;
+            nonce   @3: UInt64;
         }
     }
 }
@@ -47,17 +62,15 @@ struct AuthRequestAck {
 struct AuthResponse {
     # selected auth method
     method          @0: AuthMethod;
-    # status code (negative indicates error, 0 is success)
-    status          @1: Int16;
 
     # response payload
     payload: union {
         # no payload
-        none        @2: Void;
+        none        @1: Void;
         # client response to auth challenge
         challenge: group {
             # raw response bytes
-            bytes   @3: Data;
+            bytes   @2: Data;
         }
     }
 }
@@ -66,9 +79,8 @@ struct AuthResponse {
 struct AuthResponseAck {
     # selected auth method
     method          @0: AuthMethod;
-    # status code (negative indicates error, 0 is success)
-    status          @1: Int16;
-
+    # did authentication succeed?
+    success         @1: Bool;
     # optional descriptive message
     message         @2: Text;
 }

@@ -1,11 +1,18 @@
 #include "Authentication.h"
 #include "../Server.h"
 #include "../WireMessage.h"
+#include "../auth/IAuthHandler.h"
 
 #include "../../Logging.h"
 #include "../../db/DataStore.h"
 
 #include <stdexcept>
+
+// Cap'n Proto stuff 
+#include <capnp/message.h>
+#include <capnp/serialize-packed.h>
+#include <proto/lichtenstein_v1.capnp.h>
+
 
 using namespace Lichtenstein::Server::Proto::Controllers;
 using IMessageHandler = Lichtenstein::Server::Proto::IMessageHandler;
@@ -28,7 +35,8 @@ std::unique_ptr<IMessageHandler> Authentication::construct(ServerWorker *w) {
  * Constructs the auth handler.
  */
 Authentication::Authentication(ServerWorker *client) : IMessageHandler(client) {
-
+    // clear out state machine
+    this->state = Idle;
 }
 
 /**
@@ -36,7 +44,7 @@ Authentication::Authentication(ServerWorker *client) : IMessageHandler(client) {
  * used.
  */
 Authentication::~Authentication() {
-
+    this->handler = nullptr;
 }
 
 
@@ -55,6 +63,9 @@ bool Authentication::canHandle(uint8_t type) {
  */
 void Authentication::handle(struct MessageHeader &header,
         std::vector<std::byte> &payload) {
+    // decode the protocol message
+    auto msg = this->decode(payload);
+
     throw std::runtime_error("Unimplemented");
 }
 

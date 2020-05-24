@@ -5,31 +5,24 @@
  * its secret key. If that computed HMAC value matches what we expect, we can
  * assume that the node is good.
  */
+#include "IAuthHandler.h"
 #include "../../db/DataStorePrimitives.h"
 
 #include <cstddef>
 #include <vector>
 
-namespace Lichtenstein::Server::Proto::Controllers {
-    class Authentication;
-}
-
 namespace Lichtenstein::Server::Proto::Auth {
-    class ChallengeHandler {
-        using AuthCtrlr = Controllers::Authentication;
+    class ChallengeHandler: public IAuthHandler {
         using Node = DB::Types::Node;
 
         public:
             ChallengeHandler() = delete;
-            ChallengeHandler(AuthCtrlr *, const Node &);
+            ChallengeHandler(const Node &);
 
         private:
             int doHmac(std::vector<std::byte> &);
 
         private:
-            AuthCtrlr *controller = nullptr;
-            Node node;
-
             std::vector<std::byte> rand;
             uint64_t nonce;
     };

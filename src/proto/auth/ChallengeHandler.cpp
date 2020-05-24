@@ -18,12 +18,10 @@ using SSLError = Lichtenstein::Server::Proto::Server::SSLError;
  * Initializes the challenge/response controller. It will process the auth
  * handshake for requests sent to the specified controller.
  */
-ChallengeHandler::ChallengeHandler(AuthCtrlr *ctlr, const Node &in) : 
-    controller(ctlr), node(in) {
+ChallengeHandler::ChallengeHandler(const Node &in) : IAuthHandler(in) {
     int err;
 
     // ensure inputs are sane
-    XASSERT(ctlr, "Auth controller cannot be NULL");
     XASSERT(node.id > 0, "Node must be valid (id = {})", in.id);
 
     // generate the random data

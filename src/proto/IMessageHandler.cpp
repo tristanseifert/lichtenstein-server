@@ -13,6 +13,11 @@
 #include <fmt/format.h>
 #include <openssl/ssl.h>
 
+// Cap'n Proto stuff 
+#include <capnp/message.h>
+#include <capnp/serialize-packed.h>
+#include <proto/lichtenstein_v1.capnp.h>
+
 using namespace Lichtenstein::Server::Proto;
 
 /// Container for all registered message handlers
@@ -29,12 +34,46 @@ IMessageHandler::IMessageHandler(ServerWorker *client) : client(client) {
 }
 
 /**
+ * Attempts to decode a message from the byte buffer. An exception will be
+ * thrown if decoding failed.
+ */
+WireTypes::Message::Reader IMessageHandler::decode(const PayloadType &payload) {
+    using namespace WireTypes;
+    
+    auto data = reinterpret_cast<const capnp::word*>(payload.data());
+    auto ptr = kj::arrayPtr(data, payload.size());
+    capnp::FlatArrayMessageReader reader(ptr);
+
+    Message::Reader msg = reader.getRoot<Message>();
+    
+    // ensure that the status was success
+    if(msg.getStatus() != 0) {
+        // should never get into this case
+        if(!msg.hasErrorStr()) {
+            auto what = fmt::format("Message status {} without error string",
+                    msg.getStatus());
+            throw std::runtime_error(what);
+        }
+
+        // we do have an error string to provide
+        auto detailStr = msg.getErrorStr().cStr();
+        auto what = fmt::format("Message status {}: {}", msg.getStatus(),
+                detailStr);
+        throw std::runtime_error(what);
+    }
+
+    return msg;
+}
+
+
+/**
  * Sends a response message to the client. This will create a wire message
  * marked with the specified type and containing payload.
  *
  * If there is an error while sending data, an exception is thrown.
  */
-void IMessageHandler::send(uint8_t type, const std::vector<std::byte> &data) {
+void IMessageHandler::send(MessageEndpoint type, uint8_t tag, 
+        const std::vector<std::byte> &data) {
     struct MessageHeader hdr;
     std::vector<std::byte> send;
     int err;
@@ -52,6 +91,8 @@ void IMessageHandler::send(uint8_t type, const std::vector<std::byte> &data) {
 
     // build a header in network byte order
     hdr.length = htons(data.size());
+    hdr.type = type;
+    hdr.tag = tag;
 
     auto hdrBytes = reinterpret_cast<std::byte *>(&hdr);
     std::copy(hdrBytes, hdrBytes+sizeof(hdr), send.begin());

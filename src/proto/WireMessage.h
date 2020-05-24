@@ -34,6 +34,10 @@ struct MessageHeader {
     uint8_t version;
     // message type, roughly corresponds to individual "endpoints"
     MessageEndpoint type;
+    // tag (responses carry the tag of the originating request)
+    uint8_t tag;
+    // reserved (send as 0, ignore in response)
+    uint8_t reserved;
     // payload length (bytes)
     uint16_t length;
 
@@ -41,11 +45,7 @@ struct MessageHeader {
     char payload[];
 };
 
-static_assert(sizeof(MessageHeader) == 4, "Incorrect message header size");
-static_assert(offsetof(MessageHeader, version) == 0, "Version field offset wrong");
-static_assert(offsetof(MessageHeader, type) == 1, "Type field offset wrong");
-static_assert(offsetof(MessageHeader, length) == 2, "Length field offset wrong");
-static_assert(offsetof(MessageHeader, payload) == 4, "Payload offset wrong");
+static_assert(sizeof(MessageHeader) == 6, "Incorrect message header size");
 
 #pragma pack(pop)
 }
