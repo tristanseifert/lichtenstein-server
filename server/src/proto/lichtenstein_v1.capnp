@@ -1,0 +1,1 @@
+../../../shared/src/proto/lichtenstein_v1.capnp
