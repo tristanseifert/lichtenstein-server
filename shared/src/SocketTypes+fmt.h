@@ -9,8 +9,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include <fmt/format.h>
-
 template <> 
 struct fmt::formatter<struct sockaddr_storage> {
     constexpr auto parse(format_parse_context& ctx) {

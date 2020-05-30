@@ -15,6 +15,7 @@
 #include <mutex>
 #include <vector>
 
+#include <sys/time.h>
 #include <sys/socket.h>
 
 #include <openssl/ssl.h>
@@ -88,9 +89,9 @@ namespace Lichtenstein::Server::Proto {
             int socket = -1;
 
             // accept timeout
-            double acceptTimeout = 2.5;
+            struct timeval acceptTimeout;
             // read timeout for clients
-            double clientReadTimeout = 0.3;
+            struct timeval clientReadTimeout;
 
             // SSL context
             SSL_CTX *ctx = nullptr;

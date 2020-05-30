@@ -293,10 +293,10 @@ open: ;
     Logging::info("Protocol server is listening on {}", servaddr);
 
     // read some more config info
-    this->acceptTimeout = ConfigManager::getDouble("server.accept_timeout", 2.5);
+    this->acceptTimeout = ConfigManager::getTimeval("server.accept_timeout", 2.5);
     Logging::trace("Accept timeout is {} seconds", this->acceptTimeout);
     
-    this->clientReadTimeout = ConfigManager::getDouble("server.read_timeout", 0.3);
+    this->clientReadTimeout = ConfigManager::getTimeval("server.read_timeout", 0.3);
     Logging::trace("Client read timeout is {} seconds", this->clientReadTimeout);
 }
 
@@ -412,9 +412,6 @@ Server::WorkerPtr Server::acceptClient() {
 
     const int on = 1;
 
-    struct timeval timeout;
-    memset(&timeout, 0, sizeof(timeout));
-
     struct sockaddr_storage clientAddr;
     memset(&clientAddr, 0, sizeof(clientAddr));
 
@@ -424,12 +421,7 @@ Server::WorkerPtr Server::acceptClient() {
         throw SSLError("BIO_new_dgram() failed");
     }
 
-    double fraction, whole;
-    fraction = modf(this->acceptTimeout, &whole);
-
-    timeout.tv_sec = whole;
-    timeout.tv_usec = (fraction * 1000 * 1000);
-    BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
+    BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &this->acceptTimeout);
 
     // create a new SSL context to accept the connection into
     SSL *ssl = SSL_new(this->ctx);
@@ -600,21 +592,12 @@ void Server::connect(int clientSock, const struct sockaddr_storage &clientAddr) 
 Server::WorkerPtr Server::newClient(int clientSock, 
         const struct sockaddr_storage &clientAddr, SSL *ssl) {
     // configure the BIO read timeout
-    struct timeval timeout;
-    memset(&timeout, 0, sizeof(timeout));
-
-    double fraction, whole;
-    fraction = modf(this->clientReadTimeout, &whole);
-
-    timeout.tv_sec = whole;
-    timeout.tv_usec = (fraction * 1000 * 1000);
-
     BIO *bio = SSL_get_rbio(ssl);
     if(!bio) {
         throw std::runtime_error("Failed to get client read BIO");
     }
 
-    BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
+    BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &this->clientReadTimeout);
 
     // create the client
     auto client = std::make_shared<ServerWorker>(clientSock, clientAddr, ssl);

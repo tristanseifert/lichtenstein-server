@@ -12,8 +12,11 @@
 #include <mutex>
 #include <memory>
 #include <stdexcept>
+#include <cmath>
 
 #include <libconfig.h++>
+
+#include <sys/time.h>
 
 class ConfigManager {
     public:
@@ -57,6 +60,21 @@ class ConfigManager {
             } catch (KeyException &) {
                 return fallback;
             }
+        }
+
+        static const struct timeval getTimeval(const std::string &path, const double fallback = 2) {
+            // read double and separate into fraction and whole parts
+            double fraction, whole;
+            double value = getDouble(path, fallback);
+            fraction = modf(value, &whole);
+
+            // convert to timeval
+            struct timeval tv;
+
+            tv.tv_sec = whole;
+            tv.tv_usec = (fraction * 1000 * 1000);
+
+            return tv;
         }
 
     private:
