@@ -12,11 +12,13 @@
 
 #include <cxxopts.hpp>
 
-#include "ConfigManager.h"
-#include "Logging.h"
+#include <ConfigManager.h>
+#include <Logging.h>
+
+#include "proto/Client.h"
 
 // bring all our namespaces into scope
-// using namespace Lichtenstein::Client;
+using Client = Lichtenstein::Client::Proto::Client;
 
 // when set to false, the server terminates
 static std::atomic_bool keepRunning;
@@ -115,7 +117,7 @@ static bool LoadConfig(void) {
  */
 void StartServices() {
     try {
-        // TODO: :)
+        Client::start();
     } catch(std::exception &e) {
         Logging::crit("StartServices() failed: {}", e.what());
         Logging::stop();
@@ -129,7 +131,7 @@ void StartServices() {
  */
 void StopServices() {
     try {
-        // TODO: :)
+        Client::stop();
     } catch(std::exception &e) {
         Logging::crit("StopServices() failed: {}", e.what());
         Logging::stop();

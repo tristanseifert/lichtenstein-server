@@ -37,6 +37,7 @@ add_executable(lichtenstein_client
     src/main.cpp
     ../shared/src/ConfigManager.cpp
     ../shared/src/Logging.cpp
+    src/proto/Client.cpp
     ${version_file} src/version.h)
 
 

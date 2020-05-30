@@ -36,7 +36,7 @@ Nodes::Nodes(Server *srv) : IController(srv) {
     this->route([this] (auto http) mutable {
         http->Get("/nodes/", std::bind(&Nodes::getAll, this,_1,_2));
         http->Get(R"(/nodes/(\d+))", std::bind(&Nodes::getOne, this,_1,_2));
-        http->Post("(/nodes/new", std::bind(&Nodes::create, this,_1,_2,_3));
+        http->Post("/nodes/new", std::bind(&Nodes::create, this,_1,_2,_3));
         http->Put(R"(/nodes/(\d+))", std::bind(&Nodes::update, this,_1,_2,_3));
     });
 }
