@@ -36,6 +36,7 @@ Nodes::Nodes(Server *srv) : IController(srv) {
     this->route([this] (auto http) mutable {
         http->Get("/nodes/", std::bind(&Nodes::getAll, this,_1,_2));
         http->Get(R"(/nodes/(\d+))", std::bind(&Nodes::getOne, this,_1,_2));
+        http->Post("(/nodes/new", std::bind(&Nodes::create, this,_1,_2,_3));
         http->Put(R"(/nodes/(\d+))", std::bind(&Nodes::update, this,_1,_2,_3));
     });
 }
@@ -77,6 +78,33 @@ void Nodes::getOne(const ReqType &req, ResType &res) {
 }
 
 /**
+ * Creates a new node in the data store. Only its label, UUID, and shared
+ * secret are stored.
+ */
+void Nodes::create(const ReqType &req, ResType &res, const ReaderType &read) {
+    // decode the body as a node
+    json toInsert;
+    this->decode(read, toInsert);
+    auto node = toInsert.get<Node>();
+
+    // insert it
+    int id = DB::DataStore::db()->insert(node);
+
+    if(id) {
+        // update the node object and output it
+        node.id = id;
+
+        json j = {
+            {"status", 0},
+            {"record", node}
+        };
+        this->respond(j, res);
+    } else {
+        res.status = 500;
+    }
+}
+
+/**
  * Updates an existing node.
  */
 void Nodes::update(const ReqType &req, ResType &res, const ReaderType &read) {
@@ -93,6 +121,12 @@ void Nodes::update(const ReqType &req, ResType &res, const ReaderType &read) {
         
         // merge the changeable properties
         n.label = updateFields.label;
+        n.uuid = updateFields.uuid; 
+
+        // copy secret if specified
+        if(!updateFields.sharedSecret.empty()) {
+            n.sharedSecret = updateFields.sharedSecret;
+        }
 
         // update the timestamp and write to db
         n.updateLastModified();

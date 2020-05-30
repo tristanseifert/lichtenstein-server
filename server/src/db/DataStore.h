@@ -35,7 +35,7 @@ namespace Lichtenstein::Server::DB {
                     make_column("hostname", &Node::hostname),
                     make_column("enabled", &Node::enabled),
                     make_column("secret", &Node::sharedSecret),
-                    make_column("uuid", &Node::_uuidBytes),
+                    make_column("uuid", &Node::_uuidBytes, unique()),
                     make_column("swVersion", &Node::swVersion),
                     make_column("hwVersion", &Node::hwVersion),
                     make_column("lastCheckin", &Node::lastCheckin),

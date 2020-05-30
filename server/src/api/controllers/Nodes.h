@@ -19,6 +19,7 @@ namespace Lichtenstein::Server::API::Controllers {
             void getAll(const ReqType &, ResType &);
             
             void getOne(const ReqType &, ResType &);
+            void create(const ReqType &, ResType &, const ReaderType &);
             void update(const ReqType &, ResType &, const ReaderType &);
 
         private:
