@@ -12,6 +12,8 @@
 #include <memory>
 #include <thread>
 
+#include <sys/socket.h>
+
 #include <uuid.h>
 
 namespace Lichtenstein::Client::Proto {
@@ -34,6 +36,8 @@ namespace Lichtenstein::Client::Proto {
 
 
         private:
+            void resolve();
+
             void workerMain();
 
             bool connect();
@@ -43,6 +47,11 @@ namespace Lichtenstein::Client::Proto {
             uuids::uuid uuid;
             std::vector<std::byte> secret;
 
+            bool serverV4Only = false;
+            std::string serverHost;
+            unsigned int serverPort;
+            struct sockaddr_storage serverAddr;
+
             std::atomic_bool run;
             std::unique_ptr<std::thread> worker = nullptr;
 
@@ -50,7 +59,10 @@ namespace Lichtenstein::Client::Proto {
             static std::shared_ptr<Client> shared;
 
         private:
+            // number of times we retry connecting before giving up
             static const size_t kConnectionAttempts = 10;
+            // minmum length of node secret
+            static const size_t kSecretMinLength = 16;
     };
 }
 

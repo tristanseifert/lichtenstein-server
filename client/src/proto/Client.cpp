@@ -4,7 +4,15 @@
 #include <Logging.h>
 #include <ConfigManager.h>
 
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+
 #include <stdexcept>
+#include <system_error>
+
+#include <base64.h>
 
 using namespace Lichtenstein::Client::Proto;
 
@@ -38,14 +46,53 @@ void Client::stop() {
  * connection and message handling in the background.
  */
 Client::Client() {
-    // read all required config
+    // read node uuid
     auto uuidStr = ConfigManager::get("id.uuid", "");
+    if(uuidStr.empty()) {
+        throw std::runtime_error("Node UUID (id.uuid) is required");
+    }
+
     auto uuid = uuids::uuid::from_string(uuidStr);
     if(!uuid.has_value()) {
-        auto what = f("Failed to parse uuid string '{}'", uuidStr);
+        auto what = f("Couldn't parse uuid string '{}'", uuidStr);
         throw std::runtime_error(what);
     }
 
+    // read node secret
+    auto secretStr = ConfigManager::get("id.secret", "");
+    if(secretStr.empty()) {
+        throw std::runtime_error("Node secret (id.secret) is required");
+    }
+
+    auto secretDecoded = base64_decode(secretStr);
+    if(secretDecoded.empty()) {
+        auto what = f("Couldn't decode base64 string '{}'", secretStr);
+        throw std::runtime_error(what);
+    }
+    else if(secretDecoded.size() < kSecretMinLength) {
+        auto what = f("Got {} bytes of node secret; expected at least {}",
+                secretDecoded.size(), (const size_t)kSecretMinLength);
+        throw std::runtime_error(what);
+    }
+
+    auto secretBytes = reinterpret_cast<std::byte *>(secretDecoded.data());
+    this->secret.assign(secretBytes, secretBytes+secretDecoded.size());
+
+    // get server address/port and attempt to resolve
+    this->serverV4Only = ConfigManager::getBool("remote.server.v4Only", false);
+
+    this->serverHost = ConfigManager::get("remote.server.address", "");
+    if(this->serverHost.empty()) {
+        throw std::runtime_error("Remote address (remote.server.address) is required");
+    }
+
+    this->serverPort = ConfigManager::getUnsigned("remote.server.port", 7420);
+    if(this->serverPort > 65535) {
+        auto what = f("Invalid remote port {}", this->serverPort);
+        throw std::runtime_error(what);
+    }
+
+    this->resolve();
 
     // create the worker thread
     this->run = true;
@@ -80,6 +127,53 @@ void Client::terminate() {
     this->run = false;
 }
 
+/**
+ * Tries to resolve the server hostname/address into an IP address that we can
+ * connect to.
+ */
+void Client::resolve() {
+    int err;
+    struct addrinfo hints, *res = nullptr;
+
+    // provide hints to resolver (if we want IPv4 only or all)
+    memset(&hints, 0, sizeof(hints));
+
+    if(this->serverV4Only) {
+        hints.ai_family = AF_INET;
+    } else {
+        hints.ai_family = AF_UNSPEC;
+    }
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags |= (AI_ADDRCONFIG | AI_V4MAPPED);
+
+    // attempt to resolve it; then get the first address
+    std::string port = f("{}", this->serverPort);
+
+    err = getaddrinfo(this->serverHost.c_str(), port.c_str(), &hints, &res);
+    if(err != 0) {
+        throw std::system_error(errno, std::generic_category(),
+                "getaddrinfo() failed");
+    }
+
+    if(!res) {
+        auto what = f("Failed to resolve '{}'", this->serverHost);
+        throw std::runtime_error(what);
+    }
+
+    // just pick the first result
+    XASSERT(res->ai_addrlen <= sizeof(this->serverAddr),
+            "Invalid address length {}; have space for {}", res->ai_addrlen,
+            sizeof(this->serverAddr));
+    memcpy(&this->serverAddr, res->ai_addr, res->ai_addrlen);
+
+    Logging::debug("Resolved '{}' -> {}", this->serverHost, this->serverAddr);
+
+    // clean up
+done:;
+    freeaddrinfo(res);
+}
+
+
 
 /**
  * Entry point for the client worker thread.
@@ -94,11 +188,13 @@ connect: ;
     do {
         success = this->connect();
         attempts++;
+        
+        if(!success && attempts > kConnectionAttempts) {
+            auto what = f("Failed to connect to server in {} attempts",
+                    attempts);
+            throw std::runtime_error(what);
+        }
     } while(!success);
-    if(!success && attempts > kConnectionAttempts) {
-        auto what = f("Failed to connect to server in {} attempts", attempts);
-        throw std::runtime_error(what);
-    }
 
     // then, attempt to authenticate; auth failure is an immediate error
     success = this->authenticate();
