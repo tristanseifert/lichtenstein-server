@@ -3,15 +3,15 @@
 #include "SocketTypes+fmt.h"
 #include "IMessageHandler.h"
 
-#include "Logging.h"
-#include "ConfigManager.h"
+#include <Format.h>
+#include <Logging.h>
+#include <ConfigManager.h>
 
 #include <stdexcept>
 
 #include <unistd.h>
 
 #include <openssl/ssl.h>
-#include <fmt/format.h>
 
 using namespace Lichtenstein::Proto;
 using namespace Lichtenstein::Server::Proto;
@@ -172,7 +172,7 @@ bool ServerWorker::readHeader(struct MessageHeader &outHdr) {
         return false;
     } else if(err != sizeof(buf)) {
         // didn't get expected message length
-        auto what = fmt::format("readHeader() failed, expected {} bytes, got {}",
+        auto what = f("readHeader() failed, expected {} bytes, got {}",
                 sizeof(buf), err);
         throw std::runtime_error(what);
     }
@@ -201,7 +201,7 @@ void ServerWorker::readMessage(struct MessageHeader &header,
     if(err == 0) {
         throw std::runtime_error("Failed to read message body");
     } else if(err != header.length) {
-        auto what = fmt::format("Only read {} of {} payload bytes", err, 
+        auto what = f("Only read {} of {} payload bytes", err, 
                 header.length);
         throw std::runtime_error(what);
     }
@@ -244,7 +244,7 @@ size_t ServerWorker::readBytes(void *buf, size_t numBytes) {
                 throw SSLError("SSL_read() failed");
             // other, unknown error
             default:
-                auto what = fmt::format("Unexpected SSL_read() error {}", err2);
+                auto what = f("Unexpected SSL_read() error {}", err2);
                 throw std::runtime_error(what);
         }
     }
@@ -286,7 +286,7 @@ size_t ServerWorker::writeBytes(const void *buf, size_t numBytes) {
                 throw SSLError("SSL_write() failed");
             // other, unknown error
             default:
-                auto what = fmt::format("Unexpected SSL_write() error {}", err2);
+                auto what = f("Unexpected SSL_write() error {}", err2);
                 throw std::runtime_error(what);
         }
 

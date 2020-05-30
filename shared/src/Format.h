@@ -8,8 +8,10 @@
 // include fmtlib and define our format shortcut
 #include <fmt/format.h>
 
-template<typename... Args> inline auto f(const Args ... args) {
-    return fmt::format(args...);
+#include <utility>
+template <typename... Args>
+inline auto f(Args&&... args) -> decltype(fmt::format(std::forward<Args>(args)...)) {
+    return fmt::format(std::forward<Args>(args)...);
 }
 
 // hex dump support

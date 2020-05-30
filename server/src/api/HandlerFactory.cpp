@@ -4,7 +4,7 @@
 #include <sstream>
 #include <mutex>
 
-#include "Logging.h"
+#include <Logging.h>
 
 #include "IController.h"
 

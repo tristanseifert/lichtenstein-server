@@ -1,11 +1,13 @@
 #include "ServerInfo.h"
 
 #include <functional>
+
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
+#include <Logging.h>
+
 #include "version.h"
-#include "Logging.h"
 
 #include "../HandlerFactory.h"
 

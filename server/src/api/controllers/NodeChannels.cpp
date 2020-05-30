@@ -6,7 +6,7 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
-#include "Logging.h"
+#include <Logging.h>
 
 #include "db/DataStore.h"
 #include "db/DataStorePrimitives+Json.h"

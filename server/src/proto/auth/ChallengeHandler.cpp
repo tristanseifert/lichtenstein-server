@@ -3,7 +3,7 @@
 #include "../Server.h"
 #include "../controllers/Authentication.h"
 
-#include "Logging.h"
+#include <Logging.h>
 
 #include <cstring>
 

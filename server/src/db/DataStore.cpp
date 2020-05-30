@@ -2,8 +2,8 @@
 
 #include <memory>
 
-#include "Logging.h"
-#include "ConfigManager.h"
+#include <Logging.h>
+#include <ConfigManager.h>
 
 using namespace Lichtenstein::Server::DB;
 

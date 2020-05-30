@@ -3,12 +3,11 @@
 #include "../Server.h"
 #include "../auth/IAuthHandler.h"
 
-#include "Logging.h"
+#include <Format.h>
+#include <Logging.h>
 #include "db/DataStore.h"
 
 #include <stdexcept>
-
-#include <fmt/format.h>
 
 // Cap'n Proto stuff 
 #include <capnp/message.h>
@@ -90,7 +89,7 @@ void Authentication::handle(const struct MessageHeader &header,
 
         // shouldn't get here
         default: {
-            auto what = fmt::format("Invalid state {}", this->state);
+            auto what = f("Invalid state {}", this->state);
             throw std::logic_error(what);
             break;
         }

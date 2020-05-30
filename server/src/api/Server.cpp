@@ -6,8 +6,8 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
-#include "Logging.h"
-#include "ConfigManager.h"
+#include <Logging.h>
+#include <ConfigManager.h>
 
 
 using namespace Lichtenstein::Server::API;

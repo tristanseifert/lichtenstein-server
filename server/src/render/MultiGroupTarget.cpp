@@ -5,8 +5,8 @@
 
 #include <stdexcept>
 
-#include "Logging.h"
-#include "../db/DataStorePrimitives.h"
+#include <Logging.h>
+#include "db/DataStorePrimitives.h"
 
 using namespace Lichtenstein::Server::Render;
 

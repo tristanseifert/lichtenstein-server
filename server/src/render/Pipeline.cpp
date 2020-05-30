@@ -13,8 +13,9 @@
 
 #include <ctpl_stl.h>
 
-#include "Logging.h"
-#include "ConfigManager.h"
+#include <Format.h>
+#include <Logging.h>
+#include <ConfigManager.h>
 
 #include "FillRenderable.h"
 #include "GroupTarget.h"
@@ -384,7 +385,7 @@ void Pipeline::add(RenderablePtr renderable, TargetPtr target, bool remove) {
                         it = this->plan.erase(it);
                         goto beach;
                     } else {
-                        auto what = fmt::format("Conflict with group {}", *c);
+                        auto what = f("Conflict with group {}", *c);
                         throw std::runtime_error(what);
                     }
                 }
@@ -392,7 +393,7 @@ void Pipeline::add(RenderablePtr renderable, TargetPtr target, bool remove) {
                 else if(c->isMutable()) {
                     // abort if we cannot remove anything
                     if(!remove) {
-                        auto what = fmt::format("Conflict with mutable container {}", *c);
+                        auto what = f("Conflict with mutable container {}", *c);
                         throw std::runtime_error(what);
                     }
 
@@ -434,7 +435,7 @@ void Pipeline::add(RenderablePtr renderable, TargetPtr target, bool remove) {
                         it = this->plan.erase(it);
                         continue;
                     } else {
-                        auto what = fmt::format("Conflict with single entry group {}", *c);
+                        auto what = f("Conflict with single entry group {}", *c);
                         throw std::runtime_error(what);
                     }
                 }
@@ -521,7 +522,7 @@ void Pipeline::add(TransformerPtr transform, const FbRange &range, bool remove) 
                 it = this->transforms.erase(it);
                 continue;
             } else {
-                auto what = fmt::format("Conflict with range {}", it->first);
+                auto what = f("Conflict with range {}", it->first);
                 throw std::runtime_error(what);
             }
         }

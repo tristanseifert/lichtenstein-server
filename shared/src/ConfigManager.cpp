@@ -4,7 +4,7 @@
 #include <memory>
 #include <mutex>
 
-#include <fmt/format.h>
+#include <Format.h>
 #include <libconfig.h++>
 
 /// This will hold the shared instance 
@@ -26,7 +26,7 @@ ConfigManager::ConfigManager(const std::string &path) {
     } catch (const libconfig::FileIOException &io) {
         throw IOException(io.what());
     } catch (const libconfig::ParseException &parse) {
-        auto what = fmt::format("{}; {}", parse.what(), parse.getError());
+        auto what = f("{}; {}", parse.what(), parse.getError());
         throw ParseException(what, parse.getLine());
     }
 }

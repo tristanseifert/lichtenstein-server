@@ -2,7 +2,8 @@
 #include "ServerWorker.h"
 #include "proto/WireMessage.h"
 
-#include "Logging.h"
+#include <Format.h>
+#include <Logging.h>
 
 #include <limits>
 #include <stdexcept>
@@ -10,7 +11,6 @@
 #include <sstream>
 #include <iomanip>
 
-#include <fmt/format.h>
 #include <openssl/ssl.h>
 
 // Cap'n Proto stuff 
@@ -51,14 +51,14 @@ IMessageHandler::MsgReader IMessageHandler::decode(const PayloadType &payload) {
     if(msg.getStatus() != 0) {
         // should never get into this case
         if(!msg.hasErrorStr()) {
-            auto what = fmt::format("Message status {} without error string",
+            auto what = f("Message status {} without error string",
                     msg.getStatus());
             throw std::runtime_error(what);
         }
 
         // we do have an error string to provide
         auto detailStr = msg.getErrorStr().cStr();
-        auto what = fmt::format("Message status {}: {}", msg.getStatus(),
+        auto what = f("Message status {}: {}", msg.getStatus(),
                 detailStr);
         throw std::runtime_error(what);
     }
@@ -81,7 +81,7 @@ void IMessageHandler::send(MessageEndpoint type, uint8_t tag,
     
     // validate parameter values
     if(data.size() > std::numeric_limits<uint16_t>::max()) {
-        auto what = fmt::format("Message too big ({} bytes, max {})", 
+        auto what = f("Message too big ({} bytes, max {})", 
                 data.size(), std::numeric_limits<uint16_t>::max());
         throw std::invalid_argument(what);
     }
@@ -104,7 +104,7 @@ void IMessageHandler::send(MessageEndpoint type, uint8_t tag,
     err = this->client->writeBytes(send.data(), send.size());
 
     if(err != send.size()) {
-        auto what = fmt::format("Failed to write {} byte message; only wrote {}",
+        auto what = f("Failed to write {} byte message; only wrote {}",
                 send.size(), err);
         throw std::runtime_error(what);
     }

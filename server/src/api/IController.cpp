@@ -4,7 +4,7 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
-#include "Logging.h"
+#include <Logging.h>
 
 using namespace Lichtenstein::Server::API;
 

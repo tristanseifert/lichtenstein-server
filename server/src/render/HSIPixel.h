@@ -5,8 +5,9 @@
 #ifndef RENDER_HSIPIXEL_H
 #define RENDER_HSIPIXEL_H
 
+#include <Format.h>
+
 #include <nlohmann/json_fwd.hpp>
-#include <fmt/format.h>
 
 namespace Lichtenstein::Server::Render {
     class HSIPixel {

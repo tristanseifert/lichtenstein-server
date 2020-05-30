@@ -1,9 +1,9 @@
 #include "Server.h"
 #include "ServerWorker.h"
-#include "SocketTypes+fmt.h"
 
-#include "Logging.h"
-#include "ConfigManager.h"
+#include <Format.h>
+#include <Logging.h>
+#include <ConfigManager.h>
 #include "db/DataStore.h"
 
 #include <cstring>
@@ -18,9 +18,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-
-#include <fmt/format.h>
-#include <spdlog/fmt/bin_to_hex.h>
 
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
@@ -167,7 +164,7 @@ void Server::initDtls() {
         int err = SSL_CTX_set_cipher_list(this->ctx, ciphers.c_str());
 
         if(err == 0) {
-            auto what = fmt::format("Failed to set cipher list '{}'", ciphers);
+            auto what = f("Failed to set cipher list '{}'", ciphers);
             throw SSLError(what);
         }
     }
@@ -192,7 +189,7 @@ void Server::openSocket() {
     auto listenAddr = ConfigManager::get("server.listen.address", "");
 
     if(port > 65535) {
-        auto what = fmt::format("Invalid protocol server port: {}", port);
+        auto what = f("Invalid protocol server port: {}", port);
         throw std::runtime_error(what);
     }
 
@@ -229,7 +226,7 @@ void Server::openSocket() {
             throw std::system_error(errno, std::generic_category(), 
                     "inet_pton(AF_INET6) failed");
         } else {
-            auto what = fmt::format("Failed to parse listen address '{}'", 
+            auto what = f("Failed to parse listen address '{}'", 
                     listenAddr);
             throw std::runtime_error(what);
         }
@@ -326,7 +323,7 @@ void Server::loadCert() {
     err = SSL_CTX_use_certificate_file(this->ctx, certPath.c_str(), 
             SSL_FILETYPE_PEM);
     if(err <= 0) {
-        auto what = fmt::format("Failed to read cert from '{}'", certPath);
+        auto what = f("Failed to read cert from '{}'", certPath);
         throw SSLError(what);
     }
 
@@ -338,7 +335,7 @@ void Server::loadCert() {
     err = SSL_CTX_use_PrivateKey_file(this->ctx, keyPath.c_str(), 
             SSL_FILETYPE_PEM);
     if(err <= 0) {
-        auto what = fmt::format("Failed to read key from '{}'", keyPath);
+        auto what = f("Failed to read key from '{}'", keyPath);
         throw SSLError(what);
     }
 
@@ -346,7 +343,7 @@ void Server::loadCert() {
     err = SSL_CTX_check_private_key(this->ctx);
 
     if(err != 1) {
-        auto what = fmt::format("Key '{}' does not jive with cert '{}'", 
+        auto what = f("Key '{}' does not jive with cert '{}'", 
                 keyPath, certPath);
         throw SSLError(what);
     }
@@ -504,7 +501,7 @@ Server::WorkerPtr Server::acceptClient() {
         // close client socket, ignoring errors
         close(clientSock);
 
-        auto what = fmt::format("Failed to accept client (from {})", clientAddr);
+        auto what = f("Failed to accept client (from {})", clientAddr);
         std::throw_with_nested(std::runtime_error(what));
     }
 
@@ -590,7 +587,7 @@ void Server::connect(int clientSock, const struct sockaddr_storage &clientAddr) 
             break;
         }
         default: {
-            auto what = fmt::format("Unknown address family {} for client socket {}", 
+            auto what = f("Unknown address family {} for client socket {}", 
                     clientAddr.ss_family, clientSock);
             throw std::runtime_error(what);
         }
@@ -642,7 +639,7 @@ Server::WorkerPtr Server::newClient(int clientSock,
  */
 int Server::getKeyPasswd(char *buf, int bufLen, int writing, void *ud) {
     auto name = reinterpret_cast<const char *>(ud);
-    std::cout << fmt::format("Enter passphrase for '{}': ", name);
+    std::cout << f("Enter passphrase for '{}': ", name);
 
     std::string pass;
 
@@ -722,7 +719,7 @@ int Server::dtlsCookieVerifyCb(SSL *ssl, const unsigned char *cookie,
     }
 
     // we got an invalid cooke :O
-    auto dump = spdlog::to_hex(cookie, cookie+cookieLen);
+    auto dump = hexdump(cookie, cookie+cookieLen);
     Logging::error("DTLS cookie failed HMAC ({})", dump);
 
     return 0;
@@ -759,7 +756,7 @@ void Server::dtlsCookieMake(SSL *ssl, unsigned char *result,
             break;
 
         default:
-            auto what = fmt::format("Unexpected address family {}", peer.ss.ss_family);
+            auto what = f("Unexpected address family {}", peer.ss.ss_family);
             throw std::runtime_error(what);
     }
 
@@ -851,7 +848,7 @@ Server::SSLError::SSLError(const std::string what) :
     std::string libErr;
     getSslErrors(libErr);
 
-    this->whatStr = fmt::format("{}: {}", what, libErr);
+    this->whatStr = f("{}: {}", what, libErr);
 }
 
 /**

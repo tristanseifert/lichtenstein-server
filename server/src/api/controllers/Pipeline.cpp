@@ -7,9 +7,10 @@
 
 #include <httplib.h>
 #include <nlohmann/json.hpp>
-#include <fmt/format.h>
 
-#include "Logging.h"
+#include <Format.h>
+#include <Logging.h>
+
 #include "db/DataStore.h"
 #include "db/DataStorePrimitives+Json.h"
 
@@ -96,7 +97,7 @@ void PipelineController::setState(const ReqType &req, ResType &res,
     if(tgtType == "groups") {
         target = this->makeGroupTarget(targetInfo);
     } else {
-        const auto what = fmt::format("Invalid target type '{}'", tgtType);
+        const auto what = f("Invalid target type '{}'", tgtType);
         throw std::invalid_argument(what);
     }
 
@@ -114,7 +115,7 @@ void PipelineController::setState(const ReqType &req, ResType &res,
     } else if(srcType == "routine") {
         renderable = this->makeRenderableRoutine(numPixels, renderInfo);
     } else {
-        const auto what = fmt::format("Invalid renderable type '{}'", srcType);
+        const auto what = f("Invalid renderable type '{}'", srcType);
         throw std::invalid_argument(what);
     }
 

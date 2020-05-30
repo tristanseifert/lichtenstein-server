@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <functional>
 
-#include <fmt/format.h>
+#include <Format.h>
 
 namespace Lichtenstein::Server::Render {
     class FbRange {

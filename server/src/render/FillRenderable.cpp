@@ -3,7 +3,7 @@
 
 #include <algorithm>
 
-#include "Logging.h"
+#include <Logging.h>
 
 using namespace Lichtenstein::Server::Render;
 

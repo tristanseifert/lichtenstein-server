@@ -5,10 +5,9 @@
 #include <chrono>
 #include <stdexcept>
 
-#include "Logging.h"
+#include <Format.h>
+#include <Logging.h>
 
-#include <fmt/format.h>
-#include <spdlog/fmt/bin_to_hex.h>
 #include <uuid.h>
 
 // Cap'n Proto stuff 
@@ -199,8 +198,8 @@ void Node::thaw() {
     uuids::uuid readUuid(this->_uuidBytes.begin(), this->_uuidBytes.end());
    
     if(readUuid.is_nil()) {
-        auto dump = spdlog::to_hex(this->_uuidBytes.begin(), this->_uuidBytes.end());
-        auto what = fmt::format("Failed to decode node UUID from bytes '{}'", dump);
+        auto dump = hexdump(this->_uuidBytes.begin(), this->_uuidBytes.end());
+        auto what = f("Failed to decode node UUID from bytes '{}'", dump);
         throw std::runtime_error(what);
     }
 

@@ -12,7 +12,8 @@
 #include <scriptmath/scriptmath.h>
 #include <datetime/datetime.h>
 
-#include "Logging.h"
+#include <Format.h>
+#include <Logging.h>
 
 using namespace Lichtenstein::Server::Render;
 
@@ -359,7 +360,7 @@ void RoutineRenderable::executeRenderFxn() {
             const char *sectionName;
 
             line = this->scriptCtx->GetExceptionLineNumber(&col, &sectionName);
-            std::string what = fmt::format("Script {} exception in \"{}\" {:d}:{:d}) {}",
+            std::string what = f("Script {} exception in \"{}\" {:d}:{:d}) {}",
                     (void*)this, sectionName, line, col,
                     this->scriptCtx->GetExceptionString());
             throw std::runtime_error(what);
@@ -427,7 +428,7 @@ void RoutineRenderable::updateScriptParams(const ParamMap &params) {
             const std::string str = std::get<std::string>(value);
             this->asParamsDict->Set(key, (void*)&str, strType);
         } else {
-            auto what = fmt::format("Unable to convert param type {}", value.index());
+            auto what = f("Unable to convert param type {}", value.index());
             throw std::runtime_error(what);
         } 
     }

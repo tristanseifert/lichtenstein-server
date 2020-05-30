@@ -12,8 +12,8 @@
 
 #include <cxxopts.hpp>
 
-#include "ConfigManager.h"
-#include "Logging.h"
+#include <ConfigManager.h>
+#include <Logging.h>
 
 #include "db/DataStore.h"
 #include "api/Server.h"
