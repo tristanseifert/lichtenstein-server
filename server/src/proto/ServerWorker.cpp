@@ -177,7 +177,7 @@ bool ServerWorker::readHeader(struct MessageHeader &outHdr) {
     }
 
     // the header was read successfully
-    outHdr.length = ntohs(outHdr.type);
+    buf.length = ntohs(buf.type);
 
     outHdr = buf;
 

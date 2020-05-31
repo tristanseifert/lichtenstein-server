@@ -20,6 +20,12 @@
 #include <openssl/err.h>
 #include <base64.h>
 
+// Cap'n Proto stuff 
+#include <capnp/message.h>
+#include <capnp/serialize-packed.h>
+#include <proto/lichtenstein_v1.capnp.h>
+
+using namespace Lichtenstein::Proto;
 using namespace Lichtenstein::Client::Proto;
 
 /// singleton client instance
@@ -204,7 +210,26 @@ connect:;
 
     // process messages as long as we're supposed to run
     while(this->run) {
+        struct MessageHeader header;
+        std::vector<std::byte> payload;
 
+        try {
+            // try to read a message and its payload
+            if(!this->readMessage(header, payload)) {
+                goto beach;
+            }
+
+            Logging::trace("Received message: type={:x} len={}",
+                    header.type, header.length);
+
+            // TODO: handle message
+        } catch(std::exception &e) {
+            Logging::error("Exception while processing message type {:x}: {}",
+                    header.type, e.what());
+        }
+
+        // prepare for the next round of processing
+beach: ;
     }
 
     // perform clean-up
@@ -502,18 +527,15 @@ size_t Client::write(const std::vector<std::byte> &data) {
 /**
  * Attempts to read data from the SSL connection, blocking if needed.
  */
-size_t Client::read(std::vector<std::byte> &out, size_t toRead) {
+size_t Client::read(void *buf, size_t toRead) {
     int err, errType;
 
     XASSERT(this->ssl, "SSL context must be set up");
 
     // read into a temporary buffer
-    auto buf = new std::byte[toRead];
     err = SSL_read(this->ssl, buf, toRead);
 
     if(err <= 0) {
-        // ensure we don't leak buffer, then get error detail
-        delete[] buf;
         errType = SSL_get_error(this->ssl, err);
 
         // no data available to read
@@ -541,11 +563,161 @@ size_t Client::read(std::vector<std::byte> &out, size_t toRead) {
         }
     }
 
-    // copy bytes into output buffer
-    out.insert(out.end(), buf, (buf + err));
-    delete[] buf;
-
     return err;
+}
+
+/**
+ * Attempts to read an entire message, by first reading a header, then its
+ * entire payload.
+ *
+ * @return true if header and payload were read, false if read should be
+ * retried later.
+ */
+bool Client::readMessage(Header &outHdr, std::vector<std::byte> &outPayload) {
+    size_t read;
+
+    // try to read the message header
+    if(!this->readHeader(outHdr)) {
+        return false;
+    }
+
+    // validate the version
+    if(outHdr.version != kLichtensteinProtoVersion) {
+        auto what = f("Invalid protocol version {:02x} (expected {:02x})",
+                outHdr.version, kLichtensteinProtoVersion);
+        throw std::runtime_error(what);
+    }
+
+    // now, attempt to read the payload
+    this->readPayload(outHdr, outPayload);
+
+    Logging::trace("Read {} byte message: type={:x}, tag={:x}, payload={}",
+            (sizeof(outHdr)+outHdr.length), outHdr.type, outHdr.tag,
+            hexdump(outPayload.begin(), outPayload.end()));
+
+    // if we get here, message was read :)
+    return true;
+}
+/**
+ * Reads a message header from the SSL context. This will read all the way up
+ * to the start of the payload area.
+ */
+bool Client::readHeader(struct MessageHeader &outHdr) {
+    int err;
+    struct MessageHeader hdr;
+
+    // try to read the header
+    err = this->read(&hdr, sizeof(hdr));
+
+    if(err == 0) {
+        // retry later
+        return false;
+    } else if(err != sizeof(hdr)) {
+        // didn't get expected message length
+        auto what = f("readHeader() failed, expected {} bytes, got {}",
+                sizeof(hdr), err);
+        throw std::runtime_error(what);
+    }
+
+    // the header was read successfully
+    hdr.length = ntohs(hdr.type);
+
+    outHdr = hdr;
+    return true;
+}
+
+/**
+ * Reads the entire amount of payload bytes into the given buffer. If the
+ * entire payload cannot be read, an exception is thrown.
+ */
+void Client::readPayload(const struct MessageHeader &header, 
+        std::vector<std::byte> &buf) {
+    int err;
+
+    // resize output buffer and try to read message
+    buf.resize(header.length, std::byte(0));
+
+    err = this->read(buf.data(), header.length);
+
+    if(err == 0) {
+        throw std::runtime_error("Failed to read message body");
+    } else if(err != header.length) {
+        auto what = f("Only read {} of {} payload bytes", err, 
+                header.length);
+        throw std::runtime_error(what);
+    }
+}
+
+/**
+ * Attempts to decode an incoming byte buffer into a message shell
+ * structure.
+ */
+Client::MsgReader Client::decode(const PayloadType &payload) {
+    using namespace WireTypes;
+
+    auto data = reinterpret_cast<const capnp::word*>(payload.data());
+    auto ptr = kj::arrayPtr(data, payload.size());
+    capnp::FlatArrayMessageReader reader(ptr);
+
+    Message::Reader msg = reader.getRoot<Message>();
+
+    // ensure that the status was success
+    if(msg.getStatus() != 0) {
+        // should never get into this case
+        if(!msg.hasErrorStr()) {
+            auto what = f("Message status {} without error string",
+                    msg.getStatus());
+            throw std::runtime_error(what);
+        }
+
+        // we do have an error string to provide
+        auto detailStr = msg.getErrorStr().cStr();
+        auto what = f("Message status {}: {}", msg.getStatus(),
+                detailStr);
+        throw std::runtime_error(what);
+    }
+
+    return msg;
+}
+
+/**
+ * Sends a response message to the client.
+ */
+void Client::send(MessageEndpoint type, uint8_t tag, const PayloadType &data) {
+    struct MessageHeader hdr;
+    std::vector<std::byte> send;
+    int err;
+
+    // validate parameter values
+    if(data.size() > std::numeric_limits<uint16_t>::max()) {
+        auto what = f("Message too big ({} bytes, max {})", 
+                data.size(), std::numeric_limits<uint16_t>::max());
+        throw std::invalid_argument(what);
+    }
+
+    // build a header in network byte order
+    hdr.version = kLichtensteinProtoVersion;
+    hdr.length = htons(data.size());
+    hdr.type = type;
+    hdr.tag = tag;
+
+    auto hdrBytes = reinterpret_cast<std::byte *>(&hdr);
+    std::copy(hdrBytes, hdrBytes+sizeof(hdr), send.begin());
+
+    // append payload to send buffer
+    send.insert(send.end(), data.begin(), data.end());
+
+    // go and send it
+    Logging::trace("Sent {} byte message: type={:x}, tag={:x}, payload ={}",
+            data.size(), type, tag, hexdump(data.begin(), data.end()));
+
+    err = this->write(send);
+
+    if(err != send.size()) {
+        auto what = f("Failed to write {} byte message; only wrote {}",
+                send.size(), err);
+        throw std::runtime_error(what);
+    }
 }
 
 

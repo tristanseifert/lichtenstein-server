@@ -6,6 +6,9 @@
 #ifndef PROTO_CLIENT_H
 #define PROTO_CLIENT_H
 
+#include <proto/WireMessage.h>
+
+#include <cstdint>
 #include <cstddef>
 #include <vector>
 #include <string>
@@ -19,12 +22,20 @@
 #include <openssl/ssl.h>
 #include <uuid.h>
 
+#include "proto/WireMessage.h"
+#include "proto/lichtenstein_v1.capnp.h"
+
 namespace Lichtenstein::Client::Proto {
     class Client {
+        using Header = struct Lichtenstein::Proto::MessageHeader;
+        using PayloadType = std::vector<std::byte>;
+        using MessageEndpoint = Lichtenstein::Proto::MessageEndpoint;
+        using MsgReader = Lichtenstein::Proto::WireTypes::Message::Reader;
+
         public:
             // don't call these, it is a Shared Instance(tm)
             Client();
-            ~Client();
+            virtual ~Client();
 
         public:
             void terminate();
@@ -50,8 +61,26 @@ namespace Lichtenstein::Client::Proto {
 
             void close();
             size_t bytesAvailable();
-            size_t write(const std::vector<std::byte> &);
-            size_t read(std::vector<std::byte>&, size_t);
+            size_t write(const PayloadType &);
+            size_t read(void *, size_t);
+
+            bool readHeader(Header &);
+            void readPayload(const Header &, PayloadType &);
+
+        public:
+            bool readMessage(Header &, PayloadType &);
+
+            MsgReader decode(const PayloadType &);
+            void send(MessageEndpoint, uint8_t, const PayloadType &);
+
+            /**
+             * Replies to an incoming message. This copies the type and tag
+             * values from the provided header, but sends the bytes unmodified.
+             */
+            void reply(const Header &hdr,
+                    const PayloadType &data) {
+                this->send(hdr.type, hdr.tag, data);
+            }
 
         private:
             uuids::uuid uuid;
