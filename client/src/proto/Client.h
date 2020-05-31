@@ -43,7 +43,9 @@ namespace Lichtenstein::Client::Proto {
 
             void workerMain();
 
-            bool connect();
+            void establishConnection();
+            bool setUpSocket();
+            bool setUpSsl();
             bool authenticate();
 
             void close();

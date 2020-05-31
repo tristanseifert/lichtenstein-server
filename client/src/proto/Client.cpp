@@ -178,7 +178,7 @@ void Client::resolve() {
     memcpy(&this->serverAddr, res->ai_addr, res->ai_addrlen);
     this->serverAddrLen = res->ai_addrlen;
 
-    Logging::debug("Resolved '{}' -> {}", this->serverHost, this->serverAddr);
+    Logging::debug("Resolved '{}' -> '{}'", this->serverHost, this->serverAddr);
 
     // clean up
 done:;
@@ -199,24 +199,8 @@ void Client::workerMain() {
     SSL_CTX_set_read_ahead(this->ctx, 1);
 
     // attempt to connect to the server
-connect: ;
-    attempts = 0;
-    do {
-        success = this->connect();
-        attempts++;
-        
-        if(!success && attempts >= kConnectionAttempts) {
-            auto what = f("Failed to connect to server in {} attempts",
-                    attempts);
-            throw std::runtime_error(what);
-        }
-    } while(!success);
-
-    // then, attempt to authenticate; auth failure is an immediate error
-    success = this->authenticate();
-    if(!success) {
-        throw std::runtime_error("Failed to authenticate");
-    }
+connect:;
+    this->establishConnection();
 
     // process messages as long as we're supposed to run
     while(this->run) {
@@ -237,20 +221,66 @@ cleanup: ;
     }
 }
 
+/**
+ * Attempts to connect to the server, establish a DTLS connection, and then
+ * authenticate the connection.
+ */
+void Client::establishConnection() {
+    int attempts = 0;
+    bool success;
 
+    // TODO: close any existing connections/resources or just assert?
+
+    // try to establish a connection and secure it
+    do {
+        // connect the socket
+        success = this->setUpSocket();
+        if(!success) {
+            Logging::warn("Client::setUpSocket() failed!");
+            goto beach;
+        }
+
+        // then, create an SSL context and perform the handshake
+        try {
+            success = this->setUpSsl();
+        } catch(std::exception &) {
+            // propagate exceptions, BUT close the socket
+            ::close(this->sock);
+            this->sock = -1;
+
+            throw;
+        }
+
+        if(!success) {
+            // close the socket to avoid leaking it
+            ::close(this->sock);
+            this->sock = -1;
+
+            Logging::warn("Client::setUpSSL() failed!");
+        }
+
+beach:;
+        if(!success && ++attempts >= kConnectionAttempts) {
+            auto what = f("Failed to connect to server in {} attempts",
+                    attempts);
+            throw std::runtime_error(what);
+        }
+    } while(!success);
+
+    // then, attempt to authenticate; auth failure is an immediate error
+    success = this->authenticate();
+    if(!success) {
+        throw std::runtime_error("Failed to authenticate");
+    }
+}
 
 /**
- * Attempts to open a connection to the server.
- *
- * @return true if connection was successful, false if it was not but should be
- * retrued at a later time.
+ * Creates the socket connection to the server.
  */
-bool Client::connect() {
-    int fd = -1, err, errType;
+bool Client::setUpSocket() {
+    int fd = -1, err;
     bool success = false;
-    SSL *ssl = nullptr;
-    BIO *bio = nullptr;
-
+    
     // create and connect a socket
     fd = socket(this->serverAddr.ss_family, SOCK_DGRAM, 0);
     if(fd < 0) {
@@ -271,16 +301,39 @@ bool Client::connect() {
         goto beach;
     }
 
+    // socket was successfully set up if we drop down here
+    success = true;
     Logging::trace("Connected fd {} to {}", fd, this->serverAddr);
+
+beach:;
+    if(!success) {
+        if(fd > 0) ::close(fd);
+    } else {
+        this->sock = fd;
+    }
+
+    // return success state
+    Logging::trace("setUpSocket(): fd={}, success={}", fd, success);
+    return success;
+}
+
+/**
+ * Sets up the SSL context, a datagram adapter to the OpenSSL logic, and then
+ * performs the DTLS handshake.
+ */
+bool Client::setUpSsl() {
+    int err, errType;
+    bool success = false;
+    SSL *ssl = nullptr;
+    BIO *bio = nullptr;
 
     // create an SSL context and associate the socket with it
     ssl = SSL_new(this->ctx);
     if(!ssl) {
-        ::close(fd);
         throw std::runtime_error("SSL_new() failed");
     }
 
-    bio = BIO_new_dgram(fd, BIO_CLOSE);
+    bio = BIO_new_dgram(this->sock, BIO_CLOSE);
 
     // this may be unneccesary
     BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_CONNECTED, 0, &this->serverAddr);
@@ -289,7 +342,8 @@ bool Client::connect() {
 
     // set the read timeout
     BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &this->readTimeout);
-    Logging::trace("Context {}, bio {} for fd {}", (void*)ssl, (void*)bio, fd);
+    Logging::trace("Context {}, bio {} for fd {}", (void*)ssl, (void*)bio,
+            this->sock);
 
     // attempt to perform SSL handshake
     err = SSL_connect(ssl);
@@ -313,7 +367,6 @@ bool Client::connect() {
 
             // all errors below are fatal so they'll throw. do not leak anything
             SSL_free(ssl);
-            ::close(fd);
 
             // underlying syscall failure
             if(errType == SSL_ERROR_SYSCALL) {
@@ -336,9 +389,7 @@ beach:;
     // ensure we do not leak anything
     if(!success) {
         if(ssl) SSL_free(ssl);
-        if(fd > 0) ::close(fd);
     } else {
-        this->sock = fd;
         this->ssl = ssl;
         this->bio = bio;
 
@@ -347,6 +398,8 @@ beach:;
     }
 
     // return the final status
+    Logging::trace("connect() state: {} (fd={}, ssl={}, bio={})", success, 
+            this->sock, (void*)this->ssl, (void*)this->bio);
     return success;
 }
 
