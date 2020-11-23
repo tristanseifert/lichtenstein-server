@@ -47,7 +47,7 @@ namespace Lichtenstein::Server::Render {
             void copyIn(size_t start, size_t num, const HSIPixel *in);
             HSIPixel *getPtr(size_t start, size_t num);
 
-            ObserverToken registerObserver(size_t start, size_t length, ObserverFunction &f);
+            ObserverToken registerObserver(size_t start, size_t length, ObserverFunction const& f);
             void removeObserver(ObserverToken token);
             void markRegionDone(size_t start, size_t length);
 

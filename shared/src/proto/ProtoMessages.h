@@ -85,9 +85,50 @@ enum PixelStatus: uint32_t {
     PIX_SUCCESS                 = 0,
     PIX_INVALID_CHANNEL         = 0x2000,
     PIX_INVALID_LENGTH          = 0x2001,
-    PIX_ALREADY_SUBSCRIBED      = 0x2002,
-    PIX_NO_SUBSCRIPTION         = 0x2003,
-    PIX_NO_DATA                 = 0x2004,
+    PIX_INVALID_OFFSET          = 0x2002,
+    PIX_INVALID_FORMAT          = 0x2003,
+    PIX_ALREADY_SUBSCRIBED      = 0x2004,
+    PIX_NO_SUBSCRIPTION         = 0x2005,
+    PIX_NO_DATA                 = 0x2006,
+};
+
+enum PixelFormat: uint32_t {
+    PIX_FORMAT_RGB              = 'RGB ',
+    PIX_FORMAT_RGBW             = 'RGBW',
+};
+
+// client -> server; add subscription for data for the given channel
+struct PixelSubscribe {
+    /// output channel index
+    uint32_t channel;
+
+    /// pixel format the client wishes to receive data in
+    PixelFormat format;
+    /// start offset of subscription
+    uint32_t start;
+    /// length of the pixel data region we're interested in
+    uint32_t length;
+};
+// server -> client; acknowledges a subscription
+struct PixelSubscribeAck {
+    PixelStatus status;
+    /// an opaque identifier for this subscription
+    uint32_t subscriptionId;
+};
+
+// client -> server; remove subscription for channel
+struct PixelUnsubscribe {
+    /// output channel index
+    uint32_t channel;
+    /// previously returned subscription id, or 0 to remove all subscriptions for the channel
+    uint32_t subscriptionId;
+};
+// server -> client; acknowledges unsubscription
+struct PixelUnsubscribeAck {
+    PixelStatus status;
+
+    /// number of pixel observers that were removed as a result of this call
+    uint32_t subscriptionsRemoved;
 };
 
 };

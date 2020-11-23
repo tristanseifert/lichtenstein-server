@@ -163,7 +163,7 @@ void Framebuffer::endFrame(const FrameToken token) {
  *
  * @note You cannot call this method from a callback.
  */
-Framebuffer::ObserverToken Framebuffer::registerObserver(size_t start, size_t length, ObserverFunction &f) {
+Framebuffer::ObserverToken Framebuffer::registerObserver(size_t start, size_t length, ObserverFunction const& f) {
     std::lock_guard<std::mutex> lg(this->observerLock);
     ObserverToken token;
 

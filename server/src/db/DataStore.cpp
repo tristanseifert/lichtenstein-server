@@ -73,3 +73,13 @@ bool DataStore::getNodeForUuid(const uuids::uuid &uuid, Types::Node &outNode) {
     return true;
 }
 
+/**
+ * Returns all of a node's output channels.
+ */
+std::vector<Types::NodeChannel> DataStore::channelsForNode(int nodeId) {
+    using namespace sqlite_orm;
+    using namespace Types;
+
+    return this->storage->get_all<NodeChannel>(where(c(&NodeChannel::nodeId) == nodeId));
+}
+

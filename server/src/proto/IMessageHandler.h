@@ -4,6 +4,8 @@
 #ifndef PROTO_IMESSAGEHANDLER_H
 #define PROTO_IMESSAGEHANDLER_H
 
+#include <proto/WireMessage.h>
+
 #include <cstddef>
 #include <vector>
 #include <memory>
@@ -12,11 +14,10 @@
 #include <map>
 #include <mutex>
 
-#include "proto/WireMessage.h"
+#include "ServerWorker.h"
+
 
 namespace Lichtenstein::Server::Proto {
-    class ServerWorker;
-
     class IMessageHandler {
         public:
             using HandlerCtor = std::unique_ptr<IMessageHandler>(*)(ServerWorker *);
@@ -57,6 +58,25 @@ namespace Lichtenstein::Server::Proto {
              */
             void send(const MessageEndpoint endpoint, const uint8_t type, const uint8_t tag, const PayloadType &data);
 
+            /**
+             * Asserts that the client is authenticated.
+             */
+            void requireAuth();
+
+            /**
+             * Is the client authenticated?
+             */
+            bool isClientAuthenticated() const {
+                return this->client->isAuthenticated();
+            }
+            /**
+             * If the client is authenticated, get the node id.
+             *
+             * @note This value is undefined if the client isn't authenticated.
+             */
+            int getNodeId() const {
+                return this->client->getNodeId();
+            }
 
         private:
             ServerWorker *client = nullptr;

@@ -5,7 +5,7 @@
 #ifndef PROTO_SERVERWORKER_H
 #define PROTO_SERVERWORKER_H
 
-#include "proto/WireMessage.h"
+#include <proto/WireMessage.h>
 
 #include <atomic>
 #include <memory>

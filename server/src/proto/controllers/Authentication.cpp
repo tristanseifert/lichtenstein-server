@@ -76,6 +76,8 @@ void Authentication::handle(ServerWorker *worker, const struct MessageHeader &he
         case Idle: {
             if(header.messageType != AuthMessageType::AUTH_REQUEST) {
                 throw std::runtime_error("Invalid message type");
+            } else if(worker->isAuthenticated()) {
+                throw std::runtime_error("Client must not be authenticated");
             }
 
             auto request = cista::deserialize<AuthRequest, kCistaMode>(payload);
@@ -87,6 +89,8 @@ void Authentication::handle(ServerWorker *worker, const struct MessageHeader &he
         case HandleResponse: {
             if(header.messageType != AuthMessageType::AUTH_RESPONSE) {
                 throw std::runtime_error("Invalid message type");
+            } else if(worker->isAuthenticated()) {
+                throw std::runtime_error("Client must not be authenticated");
             }
 
             auto response = cista::deserialize<AuthResponse, kCistaMode>(payload);

@@ -51,18 +51,8 @@ namespace Lichtenstein::Server::Proto::Controllers {
             };
 
         public:
-            /**
-             * We can handle all messages send to the auth endpoint. If the
-             * message is unexpected or corrupt, we'll raise an error during
-             * handling.
-             */
-            bool canHandle(uint8_t);
-
-            /**
-             * Passes the given message into the authentication state machine;
-             * depending on its current state, this may result in an error.
-             */
-            void handle(ServerWorker*, const Header &, PayloadType &);
+            virtual bool canHandle(uint8_t);
+            virtual void handle(ServerWorker*, const Header &, PayloadType &);
 
         private:
             void handleAuthReq(ServerWorker*, const Header &, const AuthReq *);

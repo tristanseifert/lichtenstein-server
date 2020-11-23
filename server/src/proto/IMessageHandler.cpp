@@ -139,3 +139,11 @@ void IMessageHandler::dumpRegistry() {
     }
 }
 
+/**
+ * Throws an exception if the client isn't authenticated.
+ */
+void IMessageHandler::requireAuth() {
+    if(!this->client->isAuthenticated()) {
+        throw std::runtime_error("Endpoint requires authentication");
+    }
+}

@@ -28,6 +28,10 @@ namespace Lichtenstein::Server::DB::Types {
     class Group;
 }
 
+namespace Lichtenstein::Server::Proto::Controllers {
+    class ChannelData;
+}
+
 namespace Lichtenstein::Server::Render {
     class Framebuffer;
     class IRenderable;
@@ -36,6 +40,7 @@ namespace Lichtenstein::Server::Render {
     class IPixelTransformer;
 
     class Pipeline {
+        friend class Proto::Controllers::ChannelData;
 
         using RenderablePtr = std::shared_ptr<IRenderable>;
         using TargetPtr = std::shared_ptr<IRenderTarget>;
@@ -100,7 +105,7 @@ namespace Lichtenstein::Server::Render {
 
             void workerEntry();
             void readConfig();
-      
+
             std::shared_future<void> submitRenderJob(RenderablePtr, TargetPtr);
             void renderOne(RenderablePtr, TargetPtr);
 

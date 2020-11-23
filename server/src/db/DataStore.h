@@ -195,6 +195,7 @@ namespace Lichtenstein::Server::DB {
 
         public:
             bool getNodeForUuid(const uuids::uuid &uuid, Types::Node &outNode);
+            std::vector<Types::NodeChannel> channelsForNode(int nodeId);
 
         private:
             static std::shared_ptr<DataStore> sharedInstance;
