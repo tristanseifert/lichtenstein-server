@@ -1,7 +1,13 @@
 /**
  * Definitions of structs that are sent over the wire as part of the Lichtenstein protocol.
  *
- * These are encoded using Cista++.
+ * These are encoded using Cista++. To ensure data is deserialized correctly, a hash of the
+ * structures is included at the cost of 16 extra bytes in each message.
+ *
+ * Most response messages contain a status code field. The exact values of the status fields are
+ * specific to the endpoint itself, but values are assigned such that a) all endpoints use 0 to
+ * indicate success, and b) each endpoint uses an unique, non-overlapping numbering space for its
+ * status codes.
  */
 #ifndef LICHTENSTEIN_PROTOMESSAGES_H
 #define LICHTENSTEIN_PROTOMESSAGES_H
@@ -25,17 +31,17 @@ constexpr auto const kCistaMode = (cista::mode::WITH_VERSION | cista::mode::WITH
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Authentication endpoint messages
 enum AuthMessageType: uint8_t {
-    AUTH_REQUEST        = 1,
-    AUTH_REQUEST_ACK    = 2,
-    AUTH_RESPONSE       = 3,
-    AUTH_RESPONSE_ACK   = 4,
+    AUTH_REQUEST                = 1,
+    AUTH_REQUEST_ACK            = 2,
+    AUTH_RESPONSE               = 3,
+    AUTH_RESPONSE_ACK           = 4,
 };
 
 // Authentication status codes
 enum AuthStatus: uint32_t {
-    AUTH_SUCCESS        = 0,
-    AUTH_NO_METHODS     = 0x1000,
-    AUTH_INVALID_ID     = 0x1001,
+    AUTH_SUCCESS                = 0,
+    AUTH_NO_METHODS             = 0x1000,
+    AUTH_INVALID_ID             = 0x1001,
 };
 
 // client -> server, starting authentication
@@ -63,6 +69,25 @@ struct AuthResponse {
 struct AuthResponseAck {
     /// success/failure indication
     AuthStatus status;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Pixel data endpoint messages
+enum PixelMessageType: uint8_t {
+    PIX_SUBSCRIBE               = 1,
+    PIX_SUBSCRIBE_ACK           = 2,
+    PIX_UNSUBSCRIBE             = 3,
+    PIX_UNSUBSCRIBE_ACK         = 4,
+    PIX_DATA                    = 5,
+};
+
+enum PixelStatus: uint32_t {
+    PIX_SUCCESS                 = 0,
+    PIX_INVALID_CHANNEL         = 0x2000,
+    PIX_INVALID_LENGTH          = 0x2001,
+    PIX_ALREADY_SUBSCRIBED      = 0x2002,
+    PIX_NO_SUBSCRIPTION         = 0x2003,
+    PIX_NO_DATA                 = 0x2004,
 };
 
 };

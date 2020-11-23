@@ -38,6 +38,8 @@ void GroupTarget::inscreteFrame(FbPtr fb, std::shared_ptr<IRenderable> in) {
 
     auto fbPtr = fb->getPtr(this->fbOffset, this->length);
     in->copyOut(0, this->length, fbPtr, this->mirrored);
+
+    fb->markRegionDone(this->fbOffset, this->length);
 }
 
 /**

@@ -25,6 +25,8 @@ enum MessageEndpoint: uint8_t {
     Default = 0,
     /// authentication of nodes
     Authentication = 1,
+    /// pixel data (subscriptions and data transmission)
+    PixelData = 2,
 };
 
 /**
