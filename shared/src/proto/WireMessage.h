@@ -17,6 +17,8 @@ static const uint8_t kLichtensteinProtoVersion = 0x01;
 
 /**
  * Message endpoint types
+ *
+ * Note that this defines the format of the messages.
  */
 enum MessageEndpoint: uint8_t {
     /// default endpoint; this drops all messages
@@ -33,11 +35,11 @@ struct MessageHeader {
     // protocol version; currently, this is 0x01
     uint8_t version;
     // message type, roughly corresponds to individual "endpoints"
-    MessageEndpoint type;
+    MessageEndpoint endpoint;
+    // message type. this is specific to the endpoint
+    uint8_t messageType;
     // tag (responses carry the tag of the originating request)
     uint8_t tag;
-    // reserved (send as 0, ignore in response)
-    uint8_t reserved;
     // payload length (bytes)
     uint16_t length;
 

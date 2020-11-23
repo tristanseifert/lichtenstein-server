@@ -13,7 +13,6 @@
 #include <mutex>
 
 #include "proto/WireMessage.h"
-#include "proto/lichtenstein_v1.capnp.h"
 
 namespace Lichtenstein::Server::Proto {
     class ServerWorker;
@@ -22,10 +21,9 @@ namespace Lichtenstein::Server::Proto {
         public:
             using HandlerCtor = std::unique_ptr<IMessageHandler>(*)(ServerWorker *);
             using MapType = std::map<std::string, HandlerCtor>;
-            using PayloadType = std::vector<std::byte>;
+            using PayloadType = std::vector<unsigned char>;
             using Header = struct Lichtenstein::Proto::MessageHeader;
             using MessageEndpoint = Lichtenstein::Proto::MessageEndpoint;
-            using MsgReader = Lichtenstein::Proto::WireTypes::Message::Reader;
 
         public:
             IMessageHandler() = delete;
@@ -47,24 +45,17 @@ namespace Lichtenstein::Server::Proto {
 
         protected:
             /**
-             * Attempts to decode an incoming byte buffer into a message shell
-             * structure.
-             */
-            MsgReader decode(const PayloadType &payload);
-
-            /**
              * Replies to an incoming message. This copies the type and tag
              * values from the provided header, but sends the bytes unmodified.
              */
-            void reply(const Header &hdr,
-                    const PayloadType &data) {
-                this->send(hdr.type, hdr.tag, data);
+            void reply(const Header &hdr, const uint8_t type, const PayloadType &data) {
+                this->send(hdr.endpoint, type, hdr.tag, data);
             }
 
             /**
              * Sends a response message to the client.
              */
-            void send(MessageEndpoint type, uint8_t tag, const PayloadType &data);
+            void send(const MessageEndpoint endpoint, const uint8_t type, const uint8_t tag, const PayloadType &data);
 
 
         private:

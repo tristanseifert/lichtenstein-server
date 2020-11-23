@@ -20,10 +20,8 @@
 #include <openssl/err.h>
 #include <base64.h>
 
-// Cap'n Proto stuff 
-#include <capnp/message.h>
-#include <capnp/serialize-packed.h>
-#include <proto/lichtenstein_v1.capnp.h>
+#include <cista.h>
+#include <proto/ProtoMessages.h>
 
 using namespace Lichtenstein::Proto;
 using namespace Lichtenstein::Client::Proto;
@@ -69,6 +67,9 @@ Client::Client() {
         auto what = f("Couldn't parse uuid string '{}'", uuidStr);
         throw std::runtime_error(what);
     }
+
+    this->uuid = uuid.value();
+    Logging::trace("Node uuid: {}", uuids::to_string(this->uuid));
 
     // read node secret
     auto secretStr = ConfigManager::get("id.secret", "");
@@ -211,7 +212,7 @@ connect:;
     // process messages as long as we're supposed to run
     while(this->run) {
         struct MessageHeader header;
-        std::vector<std::byte> payload;
+        std::vector<unsigned char> payload;
 
         try {
             // try to read a message and its payload
@@ -219,13 +220,13 @@ connect:;
                 goto beach;
             }
 
-            Logging::trace("Received message: type={:x} len={}",
-                    header.type, header.length);
+            Logging::trace("Received message: type={:x}:{:x} len={}",
+                    header.endpoint, header.messageType, header.length);
 
             // TODO: handle message
         } catch(std::exception &e) {
-            Logging::error("Exception while processing message type {:x}: {}",
-                    header.type, e.what());
+            Logging::error("Exception while processing message type {:x}:{:x}: {}",
+                    header.endpoint, header.messageType, e.what());
         }
 
         // prepare for the next round of processing
@@ -431,12 +432,109 @@ beach:;
 /**
  * Uses our node UUID and shared secret to authenticate the connection.
  *
+ * Authentication is implemented by means of a simple state machine. When the function is invoked
+ * first, we initialize it and progress through the various states until the node is either
+ * successfully authenticated, or an error occurs.
+ *
  * @return true if server accepted credentials, false otherwise.
  */
 bool Client::authenticate() {
+    using namespace MessageTypes;
+
+    uint8_t tag = 0;
+    std::string method;
+
+    Header head;
+    PayloadType payload;
+
+    // states for the state machine
+    enum {
+        // Send authentication request
+        SEND_REQ,
+        // Wait to receive auth request
+        READ_REQ_ACK,
+        // Perform auth according to selected algorithm and send to server
+        SEND_RESPONSE,
+        // Await response from server whether auth was a success or not
+        READ_AUTH_STATE,
+    } state = SEND_REQ;
+
+    // authentication state machine
+    while(true) {
+        switch(state) {
+            // send the auth request
+            case SEND_REQ:
+                this->authSendReq(tag);
+                state = READ_REQ_ACK;
+                break;
+
+            // receive the request ack
+            case READ_REQ_ACK: {
+                memset(&head, 0, sizeof(head));
+                payload.clear();
+
+                if(!this->readMessage(head, payload)) {
+                    Logging::error("Failed to read auth message (state {})", state);
+                    return false;
+                }
+                if(head.tag != tag ||
+                   head.endpoint != MessageEndpoint::Authentication || 
+                   head.messageType != AuthMessageType::AUTH_REQUEST_ACK) {
+                    Logging::error("Received unexpected message: tag {}, type {:x}:{:x}", head.tag, 
+                                   head.endpoint, head.messageType);
+                    break;
+                }
+
+                // decode the acknowledgement
+                auto ack = cista::deserialize<AuthRequestAck, kCistaMode>(payload);
+                if(ack->status != 0) {
+                    Logging::error("Authentication failure: {}", ack->status);
+                    return false;
+                }
+
+                // if success, get the desired method and send response
+                method = ack->method;
+
+                Logging::trace("Negotiated auth method: {}", method);
+                state = SEND_RESPONSE;
+                break;
+            }
+
+            // unexpected state
+            default:
+                Logging::error("Invalid auth state: {}", state);
+                return false;
+        }
+    }
+
+    // we shouldn't fall down here
     return false;
 }
 
+/**
+ * Sends the authentication request to the server.
+ *
+ * @param sentTag Tag of the message sent
+ *
+ * @throws If an error occurs, an exception is thrown.
+ */
+void Client::authSendReq(uint8_t &sentTag) {
+    using namespace Lichtenstein::Proto::MessageTypes;
+
+    // build the auth message
+    AuthRequest msg;
+    memset(&msg, 0, sizeof(msg));
+
+    msg.nodeId = uuids::to_string(this->uuid);
+    msg.methods.push_back("me.tseifert.lichtenstein.auth.null");
+
+    // serialize and send
+    auto bytes = cista::serialize<kCistaMode, AuthRequest>(msg);
+
+    uint8_t tag = this->nextTag++;
+    this->send(MessageEndpoint::Authentication, AuthMessageType::AUTH_REQUEST, tag, bytes);
+    sentTag = tag;
+}
 
 
 /**
@@ -486,7 +584,7 @@ size_t Client::bytesAvailable() {
 /**
  * Writes data to the SSL connection.
  */
-size_t Client::write(const std::vector<std::byte> &data) {
+size_t Client::write(const PayloadType &data) {
     int err, errType;
 
     XASSERT(this->ssl, "SSL context must be set up");
@@ -573,7 +671,7 @@ size_t Client::read(void *buf, size_t toRead) {
  * @return true if header and payload were read, false if read should be
  * retried later.
  */
-bool Client::readMessage(Header &outHdr, std::vector<std::byte> &outPayload) {
+bool Client::readMessage(Header &outHdr, PayloadType &outPayload) {
     size_t read;
 
     // try to read the message header
@@ -591,8 +689,8 @@ bool Client::readMessage(Header &outHdr, std::vector<std::byte> &outPayload) {
     // now, attempt to read the payload
     this->readPayload(outHdr, outPayload);
 
-    Logging::trace("Read {} byte message: type={:x}, tag={:x}, payload={}",
-            (sizeof(outHdr)+outHdr.length), outHdr.type, outHdr.tag,
+    Logging::trace("Read {} byte message: ep={:x}:{:x}, tag={:x}, payload={}",
+            (sizeof(outHdr)+outHdr.length), outHdr.endpoint, outHdr.messageType, outHdr.tag,
             hexdump(outPayload.begin(), outPayload.end()));
 
     // if we get here, message was read :)
@@ -620,7 +718,7 @@ bool Client::readHeader(struct MessageHeader &outHdr) {
     }
 
     // the header was read successfully
-    hdr.length = ntohs(hdr.type);
+    hdr.length = ntohs(hdr.length);
 
     outHdr = hdr;
     return true;
@@ -630,12 +728,11 @@ bool Client::readHeader(struct MessageHeader &outHdr) {
  * Reads the entire amount of payload bytes into the given buffer. If the
  * entire payload cannot be read, an exception is thrown.
  */
-void Client::readPayload(const struct MessageHeader &header, 
-        std::vector<std::byte> &buf) {
+void Client::readPayload(const struct MessageHeader &header, PayloadType &buf) {
     int err;
 
     // resize output buffer and try to read message
-    buf.resize(header.length, std::byte(0));
+    buf.resize(header.length);
 
     err = this->read(buf.data(), header.length);
 
@@ -649,43 +746,13 @@ void Client::readPayload(const struct MessageHeader &header,
 }
 
 /**
- * Attempts to decode an incoming byte buffer into a message shell
- * structure.
- */
-Client::MsgReader Client::decode(const PayloadType &payload) {
-    using namespace WireTypes;
-
-    auto data = reinterpret_cast<const capnp::word*>(payload.data());
-    auto ptr = kj::arrayPtr(data, payload.size());
-    capnp::FlatArrayMessageReader reader(ptr);
-
-    Message::Reader msg = reader.getRoot<Message>();
-
-    // ensure that the status was success
-    if(msg.getStatus() != 0) {
-        // should never get into this case
-        if(!msg.hasErrorStr()) {
-            auto what = f("Message status {} without error string",
-                    msg.getStatus());
-            throw std::runtime_error(what);
-        }
-
-        // we do have an error string to provide
-        auto detailStr = msg.getErrorStr().cStr();
-        auto what = f("Message status {}: {}", msg.getStatus(),
-                detailStr);
-        throw std::runtime_error(what);
-    }
-
-    return msg;
-}
-
-/**
  * Sends a response message to the client.
  */
-void Client::send(MessageEndpoint type, uint8_t tag, const PayloadType &data) {
+void Client::send(MessageEndpoint endpoint, uint8_t type, uint8_t tag, const PayloadType &data) {
     struct MessageHeader hdr;
-    std::vector<std::byte> send;
+    memset(&hdr, 0, sizeof(hdr));
+
+    std::vector<unsigned char> send;
     int err;
 
     // validate parameter values
@@ -695,21 +762,25 @@ void Client::send(MessageEndpoint type, uint8_t tag, const PayloadType &data) {
         throw std::invalid_argument(what);
     }
 
+    send.reserve(data.size() + sizeof(hdr));
+    send.resize(sizeof(hdr));
+
     // build a header in network byte order
     hdr.version = kLichtensteinProtoVersion;
-    hdr.length = htons(data.size());
-    hdr.type = type;
+    hdr.length = htons(data.size() & 0xFFFF);
+    hdr.endpoint = endpoint;
+    hdr.messageType = type;
     hdr.tag = tag;
 
-    auto hdrBytes = reinterpret_cast<std::byte *>(&hdr);
+    auto hdrBytes = reinterpret_cast<unsigned char *>(&hdr);
     std::copy(hdrBytes, hdrBytes+sizeof(hdr), send.begin());
 
     // append payload to send buffer
     send.insert(send.end(), data.begin(), data.end());
 
     // go and send it
-    Logging::trace("Sent {} byte message: type={:x}, tag={:x}, payload ={}",
-            data.size(), type, tag, hexdump(data.begin(), data.end()));
+    Logging::trace("Sent {} ({} payload) byte message: type={:x}:{:x}, tag={:x}, payload={}",
+            send.size(), data.size(), endpoint, type, tag, hexdump(data.begin(), data.end()));
 
     err = this->write(send);
 

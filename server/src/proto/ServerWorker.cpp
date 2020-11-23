@@ -80,7 +80,9 @@ void ServerWorker::main() {
     // main read loop
     while(!this->shouldTerminate) {
         struct MessageHeader header;
-        std::vector<std::byte> payload;
+        memset(&header, 0, sizeof(header));
+
+        std::vector<unsigned char> payload;
 
         try {
             // read the message header and try to handle the message type
@@ -98,14 +100,15 @@ void ServerWorker::main() {
                 goto beach;
             }
 
-            Logging::trace("Message type {:x} len {} from client {}",
-                    header.type, header.length, this->addr);
+            Logging::trace("Message type {:x}:{:x} len {} from client {}", header.endpoint, 
+                    header.messageType, header.length, this->addr);
 
             // check if we can find a handler
             for(auto &handler : this->handlers) {
-                if(handler->canHandle(header.type)) {
+                if(handler->canHandle(header.endpoint)) {
                     // if so, read and handle it; then read next message
                     this->readMessage(header, payload);
+                    // Logging::trace("Read {} payload bytes: {}", payload.size(), hexdump(payload.begin(), payload.end()));
                     handler->handle(header, payload);
 
                     goto beach;
@@ -113,8 +116,8 @@ void ServerWorker::main() {
             }
 
             // if we get here, no suitable handler found
-            Logging::warn("Unsupported message type {:x} from {}", header.type,
-                    this->addr);
+            Logging::warn("Unsupported message type {:x}:{:x} from {}", header.endpoint, 
+                    header.messageType, this->addr);
         } catch(std::exception &e) {
             Logging::error("Exception while processing request from {}: {}",
                     this->addr, e.what());
@@ -162,6 +165,7 @@ beach: ;
 bool ServerWorker::readHeader(struct MessageHeader &outHdr) {
     int err;
     struct MessageHeader buf;
+    memset(&buf, 0, sizeof(buf));
 
     // try to read the header length of bytes from the context
     err = this->readBytes(&buf, sizeof(buf));
@@ -177,7 +181,7 @@ bool ServerWorker::readHeader(struct MessageHeader &outHdr) {
     }
 
     // the header was read successfully
-    buf.length = ntohs(buf.type);
+    buf.length = ntohs(buf.length);
 
     outHdr = buf;
 
@@ -188,12 +192,12 @@ bool ServerWorker::readHeader(struct MessageHeader &outHdr) {
  * Reads the entire amount of payload bytes into the given buffer. If the
  * entire payload cannot be read, an exception is thrown.
  */
-void ServerWorker::readMessage(struct MessageHeader &header, 
-        std::vector<std::byte> &buf) {
+void ServerWorker::readMessage(const struct MessageHeader &header, 
+        std::vector<unsigned char> &buf) {
     int err;
 
     // resize output buffer and try to read message
-    buf.resize(header.length, std::byte(0));
+    buf.resize(header.length);
 
     err = this->readBytes(buf.data(), header.length);
 

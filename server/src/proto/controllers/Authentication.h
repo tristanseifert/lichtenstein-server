@@ -6,8 +6,14 @@
 
 #include "../IMessageHandler.h"
 
+#include <proto/ProtoMessages.h>
+
 #include <cstddef>
 #include <memory>
+#include <string>
+#include <vector>
+
+#include <uuid.h>
 
 namespace Lichtenstein::Server::Proto::Auth {
     class IAuthHandler;
@@ -15,14 +21,18 @@ namespace Lichtenstein::Server::Proto::Auth {
 
 namespace Lichtenstein::Server::Proto::Controllers {
     class Authentication: public IMessageHandler {
-        using AuthResp = Lichtenstein::Proto::WireTypes::AuthResponse;
-        using AuthReq = Lichtenstein::Proto::WireTypes::AuthRequest;
+        // using AuthResp = Lichtenstein::Proto::MessageTypes::AuthResponse;
+        using AuthReq = Lichtenstein::Proto::MessageTypes::AuthRequest;
 
         public:
             Authentication() = delete;
             Authentication(ServerWorker *client);
 
             ~Authentication();
+
+        private:
+            /// supported auth methods, in descending preference order
+            static const std::vector<std::string> kSupportedMethods;
 
         private:
             /**
@@ -52,11 +62,11 @@ namespace Lichtenstein::Server::Proto::Controllers {
              * Passes the given message into the authentication state machine;
              * depending on its current state, this may result in an error.
              */
-            void handle(const Header &, std::vector<std::byte> &);
+            void handle(const Header &, PayloadType &);
 
         private:
-            void handleAuthReq(const AuthReq::Reader &);
-            void handleAuthRes(const AuthResp::Reader &);
+            void handleAuthReq(const Header &, const AuthReq *);
+            // void handleAuthResp(const Header &, AuthResp *);
 
         private:
             // current state machine state

@@ -9,14 +9,20 @@
 
 #include <stdexcept>
 
-// Cap'n Proto stuff 
-#include <capnp/message.h>
-#include <capnp/serialize-packed.h>
-#include <proto/lichtenstein_v1.capnp.h>
+#include <cista.h>
 
 using namespace Lichtenstein::Proto;
+using namespace Lichtenstein::Proto::MessageTypes;
 using namespace Lichtenstein::Server::Proto::Controllers;
+
 using IMessageHandler = Lichtenstein::Server::Proto::IMessageHandler;
+
+/**
+ * Supported authentication mechanisms, in descending order.
+ */
+const std::vector<std::string> Authentication::kSupportedMethods = {
+    "me.tseifert.lichtenstein.auth.null",
+};
 
 /// registers the controller
 bool Authentication::registered = 
@@ -62,36 +68,32 @@ bool Authentication::canHandle(uint8_t type) {
  * Handles an authentication message. This is basically a state machine that
  * will step through the separate stages of the auth cycle.
  */
-void Authentication::handle(const struct MessageHeader &header,
-        std::vector<std::byte> &payload) {
-    using namespace WireTypes;
-    // decode the protocol message
-    auto msg = this->decode(payload);
-    if(msg.getPayload().isNull()) {
-        throw std::runtime_error("Payload is null");
-    }
+void Authentication::handle(const struct MessageHeader &header, PayloadType &payload) {
+    Logging::trace("Received message {} bytes: {}", payload.size(), hexdump(payload.begin(), payload.end()));
 
     // process the message based on state
     switch(this->state) {
         // idle; we expect an auth request
         case Idle: {
-            auto req = msg.getPayload().getAs<AuthRequest>();
-            this->handleAuthReq(req);
+            if(header.messageType != AuthMessageType::AUTH_REQUEST) {
+                throw std::runtime_error("Invalid message type");
+            }
+
+            auto request = cista::deserialize<AuthRequest, kCistaMode>(payload);
+            this->handleAuthReq(header, request);
             break;
         }
 
         // parse an authentication response
-        case HandleResponse: {
-            auto res = msg.getPayload().getAs<AuthResponse>();
-            this->handleAuthRes(res);
+        /*case HandleResponse: {
+            this->handleAuthRes(auth.getResponse());
             break;
-        }
+        }*/
 
         // shouldn't get here
         default: {
             auto what = f("Invalid state {}", this->state);
             throw std::logic_error(what);
-            break;
         }
     }
 }
@@ -103,14 +105,64 @@ void Authentication::handle(const struct MessageHeader &header,
  * have in common with the client, initialize the handler, and respond to the
  * client with the required information.
  */
-void Authentication::handleAuthReq(const WireTypes::AuthRequest::Reader &msg) {
-    throw std::runtime_error("Unimplemented");
+void Authentication::handleAuthReq(const Header &hdr, const AuthReq *msg) {
+    AuthRequestAck ack;
+    memset(&ack, 0, sizeof(ack));
+
+    // get node UUID
+    auto maybeUuid = uuids::uuid::from_string(msg->nodeId.str());
+    if(!maybeUuid.has_value()) {
+        throw std::runtime_error("Invalid node id");
+    }
+    const auto uuid = maybeUuid.value();
+
+    Logging::trace("Auth request from {}", uuids::to_string(uuid));
+
+    // find the best supported auth method
+    int bestMethod = -1;
+
+    for(const auto method : msg->methods) {
+        const std::string str = method.str();
+
+        auto it = std::find(kSupportedMethods.begin(), kSupportedMethods.end(), str);
+        if(it != kSupportedMethods.end()) {
+            size_t idx = it - kSupportedMethods.begin();
+
+            if(idx < bestMethod || bestMethod == -1) {
+                bestMethod = idx;
+            }
+        }
+    }
+
+    if(bestMethod < 0) {
+        goto nack;
+    }
+
+    Logging::trace("Using auth method {}: {}", bestMethod, kSupportedMethods[bestMethod]);
+
+    // acknowledge the request
+    ack.method = kSupportedMethods[bestMethod];
+
+    {
+        const auto ackData = cista::serialize<kCistaMode>(ack);
+        this->reply(hdr, AuthMessageType::AUTH_REQUEST_ACK, ackData);
+    }
+    return;
+
+    // negative acknowledge
+nack:;
+    ack.status = 1;
+
+    const auto nackData = cista::serialize<kCistaMode>(ack);
+    this->reply(hdr, AuthMessageType::AUTH_REQUEST_ACK, nackData);
+
+    throw std::runtime_error("No common auth methods");
 }
 
 /**
  * Validates a client's authentication response.
  */
-void Authentication::handleAuthRes(const WireTypes::AuthResponse::Reader &msg) {
+/*void Authentication::handleAuthRes(const AuthRes &msg) {
     throw std::runtime_error("Unimplemented");
-}
+}*/
 

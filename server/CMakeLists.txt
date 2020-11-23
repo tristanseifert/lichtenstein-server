@@ -19,6 +19,7 @@ include_directories(../libs/cxxopts/include)
 include_directories(../libs/sqlite_orm/include/sqlite_orm)
 include_directories(../libs/cpp-httplib)
 include_directories(../libs/stduuid/include)
+include_directories(../libs/cista/include)
 
 # compile in the git version file
 include(GetGitRevisionDescription)
@@ -69,17 +70,15 @@ add_executable(lichtenstein_server
     ${version_file} src/version.h)
 
 
-# compile cap'n proto files
+# compile cap'n proto files (for database use)
 find_package(CapnProto REQUIRED)
 target_include_directories(lichtenstein_server PRIVATE ${CAPNP_INCLUDE_DIRS})
 add_definitions(${CAPNP_DEFINITIONS})
 
 capnp_generate_cpp(CAPNP_SOURCES CAPNP_HEADERS
-    src/db/packed_v1.capnp
-    src/proto/lichtenstein_v1.capnp)
+    src/db/packed_v1.capnp)
 target_sources(lichtenstein_server PRIVATE ${CAPNP_SOURCES} ${CAPNP_HEADERS})
 
-# then, link against the cap'n proto runtime and include the generated headers
 target_link_libraries(lichtenstein_server PRIVATE CapnProto::capnp)
 target_include_directories(lichtenstein_server PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/src)
 

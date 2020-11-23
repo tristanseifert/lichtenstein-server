@@ -15,6 +15,7 @@ include_directories(src)
 include_directories(../libs/cxxopts/include)
 include_directories(../libs/cpp-httplib)
 include_directories(../libs/stduuid/include)
+include_directories(../libs/cista/include)
 
 # compile in the git version file
 include(GetGitRevisionDescription)
@@ -40,19 +41,6 @@ add_executable(lichtenstein_client
     src/proto/Client.cpp
     ${version_file} src/version.h)
 
-
-# compile cap'n proto files
-find_package(CapnProto REQUIRED)
-target_include_directories(lichtenstein_client PRIVATE ${CAPNP_INCLUDE_DIRS})
-add_definitions(${CAPNP_DEFINITIONS})
-
-capnp_generate_cpp(CAPNP_SOURCES CAPNP_HEADERS
-    src/proto/lichtenstein_v1.capnp)
-target_sources(lichtenstein_client PRIVATE ${CAPNP_SOURCES} ${CAPNP_HEADERS})
-
-# then, link against the cap'n proto runtime and include the generated headers
-target_link_libraries(lichtenstein_client PRIVATE CapnProto::capnp)
-target_include_directories(lichtenstein_client PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/src)
 
 # find LibreSSL and link with it, with a fun Apple hack
 find_package(LibreSSL REQUIRED)

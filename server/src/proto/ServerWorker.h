@@ -96,7 +96,7 @@ namespace Lichtenstein::Server::Proto {
             void main();
 
             bool readHeader(Header &);
-            void readMessage(Header &, std::vector<std::byte> &);
+            void readMessage(const Header &, std::vector<unsigned char> &);
 
             void initHandlers();
 

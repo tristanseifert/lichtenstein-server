@@ -8,12 +8,23 @@ $Cxx.namespace("Lichtenstein::Proto::WireTypes");
 # Message wrapper; all messages will be contained in one of these.
 struct Message {
     # status code; 0 is success
-    status          @0: Int32;
+    status              @0: Int32;
 
     # message payload or error info
     union {
-        payload     @1: AnyPointer;
-        errorStr    @2: Text;
+        errorStr        @1: Text;
+
+        # authentication messages
+        auth            : union {
+            # auth request
+            request     @2: AuthRequest;
+            # auth request ack
+            requestAck  @3: AuthRequestAck;
+            # auth response
+            response    @4: AuthResponse;
+            # auth response ack
+            responseAck @5: AuthResponseAck;
+        }
     }
 }
 
@@ -23,25 +34,25 @@ struct Message {
 # Supported authentication methods
 enum AuthMethod {
     # node ID is all that is required to authenticate
-    nullMethod      @0;
+    nullMethod          @0;
     # server provides a challenge involving secret key; node replies
-    challengeMethod @1;
+    challengeMethod     @1;
 }
 
 # Sent by a node to initiate authentication. It provides its unique ID, as well
 # as a list of supported authentication mechanisms.
 struct AuthRequest {
     # unique node identifier
-    nodeUuid        @0: Data;
+    nodeUuid            @0: Data;
     # list of supported auth mechanisms
-    supported       @1: List(AuthMethod);
+    supported           @1: List(AuthMethod);
 }
 # Sent by the server to start the authentication process. It indicates the
 # method selected by the server, as well as any server-provided information to
 # begin authentication.
 struct AuthRequestAck {
     # selected auth method
-    method          @0: AuthMethod;
+    method              @0: AuthMethod;
 
     # method payload
     payload: union {
@@ -61,16 +72,16 @@ struct AuthRequestAck {
 # not require this second response.
 struct AuthResponse {
     # selected auth method
-    method          @0: AuthMethod;
+    method              @0: AuthMethod;
 
     # response payload
     payload: union {
         # no payload
-        none        @1: Void;
+        none            @1: Void;
         # client response to auth challenge
         challenge: group {
             # raw response bytes
-            bytes   @2: Data;
+            bytes       @2: Data;
         }
     }
 }
@@ -78,9 +89,9 @@ struct AuthResponse {
 # node was successfully authenticated.
 struct AuthResponseAck {
     # selected auth method
-    method          @0: AuthMethod;
+    method              @0: AuthMethod;
     # did authentication succeed?
-    success         @1: Bool;
+    success             @1: Bool;
     # optional descriptive message
-    message         @2: Text;
+    message             @2: Text;
 }

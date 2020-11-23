@@ -22,15 +22,13 @@
 #include <openssl/ssl.h>
 #include <uuid.h>
 
-#include "proto/WireMessage.h"
-#include "proto/lichtenstein_v1.capnp.h"
+
 
 namespace Lichtenstein::Client::Proto {
     class Client {
         using Header = struct Lichtenstein::Proto::MessageHeader;
-        using PayloadType = std::vector<std::byte>;
+        using PayloadType = std::vector<unsigned char>;
         using MessageEndpoint = Lichtenstein::Proto::MessageEndpoint;
-        using MsgReader = Lichtenstein::Proto::WireTypes::Message::Reader;
 
         public:
             // don't call these, it is a Shared Instance(tm)
@@ -57,7 +55,9 @@ namespace Lichtenstein::Client::Proto {
             void establishConnection();
             bool setUpSocket();
             bool setUpSsl();
+
             bool authenticate();
+            void authSendReq(uint8_t &);
 
             void close();
             size_t bytesAvailable();
@@ -70,16 +70,14 @@ namespace Lichtenstein::Client::Proto {
         public:
             bool readMessage(Header &, PayloadType &);
 
-            MsgReader decode(const PayloadType &);
-            void send(MessageEndpoint, uint8_t, const PayloadType &);
+            void send(MessageEndpoint, uint8_t, uint8_t, const PayloadType &);
 
             /**
              * Replies to an incoming message. This copies the type and tag
              * values from the provided header, but sends the bytes unmodified.
              */
-            void reply(const Header &hdr,
-                    const PayloadType &data) {
-                this->send(hdr.type, hdr.tag, data);
+            void reply(const Header &hdr, uint8_t type, const PayloadType &data) {
+                this->send(hdr.endpoint, type, hdr.tag, data);
             }
 
         private:
@@ -97,6 +95,9 @@ namespace Lichtenstein::Client::Proto {
 
             std::atomic_bool run;
             std::unique_ptr<std::thread> worker = nullptr;
+
+            // tag value to use for the next packet to be sent
+            std::atomic_uint8_t nextTag = 0;
 
             // connection to server 
             int sock = -1;
