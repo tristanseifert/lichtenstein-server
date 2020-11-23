@@ -1,6 +1,7 @@
 #include "Authentication.h"
 #include "proto/WireMessage.h"
 #include "../Server.h"
+#include "../ServerWorker.h"
 #include "../auth/IAuthHandler.h"
 
 #include <Format.h>
@@ -68,9 +69,7 @@ bool Authentication::canHandle(uint8_t type) {
  * Handles an authentication message. This is basically a state machine that
  * will step through the separate stages of the auth cycle.
  */
-void Authentication::handle(const struct MessageHeader &header, PayloadType &payload) {
-    Logging::trace("Received message {} bytes: {}", payload.size(), hexdump(payload.begin(), payload.end()));
-
+void Authentication::handle(ServerWorker *worker, const struct MessageHeader &header, PayloadType &payload) {
     // process the message based on state
     switch(this->state) {
         // idle; we expect an auth request
@@ -80,15 +79,26 @@ void Authentication::handle(const struct MessageHeader &header, PayloadType &pay
             }
 
             auto request = cista::deserialize<AuthRequest, kCistaMode>(payload);
-            this->handleAuthReq(header, request);
+            this->handleAuthReq(worker, header, request);
             break;
         }
 
         // parse an authentication response
-        /*case HandleResponse: {
-            this->handleAuthRes(auth.getResponse());
+        case HandleResponse: {
+            if(header.messageType != AuthMessageType::AUTH_RESPONSE) {
+                throw std::runtime_error("Invalid message type");
+            }
+
+            auto response = cista::deserialize<AuthResponse, kCistaMode>(payload);
+            this->handleAuthResp(worker, header, response);
             break;
-        }*/
+        }
+
+        // Authentication success
+        case Authenticated: {
+            Logging::error("Received unexpected auth packet {:x}", header.messageType);
+            break;
+        }
 
         // shouldn't get here
         default: {
@@ -105,7 +115,9 @@ void Authentication::handle(const struct MessageHeader &header, PayloadType &pay
  * have in common with the client, initialize the handler, and respond to the
  * client with the required information.
  */
-void Authentication::handleAuthReq(const Header &hdr, const AuthReq *msg) {
+void Authentication::handleAuthReq(ServerWorker *worker, const Header &hdr, const AuthReq *msg) {
+    int bestMethod = -1;
+
     AuthRequestAck ack;
     memset(&ack, 0, sizeof(ack));
 
@@ -118,9 +130,13 @@ void Authentication::handleAuthReq(const Header &hdr, const AuthReq *msg) {
 
     Logging::trace("Auth request from {}", uuids::to_string(uuid));
 
-    // find the best supported auth method
-    int bestMethod = -1;
+    // locate a node with this ID
+    if(!this->updateNodeId(worker, uuid)) {
+        ack.status = AuthStatus::AUTH_INVALID_ID;
+        goto nack;
+    }
 
+    // find the best supported auth method
     for(const auto method : msg->methods) {
         const std::string str = method.str();
 
@@ -135,9 +151,11 @@ void Authentication::handleAuthReq(const Header &hdr, const AuthReq *msg) {
     }
 
     if(bestMethod < 0) {
+        ack.status = AuthStatus::AUTH_NO_METHODS;
         goto nack;
     }
 
+    // TODO: instantiate appropriate auth handler
     Logging::trace("Using auth method {}: {}", bestMethod, kSupportedMethods[bestMethod]);
 
     // acknowledge the request
@@ -147,12 +165,11 @@ void Authentication::handleAuthReq(const Header &hdr, const AuthReq *msg) {
         const auto ackData = cista::serialize<kCistaMode>(ack);
         this->reply(hdr, AuthMessageType::AUTH_REQUEST_ACK, ackData);
     }
+    this->state = HandleResponse;
     return;
 
     // negative acknowledge
 nack:;
-    ack.status = 1;
-
     const auto nackData = cista::serialize<kCistaMode>(ack);
     this->reply(hdr, AuthMessageType::AUTH_REQUEST_ACK, nackData);
 
@@ -160,9 +177,55 @@ nack:;
 }
 
 /**
+ * Attempts to find a node with the given UUID in the database. If found, update the caller's node
+ * id value appropriately.
+ */
+bool Authentication::updateNodeId(ServerWorker *worker, const uuids::uuid &uuid) {
+    using namespace Lichtenstein::Server::DB;
+
+    Types::Node node;
+
+    // get the node from the data store
+    if(!DataStore::db()->getNodeForUuid(uuid, node)) {
+        return false;
+    }
+
+    // it was found, get its id and update the server worker state
+    if(worker->nodeId != -1) {
+        Logging::warn("Changing node id! {} {} -> {}", (void *) worker, worker->nodeId, node.id);
+    }
+
+    Logging::trace("Node uuid {} -> id {}", uuids::to_string(uuid), node.id);
+
+    return true;
+}
+
+
+
+/**
  * Validates a client's authentication response.
  */
-/*void Authentication::handleAuthRes(const AuthRes &msg) {
-    throw std::runtime_error("Unimplemented");
-}*/
+void Authentication::handleAuthResp(ServerWorker *worker, const Header &hdr, const AuthResp *msg) {
+    AuthResponseAck ack;
+    memset(&ack, 0, sizeof(ack));
+
+    // validate status
+    if(msg->status != AUTH_SUCCESS) {
+        Logging::warn("Authentication aborted with status {}", msg->status);
+
+        this->state = Idle;
+        throw std::runtime_error("Authentication aborted");
+    }
+
+    // TODO: invoke the auth handler
+
+    // authentication succeded. update state
+    worker->authenticated = true;
+    Logging::info("Authentication state for {}: {}", (void *) worker, worker->isAuthenticated());
+
+    // also, let the client know it's now authenticated
+    const auto ackData = cista::serialize<kCistaMode>(ack);
+    this->reply(hdr, AuthMessageType::AUTH_RESPONSE_ACK, ackData);
+    this->state = Authenticated;
+}
 

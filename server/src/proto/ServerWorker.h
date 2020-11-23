@@ -19,12 +19,17 @@
 #include <openssl/ssl.h>
 
 namespace Lichtenstein::Server::Proto {
+    namespace Controllers {
+        class Authentication;
+    }
+
     class IMessageHandler;
 
     class ServerWorker {
         using Header = struct Lichtenstein::Proto::MessageHeader;
         
         friend class IMessageHandler;
+        friend class Controllers::Authentication;
 
         public:
             ServerWorker() = delete;

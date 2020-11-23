@@ -193,6 +193,9 @@ namespace Lichtenstein::Server::DB {
                 this->storage->remove<T>(id);
             }
 
+        public:
+            bool getNodeForUuid(const uuids::uuid &uuid, Types::Node &outNode);
+
         private:
             static std::shared_ptr<DataStore> sharedInstance;
 

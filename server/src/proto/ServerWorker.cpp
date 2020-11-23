@@ -108,8 +108,7 @@ void ServerWorker::main() {
                 if(handler->canHandle(header.endpoint)) {
                     // if so, read and handle it; then read next message
                     this->readMessage(header, payload);
-                    // Logging::trace("Read {} payload bytes: {}", payload.size(), hexdump(payload.begin(), payload.end()));
-                    handler->handle(header, payload);
+                    handler->handle(this, header, payload);
 
                     goto beach;
                 }

@@ -46,3 +46,30 @@ DataStore::~DataStore() {
     // get rid of the storage
     this->storage = nullptr;
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Searches for a node with the given uuid.
+ */
+bool DataStore::getNodeForUuid(const uuids::uuid &uuid, Types::Node &outNode) {
+    using namespace sqlite_orm;
+    using namespace Types;
+
+    // get bytes from input uuid
+    const auto uuidSpan = uuid.as_bytes();
+    auto uuidBytes = reinterpret_cast<const char *>(uuidSpan.data());
+    auto uuidLen = uuidSpan.size_bytes();
+
+    std::vector<char> bytes(uuidBytes, uuidBytes+uuidLen);
+
+    // run query
+    auto nodes = this->storage->get_all<Node>(where(c(&Node::_uuidBytes) == bytes));
+
+    if(nodes.empty()) {
+        return false;
+    }
+
+    outNode = nodes[0];
+    return true;
+}
+

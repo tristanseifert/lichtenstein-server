@@ -208,6 +208,7 @@ void Client::workerMain() {
     // attempt to connect to the server
 connect:;
     this->establishConnection();
+    Logging::info("Server connection established");
 
     // process messages as long as we're supposed to run
     while(this->run) {
@@ -464,7 +465,7 @@ bool Client::authenticate() {
         switch(state) {
             // send the auth request
             case SEND_REQ:
-                this->authSendReq(tag);
+                this->authSendRequest(tag);
                 state = READ_REQ_ACK;
                 break;
 
@@ -487,7 +488,7 @@ bool Client::authenticate() {
 
                 // decode the acknowledgement
                 auto ack = cista::deserialize<AuthRequestAck, kCistaMode>(payload);
-                if(ack->status != 0) {
+                if(ack->status != AUTH_SUCCESS) {
                     Logging::error("Authentication failure: {}", ack->status);
                     return false;
                 }
@@ -498,6 +499,40 @@ bool Client::authenticate() {
                 Logging::trace("Negotiated auth method: {}", method);
                 state = SEND_RESPONSE;
                 break;
+            }
+
+            // send an authentication response
+            case SEND_RESPONSE:
+                this->authSendResponse(tag);
+                state = READ_AUTH_STATE;
+                break;
+
+            // receive the response ack
+            case READ_AUTH_STATE: {
+                memset(&head, 0, sizeof(head));
+                payload.clear();
+
+                if(!this->readMessage(head, payload)) {
+                    Logging::error("Failed to read auth message (state {})", state);
+                    return false;
+                }
+                if(head.tag != tag ||
+                   head.endpoint != MessageEndpoint::Authentication || 
+                   head.messageType != AuthMessageType::AUTH_RESPONSE_ACK) {
+                    Logging::error("Received unexpected message: tag {}, type {:x}:{:x}", head.tag, 
+                                   head.endpoint, head.messageType);
+                    break;
+                }
+
+                // decode the acknowledgement
+                auto ack = cista::deserialize<AuthResponseAck, kCistaMode>(payload);
+                if(ack->status != AUTH_SUCCESS) {
+                    Logging::error("Authentication failure: {}", ack->status);
+                    return false;
+                }
+
+                // if we get here, authentication succeeded
+                return true;
             }
 
             // unexpected state
@@ -518,7 +553,7 @@ bool Client::authenticate() {
  *
  * @throws If an error occurs, an exception is thrown.
  */
-void Client::authSendReq(uint8_t &sentTag) {
+void Client::authSendRequest(uint8_t &sentTag) {
     using namespace Lichtenstein::Proto::MessageTypes;
 
     // build the auth message
@@ -529,10 +564,35 @@ void Client::authSendReq(uint8_t &sentTag) {
     msg.methods.push_back("me.tseifert.lichtenstein.auth.null");
 
     // serialize and send
-    auto bytes = cista::serialize<kCistaMode, AuthRequest>(msg);
+    auto bytes = cista::serialize<kCistaMode>(msg);
 
     uint8_t tag = this->nextTag++;
     this->send(MessageEndpoint::Authentication, AuthMessageType::AUTH_REQUEST, tag, bytes);
+    sentTag = tag;
+}
+
+/**
+ * Sends to the server the authentication response.
+ *
+ * This performs the needed computations based on the original data sent by the server to
+ * complete authentication.
+ *
+ * @param sentTag Tag of the message sent
+ *
+ * @throws If an error occurs, an exception is thrown.
+ */
+void Client::authSendResponse(uint8_t &sentTag) {
+    using namespace Lichtenstein::Proto::MessageTypes;
+
+    // build the auth message
+    AuthResponse msg;
+    memset(&msg, 0, sizeof(msg));
+
+    // serialize and send
+    auto bytes = cista::serialize<kCistaMode>(msg);
+
+    uint8_t tag = this->nextTag++;
+    this->send(MessageEndpoint::Authentication, AuthMessageType::AUTH_RESPONSE, tag, bytes);
     sentTag = tag;
 }
 
@@ -689,9 +749,11 @@ bool Client::readMessage(Header &outHdr, PayloadType &outPayload) {
     // now, attempt to read the payload
     this->readPayload(outHdr, outPayload);
 
+#if 0
     Logging::trace("Read {} byte message: ep={:x}:{:x}, tag={:x}, payload={}",
             (sizeof(outHdr)+outHdr.length), outHdr.endpoint, outHdr.messageType, outHdr.tag,
             hexdump(outPayload.begin(), outPayload.end()));
+#endif
 
     // if we get here, message was read :)
     return true;
@@ -779,8 +841,10 @@ void Client::send(MessageEndpoint endpoint, uint8_t type, uint8_t tag, const Pay
     send.insert(send.end(), data.begin(), data.end());
 
     // go and send it
+#if 0
     Logging::trace("Sent {} ({} payload) byte message: type={:x}:{:x}, tag={:x}, payload={}",
             send.size(), data.size(), endpoint, type, tag, hexdump(data.begin(), data.end()));
+#endif
 
     err = this->write(send);
 

@@ -50,9 +50,6 @@ void IMessageHandler::send(const MessageEndpoint endpoint, const uint8_t type, c
         throw std::invalid_argument(what);
     }
 
-    Logging::trace("Sending {} byte message of type {:x}:{:x} to {}", data.size(),
-            endpoint, type, (void*)this->client);
-
     send.reserve(data.size() + sizeof(hdr));
     send.resize(sizeof(hdr));
 
@@ -69,8 +66,10 @@ void IMessageHandler::send(const MessageEndpoint endpoint, const uint8_t type, c
     // append the payload and attempt to send
     send.insert(send.end(), data.begin(), data.end());
 
+#if 0
     Logging::trace("Sent {} ({} payload) byte message: type={:x}:{:x}, tag={:x}, payload={}",
             send.size(), data.size(), endpoint, type, tag, hexdump(data.begin(), data.end()));
+#endif
 
     err = this->client->writeBytes(send.data(), send.size());
 

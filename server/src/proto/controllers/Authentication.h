@@ -21,7 +21,7 @@ namespace Lichtenstein::Server::Proto::Auth {
 
 namespace Lichtenstein::Server::Proto::Controllers {
     class Authentication: public IMessageHandler {
-        // using AuthResp = Lichtenstein::Proto::MessageTypes::AuthResponse;
+        using AuthResp = Lichtenstein::Proto::MessageTypes::AuthResponse;
         using AuthReq = Lichtenstein::Proto::MessageTypes::AuthRequest;
 
         public:
@@ -62,11 +62,13 @@ namespace Lichtenstein::Server::Proto::Controllers {
              * Passes the given message into the authentication state machine;
              * depending on its current state, this may result in an error.
              */
-            void handle(const Header &, PayloadType &);
+            void handle(ServerWorker*, const Header &, PayloadType &);
 
         private:
-            void handleAuthReq(const Header &, const AuthReq *);
-            // void handleAuthResp(const Header &, AuthResp *);
+            void handleAuthReq(ServerWorker*, const Header &, const AuthReq *);
+            bool updateNodeId(ServerWorker*, const uuids::uuid &);
+
+            void handleAuthResp(ServerWorker *, const Header &, const AuthResp *);
 
         private:
             // current state machine state

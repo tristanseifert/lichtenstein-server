@@ -57,7 +57,8 @@ namespace Lichtenstein::Client::Proto {
             bool setUpSsl();
 
             bool authenticate();
-            void authSendReq(uint8_t &);
+            void authSendRequest(uint8_t &);
+            void authSendResponse(uint8_t &);
 
             void close();
             size_t bytesAvailable();

@@ -41,7 +41,7 @@ namespace Lichtenstein::Server::Proto {
              * Handles a client message. This is called immediately after the
              * client handling loop calls canHandle() on this object.
              */
-            virtual void handle(const Header &hdr, PayloadType &payload) = 0;
+            virtual void handle(ServerWorker *, const Header &hdr, PayloadType &payload) = 0;
 
         protected:
             /**
