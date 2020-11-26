@@ -9,33 +9,33 @@
  * - saturation: Saturation of the pixels
  */
 uint timer = 0;
-uint frame = 0;
+uint frameNo = 0;
 
-void effectStep() {
-	uint speed = uint(properties['speed']);
+void render() {
+    uint speed = uint(properties['speed']);
 
-	double hue = double(properties['hue']);
-	double saturation = double(properties['saturation']);
+    double hue = double(properties['hue']);
+    double saturation = double(properties['saturation']);
 
-	timer++;
+    timer++;
 
-	if(timer >= speed) {
-		frame++;
-		timer = 0;
-	}
+    if(timer >= speed) {
+        frameNo++;
+        timer = 0;
+    }
 
-	for(uint x = 0; x < buffer.length(); x++) {
-		buffer[x].h = hue;
-		buffer[x].s = saturation;
+    for(uint x = 0; x < numPixels; x++) {
+        buffer[x].h = hue;
+        buffer[x].s = saturation;
 
-		if(((x & 1) == 1) && ((frame & 1) == 1)) {
-			buffer[x].i = 1;
-		} else if(((x & 1) == 0) && ((frame & 1) == 1)) {
-			buffer[x].i = 0;
-		} else if(((x & 1) == 1) && ((frame & 1) == 0)) {
-			buffer[x].i = 0;
-		} else if(((x & 1) == 0) && ((frame & 1) == 0)) {
-			buffer[x].i = 1;
-		}
-	}
+        if(((x & 1) == 1) && ((frameNo & 1) == 1)) {
+            buffer[x].i = 1;
+        } else if(((x & 1) == 0) && ((frameNo & 1) == 1)) {
+            buffer[x].i = 0;
+        } else if(((x & 1) == 1) && ((frameNo & 1) == 0)) {
+            buffer[x].i = 0;
+        } else if(((x & 1) == 0) && ((frameNo & 1) == 0)) {
+            buffer[x].i = 1;
+        }
+    }
 }

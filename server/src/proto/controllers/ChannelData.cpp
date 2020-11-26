@@ -79,6 +79,10 @@ void ChannelData::handle(ServerWorker *worker, const struct MessageHeader &heade
         case PixelMessageType::PIX_UNSUBSCRIBE:
             this->handleUnsubscribe(header, cista::deserialize<UnsubscribeMsg, kCistaMode>(payload));
             break;
+        // acknowledge pixel data
+        case PixelMessageType::PIX_DATA_ACK:
+            this->handleAck(header, cista::deserialize<AckMsg, kCistaMode>(payload));
+            break;
 
         default:
             throw std::runtime_error("Invalid message type");
@@ -143,7 +147,13 @@ void ChannelData::handleSubscribe(const Header &hdr, const SubscribeMsg *msg) {
             this->observerFired(channel);
         });
 
+        // save the info for the observer 
         this->subscriptions[msg->channel] = SubscriptionInfo(start, msg->length, msg->start, msg->format, token);
+
+        this->lastAckTime[msg->channel] = std::chrono::steady_clock::now();
+        this->throttleMap[msg->channel] = false;
+
+        Logging::trace("Subscription {}: format {}", token, msg->format);
     }
 
     // done!
@@ -174,6 +184,9 @@ void ChannelData::handleUnsubscribe(const Header &hdr, const UnsubscribeMsg *msg
 
         // now, remove it
         ack.subscriptionsRemoved += this->subscriptions.erase(msg->channel);
+
+        this->lastAckTime.erase(msg->channel);
+        this->throttleMap.erase(msg->channel);
     }
 
 nack:;
@@ -230,5 +243,26 @@ void ChannelData::observerFired(int channel) {
     // send it
     const auto data = cista::serialize<kCistaMode>(msg);
     this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_DATA, 0, data);
+}
+
+
+
+/**
+ * Handles a pixel data acknowledgement packet from the client.
+ *
+ * This is used to keep a running timer of the last time a frame for a particular subscription was
+ * acknowledged. If more than a certain amount of time passes between acknowledgements, we will
+ * throttle the rate at which data is sent until an acknowledgement is received again.
+ */
+void ChannelData::handleAck(const Header &hdr, const AckMsg *msg) {
+    // ensure the channel has a subscription
+    const size_t channel = msg->channel;
+    if(this->subscriptions.find(channel) == this->subscriptions.end()) {
+        throw std::runtime_error("invalid channel");
+    }
+
+    // reset the ack timer and disable throttling
+    this->lastAckTime[channel] = std::chrono::steady_clock::now();
+    this->throttleMap[channel] = false;
 }
 

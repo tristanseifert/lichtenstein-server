@@ -82,7 +82,7 @@ void RoutineRenderable::copyOut(size_t offset, size_t num,
         std::copy(this->buffer.begin(), this->buffer.end(), out);
     }
 
-    Logging::trace("Avg exec time {}µS", this->getAvgExecutionTime());
+    // Logging::trace("Avg exec time {}µS", this->getAvgExecutionTime());
 }
 
 /**
@@ -267,7 +267,7 @@ void RoutineRenderable::registerGlobalFunctions() {
     XASSERT(err >= 0, "Couldn't register debug_print(): err={}", err);
 
     // register random_range()
-    err = e->RegisterGlobalFunction("void random_range(int min, int max)",
+    err = e->RegisterGlobalFunction("int random_range(int min, int max)",
             asMETHOD(RoutineRenderable,scriptRandom), asCALL_THISCALL_ASGLOBAL, 
             this);
     XASSERT(err >= 0, "Couldn't register random_range(): err={}", err);
@@ -407,25 +407,31 @@ void RoutineRenderable::updateScriptParams(const ParamMap &params) {
     this->asParamsDict->DeleteAll();
 
     for(const auto &[key, value] : params) {
+
         if(std::holds_alternative<bool>(value)) {
             auto b = std::get<bool>(value);
+            Logging::trace("setting property '{}' -> {}", key, b);
             this->asParamsDict->Set(key, &b, asTYPEID_BOOL);
         }
         else if(std::holds_alternative<double>(value)) {
             auto d = std::get<double>(value);
+            Logging::trace("setting property '{}' -> {}", key, d);
             this->asParamsDict->Set(key, d);
         }
         else if(std::holds_alternative<uint64_t>(value)) {
             auto num = std::get<uint64_t>(value);
+            Logging::trace("setting property '{}' -> {}", key, num);
             this->asParamsDict->Set(key, &num, asTYPEID_UINT64);
         }
         else if(std::holds_alternative<int64_t>(value)) {
             auto num = std::get<int64_t>(value);
+            Logging::trace("setting property '{}' -> {}", key, num);
             this->asParamsDict->Set(key, &num, asTYPEID_INT64);
         }
         else if(std::holds_alternative<std::string>(value)) {
             int strType = this->engine->GetTypeIdByDecl("string");
             const std::string str = std::get<std::string>(value);
+            Logging::trace("setting property '{}' -> {}", key, str);
             this->asParamsDict->Set(key, (void*)&str, strType);
         } else {
             auto what = f("Unable to convert param type {}", value.index());

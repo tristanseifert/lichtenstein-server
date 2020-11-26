@@ -100,8 +100,10 @@ void ServerWorker::main() {
                 goto beach;
             }
 
+#if 0
             Logging::trace("Message type {:x}:{:x} len {} from client {}", header.endpoint, 
                     header.messageType, header.length, this->addr);
+#endif
 
             // check if we can find a handler
             for(auto &handler : this->handlers) {

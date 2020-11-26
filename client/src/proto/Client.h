@@ -67,6 +67,8 @@ namespace Lichtenstein::Client::Proto {
             void subscribe(const Output::IOutputChannel &);
             void removeSubscriptions();
 
+            void handlePixelData(const Header &, const PayloadType &);
+
             void close();
             size_t bytesAvailable();
             size_t write(const PayloadType &);

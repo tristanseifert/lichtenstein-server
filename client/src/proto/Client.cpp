@@ -218,10 +218,16 @@ connect:;
                 goto beach;
             }
 
-            Logging::trace("Received message: type={:x}:{:x} len={}",
-                    header.endpoint, header.messageType, header.length);
+#if 0
+            Logging::trace("Received message: type={:x}:{:x} len={}", header.endpoint,
+                    header.messageType, header.length);
+#endif
 
-            // TODO: handle message
+            // handle message
+            if(header.endpoint == PixelData && 
+                    header.messageType == MessageTypes::PixelMessageType::PIX_DATA) {
+                this->handlePixelData(header, payload);
+            }
         } catch(std::exception &e) {
             Logging::error("Exception while processing message type {:x}:{:x}: {}",
                     header.endpoint, header.messageType, e.what());
@@ -546,3 +552,36 @@ void Client::removeSubscriptions() {
 
     this->activeSubscriptions.clear();
 }
+
+
+
+/**
+ * Handles received pixel data.
+ *
+ * This will send an acknowledgement back and forward it to the appropriate channel.
+ */
+void Client::handlePixelData(const Header &hdr, const PayloadType &payload) {
+    using namespace Lichtenstein::Proto::MessageTypes;
+
+    PixelDataMessageAck msg;
+    memset(&msg, 0, sizeof(msg));
+
+    // decode message
+    auto data = cista::deserialize<PixelDataMessage, kCistaMode>(payload);
+
+    // send to output channel
+    auto plugin = Output::PluginManager::shared;
+    if(data->channel >= plugin->channels.size()) {
+        throw std::runtime_error("invalid channel number");
+    }
+
+    auto outChannel = plugin->channels[data->channel];
+    outChannel->updatePixelData(data->offset, data->pixels.data(), data->pixels.size());
+
+    // acknowledge
+    msg.channel = data->channel;
+
+    auto bytes = cista::serialize<kCistaMode>(msg);
+    this->reply(hdr, PixelMessageType::PIX_DATA_ACK, bytes);
+}
+

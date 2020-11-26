@@ -75,8 +75,8 @@ namespace Lichtenstein::Server::Render {
             void deinitEngine();
 
             void initGlobals() {
-                this->registerGlobalFunctions();
                 this->registerPixelType();
+                this->registerGlobalFunctions();
                 this->registerGlobalVars();
             }
             void registerGlobalFunctions();
@@ -110,7 +110,7 @@ namespace Lichtenstein::Server::Render {
 
             // current parameters
             ParamMap params;
-    
+
             // script engine state
             std::mutex engineLock;
 

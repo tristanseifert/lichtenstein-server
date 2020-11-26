@@ -197,7 +197,7 @@ PipelineController::makeRenderableFill(size_t numPixels, const nlohmann::json &i
 PipelineController::RenderablePtr 
 PipelineController::makeRenderableRoutine(size_t numPixels, const nlohmann::json &info) {
     Routine r;
-    
+
     // fetch the routine
     int id = info.at("routineId").get<int>();
     bool found = DB::DataStore::db()->getOne(id, r);
@@ -208,7 +208,7 @@ PipelineController::makeRenderableRoutine(size_t numPixels, const nlohmann::json
 
     // parse params if specified
     decltype(Routine::params) params;
-    
+
     if(info.find("params") != info.end()) {
         params = DB::Types::JsonToParamMap(info.at("params"));
         params.insert(r.params.cbegin(), r.params.cend());

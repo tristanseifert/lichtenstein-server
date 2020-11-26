@@ -79,6 +79,7 @@ enum PixelMessageType: uint8_t {
     PIX_UNSUBSCRIBE             = 3,
     PIX_UNSUBSCRIBE_ACK         = 4,
     PIX_DATA                    = 5,
+    PIX_DATA_ACK                = 6,
 };
 
 enum PixelStatus: uint32_t {
@@ -142,6 +143,11 @@ struct PixelDataMessage {
     PixelFormat format;
     // pixel data
     data::vector<std::byte> pixels;
+};
+// client -> server; acknowledges a pixel data frame
+struct PixelDataMessageAck {
+    // channel for which we're acknowledging
+    uint32_t channel;
 };
 
 };

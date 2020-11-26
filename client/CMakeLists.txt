@@ -71,8 +71,9 @@ add_subdirectory(../libs/fmt ${CMAKE_CURRENT_BINARY_DIR}/libs/fmt)
 target_link_libraries(lichtenstein_client PRIVATE fmt::fmt)
 
 # compile/link spdlog (logging; use external libfmt)
+find_package(spdlog REQUIRED)
+
 set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
-add_subdirectory(../libs/spdlog ${CMAKE_CURRENT_BINARY_DIR}/libs/spdlog)
 target_link_libraries(lichtenstein_client PRIVATE spdlog::spdlog)
 
 # include the JSON library (without tests)
