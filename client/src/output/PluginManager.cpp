@@ -82,7 +82,7 @@ PluginManager::PluginManager() {
         // validate its info struct
         info = reinterpret_cast<plugin_info_t *>(rawInfo);
         if(info->magic != kOutputPluginMagic) {
-            Logging::warn("Invalid plugin magic for {}: {:h}", path, info->magic);
+            Logging::warn("Invalid plugin magic for {}: {:x}", path, info->magic);
             goto beach;
         }
 

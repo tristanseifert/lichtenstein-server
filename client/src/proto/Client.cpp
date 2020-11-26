@@ -1,4 +1,6 @@
 #include "Client.h"
+#include "../output/PluginManager.h"
+#include "../output/IOutputChannel.h"
 
 #include <Format.h>
 #include <Logging.h>
@@ -202,7 +204,8 @@ connect:;
     this->establishConnection();
     Logging::info("Server connection established");
 
-    // TODO: register subscriptions for all channels
+    // register subscriptions for all channels
+    this->subscribeChannels();
 
     // process messages as long as we're supposed to run
     while(this->run) {
@@ -233,7 +236,8 @@ beach: ;
     }
 
 closed:;
-    // TODO: remove subscriptions
+    // remove subscriptions
+    this->removeSubscriptions();
 
     // perform clean-up
 cleanup: ;
@@ -413,3 +417,132 @@ void Client::authSendResponse(uint8_t &sentTag) {
     sentTag = tag;
 }
 
+
+
+/**
+ * Subscribes for pixel data updates for all loaded channels.
+ *
+ * If a channel could not complete registration, the entire process fails.
+ */
+void Client::subscribeChannels() {
+    using namespace Lichtenstein::Proto::MessageTypes;
+    
+    uint8_t tag;
+    PixelSubscribe msg;
+    memset(&msg, 0, sizeof(msg));
+
+    Header head;
+    PayloadType payload;
+
+    auto plugin = Output::PluginManager::shared;
+    for(const auto& channel : plugin->channels) {
+        // build the subscribe request
+        msg.channel = channel->getChannelIndex();
+        msg.format = (PixelFormat) channel->getPixelFormat();
+        msg.length = channel->getNumPixels();
+
+        switch(channel->getPixelFormat()) {
+            case 0:
+                msg.format = PIX_FORMAT_RGB;
+                break;
+
+            case 1:
+                msg.format = PIX_FORMAT_RGBW;
+                break;
+
+            default:
+                Logging::error("Invalid pixel format for channel {}: {}", msg.channel, 
+                        channel->getPixelFormat());
+                throw std::runtime_error("Invalid pixel format");
+        }
+
+        // send subscription request
+        auto bytes = cista::serialize<kCistaMode>(msg);
+
+        tag = this->nextTag++;
+        this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_SUBSCRIBE, tag, bytes);
+
+        // try to receive a response
+        if(!this->readMessage(head, payload)) {
+            Logging::error("Failed to read subscribe ack message (expected tag {})", tag);
+            throw std::runtime_error("Failed to read subscribtion ack message");
+        } else if(head.tag != tag ||
+           head.endpoint != MessageEndpoint::PixelData || 
+           head.messageType != PixelMessageType::PIX_SUBSCRIBE_ACK) {
+            Logging::error("Received unexpected message: tag {}, type {:x}:{:x}", head.tag, 
+                           head.endpoint, head.messageType);
+            throw std::runtime_error("Received unexpected message");
+        }
+
+        // decode the acknowledgement
+        auto ack = cista::deserialize<PixelSubscribeAck, kCistaMode>(payload);
+        if(ack->status != PIX_SUCCESS) {
+            Logging::error("Subscription failure: {} (for channel {}, length {}, offset {}, format {:x})",
+                    ack->status, msg.channel, msg.length, msg.start, msg.format);
+            throw std::runtime_error("Failed to subscribe for pixel data");
+        }
+
+        // store the identifier if succes
+        Logging::trace("Subscription for channel {}: {}", channel->getChannelIndex(),
+                ack->subscriptionId);
+        this->activeSubscriptions.push_back(std::make_pair(channel->getChannelIndex(),
+                    ack->subscriptionId));
+    }
+}
+
+/**
+ * Removes all existing subscriptions.
+ *
+ * Note that even if an unsubscribe fails, we'll keep going and try to unsubscribe for all the
+ * remaining items.
+ */
+void Client::removeSubscriptions() {
+    using namespace Lichtenstein::Proto::MessageTypes;
+
+    uint8_t tag;
+    PixelUnsubscribe msg;
+    memset(&msg, 0, sizeof(msg));
+
+    Header head;
+    PayloadType payload;
+
+    // send an unsubscribe message for each subscription
+    for(const auto &info : this->activeSubscriptions) {
+        const auto &[channel, token] = info;
+
+        // build unsubscribe request
+        msg.channel = channel;
+        msg.subscriptionId = token;
+
+        // send unsubscribe request
+        auto bytes = cista::serialize<kCistaMode>(msg);
+
+        tag = this->nextTag++;
+        this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_UNSUBSCRIBE, tag, bytes);
+
+        // try to receive a response
+        if(!this->readMessage(head, payload)) {
+            Logging::error("Failed to read unsubscribe ack message (expected tag {})", tag);
+            continue;
+        } else if(head.tag != tag ||
+           head.endpoint != MessageEndpoint::PixelData || 
+           head.messageType != PixelMessageType::PIX_UNSUBSCRIBE_ACK) {
+            Logging::error("Received unexpected message: tag {}, type {:x}:{:x}", head.tag, 
+                           head.endpoint, head.messageType);
+            continue;
+        }
+
+        // decode the acknowledgement
+        auto ack = cista::deserialize<PixelUnsubscribeAck, kCistaMode>(payload);
+        if(ack->status != PIX_SUCCESS) {
+            Logging::error("Failed to unsubscribe: {} (for channel {}, id {:x})", ack->status,
+                    msg.channel, msg.subscriptionId);
+            continue;
+        }
+
+        Logging::trace("Removed {} subscriptions for channel {}", ack->subscriptionsRemoved,
+                msg.channel);
+    }
+
+    this->activeSubscriptions.clear();
+}

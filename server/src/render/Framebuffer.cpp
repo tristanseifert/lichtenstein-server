@@ -167,12 +167,11 @@ Framebuffer::ObserverToken Framebuffer::registerObserver(size_t start, size_t le
     std::lock_guard<std::mutex> lg(this->observerLock);
     ObserverToken token;
 
-    std::default_random_engine random;
     std::uniform_int_distribution<ObserverToken> dist(0, std::numeric_limits<ObserverToken>::max());
 
 generate:;
     // generate a token and ensure it's unique
-    token = dist(random);
+    token = dist(this->random);
 
     if(this->observers.find(token) != this->observers.end()) {
         goto generate;
@@ -183,6 +182,7 @@ generate:;
     ObserverInfo info(range, f);
 
     this->observers[token] = info;
+    Logging::trace("Registered observer: {} (len {}): {}", start, length, token);
 
     return token;
 }
@@ -206,6 +206,8 @@ void Framebuffer::removeObserver(ObserverToken token) {
     if(it != this->pendingObservers.end()) {
         this->pendingObservers.erase(it);
     }
+
+    Logging::trace("Removed observer {}", token);
 }
 
 /**

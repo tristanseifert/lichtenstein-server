@@ -6,7 +6,7 @@
  */
 class DummyChannel: public Lichtenstein::Client::Output::IOutputChannel {
     public:
-        DummyChannel(size_t i, size_t _numPixels, size_t _format) : index(i), 
+        DummyChannel(uint32_t i, size_t _numPixels, size_t _format) : index(i), 
             numPixels(_numPixels), format(_format) {}
 
     public:
@@ -21,14 +21,14 @@ class DummyChannel: public Lichtenstein::Client::Output::IOutputChannel {
         }
 
         /// Channel index
-        virtual size_t getChannelIndex() {
+        virtual uint32_t getChannelIndex() {
             return this->index;
         }
 
         virtual int updatePixelData(const void *data, const size_t dataLen);
 
     private:
-        size_t index = 0;
+        uint32_t index = 0;
         size_t numPixels = 0;
         size_t format = 0;
 

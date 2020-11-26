@@ -18,6 +18,7 @@
 #include <utility>
 #include <tuple>
 #include <functional>
+#include <random>
 
 namespace Lichtenstein::Server::Render {
     class HSIPixel;
@@ -74,6 +75,9 @@ namespace Lichtenstein::Server::Render {
         private:
             using ObserverRange = std::pair<size_t, size_t>; // start, length
             using ObserverInfo = std::pair<ObserverRange, ObserverFunction>;
+
+            // random engine used for generating tokens
+            std::default_random_engine random;
 
             // pixels are marked as done as the frame progresses
             std::bitset<kNotifyBitsetPixels> doneBitset;

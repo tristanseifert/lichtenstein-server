@@ -200,6 +200,7 @@ bool Authentication::updateNodeId(ServerWorker *worker, const uuids::uuid &uuid)
     }
 
     Logging::trace("Node uuid {} -> id {}", uuids::to_string(uuid), node.id);
+    worker->nodeId = node.id;
 
     return true;
 }

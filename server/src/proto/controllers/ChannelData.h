@@ -24,7 +24,7 @@
 namespace Lichtenstein::Server::Proto::Controllers {
     class ChannelData: public IMessageHandler {
         using SubscribeMsg = Lichtenstein::Proto::MessageTypes::PixelSubscribe;
-        using UnsubscribeMsg = Lichtenstein::Proto::MessageTypes::PixelSubscribe;
+        using UnsubscribeMsg = Lichtenstein::Proto::MessageTypes::PixelUnsubscribe;
         using Format = Lichtenstein::Proto::MessageTypes::PixelFormat;
 
         public:

@@ -116,7 +116,7 @@ void ChannelData::handleSubscribe(const Header &hdr, const SubscribeMsg *msg) {
     if(msg->start >= channel.numPixels) {
         ack.status = PixelStatus::PIX_INVALID_OFFSET;
         goto nack;
-    } else if((msg->start + msg->length) >= channel.numPixels) {
+    } else if((msg->start + msg->length) > channel.numPixels) {
         ack.status = PixelStatus::PIX_INVALID_LENGTH;
         goto nack;
     } else if(msg->format != PIX_FORMAT_RGB && msg->format != PIX_FORMAT_RGBW) {

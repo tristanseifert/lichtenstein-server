@@ -9,6 +9,10 @@
 // forward declare this
 struct plugin_info;
 
+namespace Lichtenstein::Client::Proto {
+    class Client;
+}
+
 namespace Lichtenstein::Client::Output {
     class IOutputChannel;
 
@@ -16,6 +20,8 @@ namespace Lichtenstein::Client::Output {
      * Loads output plugins from disk and instantiates them if needed.
      */
     class PluginManager {
+        friend class Lichtenstein::Client::Proto::Client;
+
         public:
             // don't call these, it is a Shared Instance(tm)
             PluginManager();

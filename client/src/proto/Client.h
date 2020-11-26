@@ -15,6 +15,7 @@
 #include <atomic>
 #include <memory>
 #include <thread>
+#include <utility>
 
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -22,7 +23,9 @@
 #include <openssl/ssl.h>
 #include <uuid.h>
 
-
+namespace Lichtenstein::Client::Output {
+    class IOutputChannel;
+}
 
 namespace Lichtenstein::Client::Proto {
     class Client {
@@ -60,6 +63,10 @@ namespace Lichtenstein::Client::Proto {
             void authSendRequest(uint8_t &);
             void authSendResponse(uint8_t &);
 
+            void subscribeChannels();
+            void subscribe(const Output::IOutputChannel &);
+            void removeSubscriptions();
+
             void close();
             size_t bytesAvailable();
             size_t write(const PayloadType &);
@@ -96,6 +103,10 @@ namespace Lichtenstein::Client::Proto {
 
             std::atomic_bool run;
             std::unique_ptr<std::thread> worker = nullptr;
+
+            using SubscriptionInfo = std::pair<uint32_t, uint32_t>;
+            // subscription ids
+            std::vector<SubscriptionInfo> activeSubscriptions;
 
             // tag value to use for the next packet to be sent
             std::atomic_uint8_t nextTag = 0;

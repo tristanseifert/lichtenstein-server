@@ -23,7 +23,7 @@ namespace Lichtenstein::Client::Output {
             virtual size_t getPixelFormat() = 0;
 
             /// Node-unique channel id
-            virtual size_t getChannelIndex() = 0;
+            virtual uint32_t getChannelIndex() = 0;
 
             /// Pixel data in the desired format has been received
             virtual int updatePixelData(const void *data, const size_t dataLen) = 0;
