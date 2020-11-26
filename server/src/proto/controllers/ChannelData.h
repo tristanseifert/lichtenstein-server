@@ -44,8 +44,8 @@ namespace Lichtenstein::Server::Proto::Controllers {
             void observerFired(int subscriptionId);
 
         private:
-            // fb start, length, observer token
-            using SubscriptionInfo = std::tuple<size_t, size_t, Format, Render::Framebuffer::ObserverToken>;
+            // fb start, length, channel offset, pixel format, observer token
+            using SubscriptionInfo = std::tuple<size_t, size_t, size_t, Format, Render::Framebuffer::ObserverToken>;
 
             // channel -> subscription info map
             std::unordered_map<int, SubscriptionInfo> subscriptions;

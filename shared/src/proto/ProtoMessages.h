@@ -131,6 +131,19 @@ struct PixelUnsubscribeAck {
     uint32_t subscriptionsRemoved;
 };
 
+// server -> client; sends new pixel data
+struct PixelDataMessage {
+    // channel index
+    uint32_t channel;
+    // offset into channel
+    uint32_t offset;
+
+    // format of pixel data
+    PixelFormat format;
+    // pixel data
+    data::vector<std::byte> pixels;
+};
+
 };
 
 #endif

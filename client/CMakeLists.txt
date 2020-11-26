@@ -39,6 +39,8 @@ add_executable(lichtenstein_client
     ../shared/src/ConfigManager.cpp
     ../shared/src/Logging.cpp
     src/proto/Client.cpp
+    src/proto/ClientIO.cpp
+    src/output/PluginManager.cpp
     ${version_file} src/version.h)
 
 
@@ -88,3 +90,9 @@ target_sources(lichtenstein_client PRIVATE
     ../libs/cpp-base64/base64.cpp
 )
 
+
+###############################################################################
+add_library(plugin_dummy SHARED
+    plugin/dummy/info.cpp
+    plugin/dummy/DummyChannel.cpp
+    ${version_file} src/version.h)

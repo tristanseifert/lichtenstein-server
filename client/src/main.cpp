@@ -16,9 +16,11 @@
 #include <Logging.h>
 
 #include "proto/Client.h"
+#include "output/PluginManager.h"
 
 // bring all our namespaces into scope
 using Client = Lichtenstein::Client::Proto::Client;
+using PluginManager = Lichtenstein::Client::Output::PluginManager;
 
 // when set to false, the server terminates
 static std::atomic_bool keepRunning;
@@ -117,6 +119,7 @@ static bool LoadConfig(void) {
  */
 void StartServices() {
     try {
+        PluginManager::start();
         Client::start();
     } catch(std::exception &e) {
         Logging::crit("StartServices() failed: {}", e.what());
@@ -132,6 +135,7 @@ void StartServices() {
 void StopServices() {
     try {
         Client::stop();
+        PluginManager::stop();
     } catch(std::exception &e) {
         Logging::crit("StopServices() failed: {}", e.what());
         Logging::stop();
@@ -180,6 +184,8 @@ int main(int argc, char *argv[]) {
     }
 
     // shut down all allocated services
+    Logging::info("Shutting down!");
+
     StopServices();
     Logging::stop();
 }
