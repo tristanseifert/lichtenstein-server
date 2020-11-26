@@ -41,6 +41,7 @@ add_executable(lichtenstein_client
     src/proto/Client.cpp
     src/proto/ClientIO.cpp
     src/output/PluginManager.cpp
+    ../shared/src/proto/MulticastCrypto.cpp
     ${version_file} src/version.h)
 
 

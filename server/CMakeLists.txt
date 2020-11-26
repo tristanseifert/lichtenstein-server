@@ -66,8 +66,11 @@ add_executable(lichtenstein_server
     src/proto/ServerWorker.cpp
     src/proto/IMessageHandler.cpp
     src/proto/controllers/Authentication.cpp
-    src/proto/controllers/ChannelData.cpp
     src/proto/auth/ChallengeHandler.cpp
+    src/proto/controllers/ChannelData.cpp
+    src/proto/controllers/MulticastControl.cpp
+    src/proto/Syncer.cpp
+    ../shared/src/proto/MulticastCrypto.cpp
     ${version_file} src/version.h)
 
 

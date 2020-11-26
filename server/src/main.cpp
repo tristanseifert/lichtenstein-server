@@ -19,6 +19,7 @@
 #include "api/Server.h"
 #include "render/Pipeline.h"
 #include "proto/Server.h"
+#include "proto/Syncer.h"
 
 // bring all our namespaces into scope
 using namespace Lichtenstein::Server;
@@ -123,6 +124,7 @@ void StartServices() {
         DB::DataStore::open();
         Render::Pipeline::start();
         Proto::Server::start();
+        Proto::Syncer::start();
         API::Server::start();
     } catch(std::exception &e) {
         Logging::crit("StartServices() failed: {}", e.what());
@@ -139,6 +141,7 @@ void StopServices() {
     try {
         API::Server::stop();
         Render::Pipeline::stop();
+        Proto::Syncer::stop();
         Proto::Server::stop();
         DB::DataStore::close();
     } catch(std::exception &e) {

@@ -8,6 +8,8 @@
 #include <iterator>
 #include <random>
 
+#include <time.h>
+
 #include <Logging.h>
 #include <ConfigManager.h>
 
@@ -17,6 +19,10 @@ using namespace Lichtenstein::Server::Render;
  * Allocate the framebuffer memory.
  */
 Framebuffer::Framebuffer() {
+    // seed the observer token random generator. the time is ok since these are just tokens
+    this->random.seed(time(nullptr));
+
+    // read config
     this->numPixels = ConfigManager::getUnsigned("render.fb.size", 5000);
     this->pixels = std::make_unique<HSIPixel[]>(this->numPixels);
 

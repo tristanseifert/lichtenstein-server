@@ -150,6 +150,86 @@ struct PixelDataMessageAck {
     uint32_t channel;
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+/// Multicast control endpoint message types
+enum McastCtrlMessageType: uint8_t {
+    MCC_GET_INFO                = 1,
+    MCC_GET_INFO_ACK            = 2,
+    MCC_REKEY                   = 3,
+    MCC_REKEY_ACK               = 4,
+    MCC_GET_KEY                 = 5,
+    MCC_GET_KEY_ACK             = 6,
+};
+
+enum McastCtrlStatus: uint32_t {
+    MCC_SUCCESS                 = 0,
+    MCC_INVALID_KEY_TYPE        = 0x3000,
+    MCC_INVALID_KEY             = 0x3001,
+    MCC_INVALID_KEY_ID          = 0x3002,
+};
+
+enum McastCtrlKeyType: uint32_t {
+    MCC_KEY_TYPE_CHACHA20_POLY1305      = 1,
+};
+
+// client -> server; requests info for the multicast control channel
+struct McastCtrlGetInfo {
+    
+};
+// server -> client; info on the multicast channel
+struct McastCtrlGetInfoAck {
+    // status
+    McastCtrlStatus status;
+
+    // address of the multicast group
+    data::string address;
+    // port number
+    uint16_t port;
+
+    // key id currently in use
+    uint32_t keyId;
+};
+
+// server -> client; provides a key to use for multicast
+struct McastCtrlRekey {
+    // key id
+    uint32_t keyId;
+    // key type
+    McastCtrlKeyType type;
+    // key data
+    data::vector<std::byte> key;
+    // initialization vector
+    data::vector<std::byte> iv;
+};
+
+// client -> server; acknowledges receipt of a new key
+struct McastCtrlRekeyAck {
+    // status
+    McastCtrlStatus status;
+    // key id that we're acknowledging
+    uint32_t keyId;
+};
+
+// client -> server; requests key with the given id
+struct McastCtrlGetKey {
+    // desired key id
+    uint32_t keyId;
+};
+// server -> client; provides a requested key
+struct McastCtrlGetKeyAck {
+    // status
+    McastCtrlStatus status;
+
+    // key id
+    uint32_t keyId;
+    // key type
+    McastCtrlKeyType type;
+    // key data
+    data::vector<std::byte> key;
+    // initialization vector
+    data::vector<std::byte> iv;
+};
+
 };
 
 #endif

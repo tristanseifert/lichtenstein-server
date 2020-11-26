@@ -1,0 +1,398 @@
+#include "Syncer.h"
+
+#include <ConfigManager.h>
+#include <Format.h>
+#include <Logging.h>
+
+#include <proto/WireMessage.h>
+#include <proto/ProtoMessages.h>
+
+#include <stdexcept>
+#include <cstring>
+#include <limits>
+#include <algorithm>
+
+#include <time.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
+#include <openssl/err.h>
+#include <openssl/rand.h>
+#include <openssl/opensslv.h>
+
+#include <cista.h>
+
+using namespace Lichtenstein::Proto;
+using namespace Lichtenstein::Server::Proto;
+
+std::shared_ptr<Syncer> Syncer::sharedInstance = nullptr;
+
+/**
+ * Starts the server by allocating the shared instance.
+ */
+void Syncer::start() {
+    XASSERT(!sharedInstance, "Syncer already running? ({})", 
+            (void*) sharedInstance.get());
+
+    // now, allocate the server
+    sharedInstance = std::make_shared<Syncer>();
+}
+
+/**
+ * Terminates the server.
+ */
+void Syncer::stop() {
+    XASSERT(sharedInstance, "Expected syncer to be running");
+
+    sharedInstance->terminate();
+    sharedInstance = nullptr;
+}
+
+
+
+/**
+ * Initializes the protocol server. This will set up the DTLS context and
+ * listening thread.
+ */
+Syncer::Syncer() {
+    // seed the observer token random generator. the time is ok since these are just tokens
+    this->observerTokenRandom.seed(time(nullptr));
+
+    // read configuration
+    const auto interval = ConfigManager::getUnsigned("server.sync.rekey_interval", 1800);
+    if(!interval) {
+        throw std::runtime_error("Invalid rekey interval");
+    }
+    this->rekeyInterval = std::chrono::seconds(interval);
+
+    const auto port = ConfigManager::getUnsigned("server.sync.port", 34567);
+    if(port == 0 || port > 65535) {
+        auto what = f("Invalid multicast group port: {}", port);
+        throw std::runtime_error(what);
+    }
+    this->groupPort = static_cast<uint16_t>(port);
+
+    this->readGroupAddress();
+
+    // join the multicast group and init the worker process
+    this->initSocket();
+
+    Logging::info("Multicast group: {} port {}", this->getGroupAddress(), this->groupPort);
+    this->joinGroup();
+
+    this->initWorker();
+}
+
+/**
+ * Cleans up any resources allocated by the server, including its listening
+ * thread and all client connections.
+ */
+Syncer::~Syncer() {
+    // ensure the worker gets the terminate request
+    if(!this->shouldTerminate) {
+        Logging::error("You should call Proto::Syncer::terminate() before dealloc");
+        this->terminate();
+    }
+
+    // wait on the worker thread to exit
+    this->worker->join();
+}
+
+/**
+ * Terminates the sync handler
+ */
+void Syncer::terminate() {
+    if(this->shouldTerminate) {
+        Logging::error("Ignoring repeated call to Proto::Syncer::terminate()");
+        return;
+    }
+
+    // set the termination flag
+    Logging::debug("Requesting sync handler termination");
+    this->shouldTerminate = true;
+}
+
+
+
+/**
+ * Sets up the multicast send/receive socket.
+ *
+ * We currently only send multicast packets, so nothing really special happens here.
+ */
+void Syncer::initSocket() {
+    int err;
+
+    // create the socket
+    err = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if(err == -1) {
+        throw std::system_error(errno, std::generic_category(), "failed to create socket");
+    }
+    this->socket = err;
+}
+/**
+ * Join our multicast group.
+ *
+ * We don't care about any received packets, and to send multicast, we technically don't have to
+ * be a member of the group. However, doing this will cause the kernel to send the IGMP messages
+ * that some really stupid network equipment needs to pass multicast.
+ *
+ * Plus, at least we'll be prepared when/if we ever need to receive multicast.
+ */
+void Syncer::joinGroup() {
+    int err;
+
+    // build join request
+    struct ip_mreq mreq;
+    memset(&mreq, 0, sizeof(mreq));
+
+    auto *addr4 = reinterpret_cast<const struct sockaddr_in *>(&this->groupAddr);
+    mreq.imr_multiaddr.s_addr = addr4->sin_addr.s_addr;
+
+    // join on any interface (TODO: this should be configurable)
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+
+    err = setsockopt(this->socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
+    if(err != 0) {
+        throw std::system_error(errno, std::generic_category(), "failed to join multicast group");
+    }
+}
+/**
+ * Leaves the multicast group.
+ */
+void Syncer::leaveGroup() {
+    int err;
+}
+
+/**
+ * Sets up the server's worker thread.
+ */
+void Syncer::initWorker() {
+    this->shouldTerminate = false;
+    this->worker = std::make_unique<std::thread>(&Syncer::workerMain, this);
+}
+/**
+ * Sync server main thread
+ *
+ * This handles sending the multicast messages and re-keying.
+ */
+void Syncer::workerMain() {
+    // generate initial key
+    this->generateKey();
+
+    // main loop
+    while(!this->shouldTerminate) {
+        // send sync message?
+        if(0) {
+
+        }
+
+        // rekeying?
+        if(0) {
+            Logging::debug("Rekeying timer expired, generating new multicast keys");
+            this->generateKey();
+        }
+    }
+
+    Logging::trace("Syncer work thread is exiting");
+    Logging::debug("Issued {} keys", this->prevKeyIds.size() + 1);
+
+    // leave multicast groups
+    this->leaveGroup();
+
+    // close the socket
+    close(this->socket);
+    this->socket = -1;
+}
+
+
+
+/**
+ * Converts the group address to a string.
+ */
+const std::string Syncer::getGroupAddress() const {
+    // message buffer (large enough to fit an IPv6)
+    char buf[INET6_ADDRSTRLEN];
+    memset(&buf, 0, INET6_ADDRSTRLEN);
+
+    // format IPv4
+    if(this->groupAddr.ss_family == AF_INET) {
+        auto *addr4 = reinterpret_cast<const struct sockaddr_in *>(&this->groupAddr);
+
+        inet_ntop(AF_INET, &addr4->sin_addr, buf, sizeof(buf));
+        return std::string(buf);
+    } 
+    // format IPv6
+    else if(this->groupAddr.ss_family == AF_INET6) {
+        auto *addr6 = reinterpret_cast<const struct sockaddr_in6 *>(&this->groupAddr);
+
+        inet_ntop(AF_INET6, &addr6->sin6_addr, buf, sizeof(buf));
+        return std::string(buf);
+
+    }
+
+    // unknown address family
+    throw std::runtime_error("unsupported address family");
+}
+
+/**
+ * Reads and decodes the group address.
+ */
+void Syncer::readGroupAddress() {
+    int err;
+
+    // clear the address struct
+    memset(&this->groupAddr, 0, sizeof(struct sockaddr_storage));
+
+    auto *addr4 = reinterpret_cast<struct sockaddr_in *>(&this->groupAddr);
+    auto *addr6 = reinterpret_cast<struct sockaddr_in6 *>(&this->groupAddr);
+
+    // get from config
+    const auto address = ConfigManager::get("server.sync.group", "239.42.0.69");
+
+    if(address.empty()) {
+        throw std::runtime_error("Sync group address missing");
+    }
+
+    // can we parse it as an IPv4 address?
+    err = inet_pton(AF_INET, address.c_str(), &addr4->sin_addr);
+
+    if(err == 1) {
+        addr4->sin_family = AF_INET;
+        addr4->sin_port = htons(this->groupPort);
+
+        return;
+    } else if(err == -1) {
+        throw std::system_error(errno, std::generic_category(), "inet_pton(AF_INET) failed");
+    }
+
+/*    // if not, try to parse as an IPv6 address
+    err = inet_pton(AF_INET6, address.c_str(), &addr6->sin6_addr);
+
+    if(err == 1) {
+        addr6->sin6_family = AF_INET6;
+        addr6->sin6_port = htons(this->groupPort);
+
+        return;
+    } else if(err == -1) {
+        throw std::system_error(errno, std::generic_category(), "inet_pton(AF_INET6) failed");
+    } else {*/
+        auto what = f("Failed to parse listen address '{}'", address);
+        throw std::runtime_error(what);
+    //}
+}
+
+
+
+/**
+ * Generates a new key.
+ *
+ * Key data is randomly generated, and then any registered rekey observers are invoked.
+ */
+void Syncer::generateKey() {
+    int err;
+    uint32_t keyId = 0;
+
+    // distribution used for generating key IDs 
+    std::uniform_int_distribution<ObserverToken> dist(0, std::numeric_limits<uint32_t>::max());
+
+    // generate the key material
+    KeyDataType key;
+    IVDataType iv;
+
+    err = RAND_bytes(reinterpret_cast<unsigned char *>(key.data()), key.size());
+    if(err != 1) {
+        throw std::runtime_error("Failed to generate key data");
+    }
+
+    err = RAND_bytes(reinterpret_cast<unsigned char *>(iv.data()), iv.size());
+    if(err != 1) {
+        throw std::runtime_error("Failed to generate IV data");
+    }
+
+    // generate a key id
+    while(!keyId) {
+        uint32_t temp = dist(this->keyIdRandom);
+
+        if(std::find(this->prevKeyIds.begin(), this->prevKeyIds.end(), temp) == this->prevKeyIds.end()) {
+            keyId = temp;
+        }
+    }
+
+    // put it in the key store and update keying state
+    {
+        std::lock_guard<std::mutex> lg(this->keyLock);
+
+        const auto birthday = std::chrono::steady_clock::now();
+        this->currentKeyBirthday = birthday;
+
+        this->prevKeyIds.push_back(keyId);
+        this->keyStore[keyId] = KeyInfo(key, iv, birthday);
+        this->currentKeyId = keyId;
+    }
+
+    // XXX: debug logging
+    Logging::debug("Generated new key {:x}: key data = {}, iv data = {}", keyId,
+            hexdump(key.begin(), key.end()), hexdump(iv.begin(), iv.end()));
+
+    // invoke observers
+    this->invokeObservers();
+}
+/**
+ * Invokes all rekey observers.
+ *
+ * Note that any calls into the add/remove observer functions are prohibited from inside an
+ * observer callback.
+ */
+void Syncer::invokeObservers() {
+    std::lock_guard<std::mutex> lg(this->observerLock);
+
+    for(const auto &item : this->observers) {
+        const auto &[token, callback] = item;
+        callback(this->currentKeyId);
+    }
+}
+
+/**
+ * Registers a new observer that's invoked when the currently active key changes.
+ *
+ * @note You cannot call this method from a callback.
+ */
+Syncer::ObserverToken Syncer::registerObserver(ObserverFunction const& f) {
+    std::lock_guard<std::mutex> lg(this->observerLock);
+    ObserverToken token;
+
+    std::uniform_int_distribution<ObserverToken> dist(0, std::numeric_limits<ObserverToken>::max());
+
+generate:;
+    // generate a token and ensure it's unique
+    token = dist(this->observerTokenRandom);
+
+    if(this->observers.find(token) != this->observers.end()) {
+        goto generate;
+    }
+
+    // once we've got an unique token, insert it to the list of observers
+    this->observers[token] = f;
+    Logging::trace("Registered rekey observer: {}", token);
+
+    return token;
+}
+
+/**
+ * Removes an existing observer.
+ *
+ * @note You cannot call this method from a callback.
+ *
+ * @throws If there is no such observer, an exception is thrown.
+ */
+void Syncer::removeObserver(ObserverToken token) {
+    std::lock_guard<std::mutex> lg(this->observerLock);
+
+    if(this->observers.erase(token) == 0) {
+        throw std::invalid_argument("No observer registered with that token");
+    }
+
+    Logging::trace("Removed observer {}", token);
+}

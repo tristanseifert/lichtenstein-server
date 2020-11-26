@@ -27,6 +27,8 @@ enum MessageEndpoint: uint8_t {
     Authentication = 1,
     /// pixel data (subscriptions and data transmission)
     PixelData = 2,
+    /// Multicast sync messages (control via DTLS)
+    MulticastControl = 3,
 };
 
 /**

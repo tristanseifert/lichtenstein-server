@@ -153,7 +153,7 @@ void ChannelData::handleSubscribe(const Header &hdr, const SubscribeMsg *msg) {
         this->lastAckTime[msg->channel] = std::chrono::steady_clock::now();
         this->throttleMap[msg->channel] = false;
 
-        Logging::trace("Subscription {}: format {}", token, msg->format);
+        Logging::trace("Subscription {}: format {:x}", token, msg->format);
     }
 
     // done!
