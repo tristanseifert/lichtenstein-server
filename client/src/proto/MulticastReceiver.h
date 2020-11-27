@@ -28,6 +28,7 @@ namespace Lichtenstein::Proto {
         struct McastCtrlKeyWrapper;
         struct McastCtrlRekey;
         struct McastCtrlGetKeyAck;
+        struct McastDataSyncOutput;
     }
 }
 
@@ -42,6 +43,8 @@ namespace Lichtenstein::Client::Proto {
         using RekeyMsg = Lichtenstein::Proto::MessageTypes::McastCtrlRekey;
         using GetKeyAckMsg = Lichtenstein::Proto::MessageTypes::McastCtrlGetKeyAck;
         using KeyWrap = Lichtenstein::Proto::MessageTypes::McastCtrlKeyWrapper;
+
+        using SyncOutMsg = Lichtenstein::Proto::MessageTypes::McastDataSyncOutput;
 
         using KeyDataType = std::array<std::byte, (256 / 8)>;
         using IVDataType = std::array<std::byte, (128 / 8)>;
@@ -70,10 +73,12 @@ namespace Lichtenstein::Client::Proto {
             void workerMain();
 
         private:
+            void handleSyncOutput(const McastHeader *, const SyncOutMsg *);
+
             void handleGetKey(const Header &, const GetKeyAckMsg *);
             void handleRekey(const Header &, const RekeyMsg *);
 
-            void loadKey(const uint32_t, const KeyWrap &);
+            void loadKey(const uint32_t, const KeyWrap &, bool = false);
             void sendMcastKeyReq(const uint32_t, uint8_t &);
 
         private:

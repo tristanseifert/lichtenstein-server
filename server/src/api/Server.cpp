@@ -2,6 +2,7 @@
 #include "HandlerFactory.h"
 
 #include <memory>
+#include <algorithm>
 
 #include <httplib.h>
 #include <nlohmann/json.hpp>
@@ -128,9 +129,17 @@ void Server::allocServer() {
 void Server::listen() {
     // read the config
     std::string host = ConfigManager::get("api.listen.address", "127.0.0.1");
-    int port = ConfigManager::getUnsigned("api.listen.port", 42000);
+    unsigned int port = ConfigManager::getUnsigned("api.listen.port", 42000);
 
     Logging::info("Starting API server: {}:{}", host, port);
+
+    // set thread group size
+    unsigned int workers = ConfigManager::getUnsigned("api.listen.workers", 2);
+    workers = std::max(std::min(std::thread::hardware_concurrency(), workers), 1U);
+
+    this->http->new_task_queue = [workers] {
+        return new httplib::ThreadPool(workers);
+    };
 
     // begin listening
     if(!this->http->listen(host.c_str(), port)) {

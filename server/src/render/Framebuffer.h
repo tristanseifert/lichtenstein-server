@@ -59,6 +59,9 @@ namespace Lichtenstein::Server::Render {
             // size of notification bitset, in pixels
             constexpr static const size_t kNotifyBitsetPixels = 16384;
 
+            // when set, all framebuffer observation registration and removal is logged
+            constexpr static const bool kLogObservers = false;
+
         private:
             void assertInBounds(size_t start, size_t num);
 

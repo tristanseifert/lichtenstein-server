@@ -23,7 +23,7 @@ MulticastCrypto::MulticastCrypto() {
     this->ctxInited = false;
 
     this->nonceLength = EVP_AEAD_nonce_length(algo);
-    Logging::trace("Using {} bytes of IV as nonce", this->nonceLength);
+    Logging::debug("Using {} bytes of IV as nonce", this->nonceLength);
 
     XASSERT(EVP_AEAD_max_tag_len(algo) == (kAuthTagSizeBits / 8), "Tag length mismatch: {}, expected {}",
             EVP_AEAD_max_tag_len(algo), (kAuthTagSizeBits / 8));
@@ -126,6 +126,9 @@ bool MulticastCrypto::decrypt(const ByteBuffer &ciphertext, const IVType &iv, By
             &outLen, plaintext.size(), reinterpret_cast<const unsigned char *>(nonce.data()),
             nonce.size(), reinterpret_cast<const unsigned char *>(ciphertext.data()),
             ciphertext.size(), nullptr, 0);
+
+    // resize the output buffer (this will truncate to 0 length on failure)
+    plaintext.resize(outLen);
 
     if(err != 1) {
         throw std::runtime_error("AEAD open failed");

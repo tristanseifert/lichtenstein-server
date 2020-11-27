@@ -1,6 +1,8 @@
 #include "MulticastReceiver.h"
 #include "Client.h"
 
+#include "../output/PluginManager.h"
+
 #include <proto/WireMessage.h>
 #include <proto/ProtoMessages.h>
 #include <proto/MulticastCrypto.h>
@@ -16,17 +18,20 @@
 #include <netdb.h>
 
 #include <stdexcept>
+#include <algorithm>
 
 #include <cista.h>
 
 using namespace Lichtenstein::Proto;
+using namespace Lichtenstein::Proto::MessageTypes;
 using namespace Lichtenstein::Client::Proto;
 
 /**
  * Sets up the multicast receiver.
  */
 MulticastReceiver::MulticastReceiver(Client *_client) : client(_client) {
-
+    // allocate the cryptor
+    this->cryptor = std::make_shared<MulticastCrypto>();
 }
 
 /**
@@ -77,6 +82,26 @@ void MulticastReceiver::initSocket() {
         throw std::system_error(errno, std::generic_category(), "failed to create mcast socket");
     }
     this->socket = err;
+
+    // set the "reuse address" to allow multiple mcast listeners
+    int yes = 1;
+    err = setsockopt(this->socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    if(err == -1) {
+        throw std::system_error(errno, std::generic_category(), "failed to send SO_REUSEADDR");
+    }
+
+    // bind it now; any address on the right port
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(this->groupPort);
+
+    err = bind(this->socket, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+    if(err == -1) {
+        throw std::system_error(errno, std::generic_category(), "failed to bind multicast socket");
+    }
 }
 /**
  * Join our multicast group.
@@ -145,6 +170,13 @@ void MulticastReceiver::initWorker() {
 void MulticastReceiver::workerMain() {
     int err;
 
+    // packet read buffer
+    constexpr static const size_t kPacketBufSz = 9000;
+    char packetBuf[kPacketBufSz];
+
+    struct sockaddr_storage from;
+    socklen_t fromSz;
+
     // join multicast group
     this->joinGroup();
 
@@ -163,7 +195,7 @@ void MulticastReceiver::workerMain() {
         FD_SET(this->socket, &read_fds);
 
         // wait for packet
-        err = select(this->socket, &read_fds, nullptr, nullptr, &timeout);
+        err = select(this->socket+1, &read_fds, nullptr, nullptr, &timeout);
 
         if(err == -1) {
             throw std::system_error(errno, std::generic_category(), "select() failed");
@@ -173,6 +205,76 @@ void MulticastReceiver::workerMain() {
         }
 
         // try to read a packet
+        memset(&packetBuf, 0, kPacketBufSz);
+        memset(&from, 0, sizeof(from));
+
+        fromSz = sizeof(from);
+
+        err = recvfrom(this->socket, &packetBuf, kPacketBufSz, 0, 
+                       reinterpret_cast<struct sockaddr *>(&from), &fromSz);
+
+        if(err == -1) {
+            Logging::error("recvfrom() failed: {}", errno);
+            continue;
+        }
+
+        // parse the header
+        if(err < sizeof(McastHeader)) {
+            Logging::error("Ignoring too small packet ({}) from {}", err, from);
+            continue;
+        }
+
+        auto *header = reinterpret_cast<McastHeader *>(&packetBuf);
+        if(header->version != kLichtensteinProtoVersion) {
+            Logging::error("Invalid version {:x}", header->version);
+            continue;
+        }
+        if(header->endpoint != MessageEndpoint::MulticastData) {
+            Logging::error("Invalid endpoint {:x}", header->endpoint);
+            continue;
+        }
+
+        header->length = ntohs(header->length);
+        header->keyId = ntohl(header->keyId);
+
+        // try to decrypt the payload
+        if(header->length > (err - sizeof(McastHeader))) {
+            Logging::error("Insufficient payload size (expected {} bytes, {} available)",
+                           header->length, (err - sizeof(McastHeader)));
+            continue;
+        }
+
+        std::vector<std::byte> payload;
+        payload.resize(header->length);
+
+        for(size_t i = 0; i < header->length; i++) {
+            payload[i] = std::byte(header->payload[i]);
+        }
+
+        {
+            std::lock_guard lg(this->keystoreLock);
+            if(!this->keyStore.contains(header->keyId)) {
+                Logging::error("Received multicast frame with unknown key id {:x}", header->keyId);
+                continue;
+            }
+        }
+
+        const auto iv = std::get<1>(this->keyStore[header->keyId]);
+
+        std::vector<std::byte> plaintext;
+        this->cryptor->decrypt(payload, iv, plaintext);
+
+        // decrypt success; handle the packet
+        switch(header->messageType) {
+            // handle a sync output
+            case McastDataMessageType::MCD_SYNC_OUTPUT:
+                this->handleSyncOutput(header, cista::deserialize<SyncOutMsg, kCistaMode>(plaintext));
+                break;
+
+            default:
+                Logging::warn("Unsupported multicast message type {:x}", header->messageType);
+                break;
+        }
     }
 
     Logging::debug("Multicast receiver thread is shutting down");
@@ -182,6 +284,13 @@ void MulticastReceiver::workerMain() {
 
     // clean up resources
     ::close(this->socket);
+}
+
+/**
+ * Handles a received "sync output" frame.
+ */
+void MulticastReceiver::handleSyncOutput(const McastHeader *, const SyncOutMsg *msg) {
+    Output::PluginManager::get()->notifySyncOutput();
 }
 
 
@@ -232,8 +341,6 @@ void MulticastReceiver::setGroupInfo(const std::string &address, const uint16_t 
  * Handles a received message for the multicast control endpoint
  */
 void MulticastReceiver::handleMessage(const Header &header, const PayloadType &payload) {
-    using namespace MessageTypes;
-
     XASSERT(header.endpoint == MessageEndpoint::MulticastControl, "Invalid endpoint {:x}",
             header.endpoint);
 
@@ -258,16 +365,16 @@ void MulticastReceiver::handleMessage(const Header &header, const PayloadType &p
  * Processes responses to "get key" requests.
  */
 void MulticastReceiver::handleGetKey(const Header &, const GetKeyAckMsg *msg) {
-    using namespace MessageTypes;
-
     // ensure success
     if(msg->status != MCC_SUCCESS) {
         Logging::error("Failed to get key: {}", msg->status);
         throw std::runtime_error("get key request failed");
     }
 
-    // then load the key
-    this->loadKey(msg->keyId, msg->keyData);
+    // then load the key (and activate it if it's the current key id)
+    bool activate = (msg->keyId == this->currentKeyId);
+
+    this->loadKey(msg->keyId, msg->keyData, activate);
 }
 
 /**
@@ -275,13 +382,11 @@ void MulticastReceiver::handleGetKey(const Header &, const GetKeyAckMsg *msg) {
  * change the current key id to the value specified in the rekey message.
  */
 void MulticastReceiver::handleRekey(const Header &hdr, const RekeyMsg *msg) {
-    using namespace MessageTypes;
-
     // load key and update the key id
-    this->loadKey(msg->keyId, msg->keyData);
+    this->loadKey(msg->keyId, msg->keyData, true);
     this->currentKeyId = msg->keyId;
 
-    Logging::trace("Rekey request received: new key id {:x}", msg->keyId);
+    Logging::trace("Rekeying multicast channel: new key id {:x}", msg->keyId);
 
     // acknowledge the re-key
     McastCtrlRekeyAck ack;
@@ -297,9 +402,7 @@ void MulticastReceiver::handleRekey(const Header &hdr, const RekeyMsg *msg) {
 /**
  * Loads the given key into the key store.
  */
-void MulticastReceiver::loadKey(const uint32_t keyId, const KeyWrap &wrapper) {
-    using namespace MessageTypes;
-
+void MulticastReceiver::loadKey(const uint32_t keyId, const KeyWrap &wrapper, bool updateCryptor) {
     // ensure we take the keystore lock
     std::lock_guard<std::mutex> lg(this->keystoreLock);
 
@@ -334,16 +437,17 @@ void MulticastReceiver::loadKey(const uint32_t keyId, const KeyWrap &wrapper) {
     }
 
     this->keyStore[keyId] = KeyInfo(key, iv);
-    Logging::trace("Received key {:x}: key = {}, iv = {}", keyId, hexdump(key.begin(), key.end()),
-            hexdump(iv.begin(), iv.end()));
+
+    // update cryptor state if needed
+    if(updateCryptor) {
+        this->cryptor->loadKey(key);
+    }
 }
 
 /**
  * Sends a request for the multicast key with the given id.
  */
 void MulticastReceiver::sendMcastKeyReq(const uint32_t keyId, uint8_t &sentTag) {
-    using namespace Lichtenstein::Proto::MessageTypes;
-
     McastCtrlGetKey msg;
     memset(&msg, 0, sizeof(msg));
 

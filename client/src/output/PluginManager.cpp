@@ -155,6 +155,14 @@ void PluginManager::terminate() {
     this->hasTerminated = true;
 }
 
+/**
+ * Notifies all output plugins to output their data.
+ */
+void PluginManager::notifySyncOutput() {
+    for(auto channel : this->channels) {
+        channel->outputPixelData();
+    }
+}
 
 
 const bool PluginManager::cfgGetBool(const std::string &path, const bool fallback) {

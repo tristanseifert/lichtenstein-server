@@ -140,9 +140,9 @@ void StartServices() {
 void StopServices() {
     try {
         API::Server::stop();
+        Proto::Server::stop();
         Render::Pipeline::stop();
         Proto::Syncer::stop();
-        Proto::Server::stop();
         DB::DataStore::close();
     } catch(std::exception &e) {
         Logging::crit("StopServices() failed: {}", e.what());

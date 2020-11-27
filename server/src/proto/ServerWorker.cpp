@@ -122,6 +122,9 @@ void ServerWorker::main() {
         } catch(std::exception &e) {
             Logging::error("Exception while processing request from {}: {}",
                     this->addr, e.what());
+
+            // exception should equal client shutdown
+            this->shouldTerminate = true;
         }
 
 beach: ;
@@ -137,7 +140,7 @@ beach: ;
     Logging::debug("Shutting down client {}/{}", (void*)this, this->addr);
 
     this->handlers.clear();
-    
+
     if(this->socket > 0) {
         if(!this->skipShutdown) {
             SSL_shutdown(this->ssl);

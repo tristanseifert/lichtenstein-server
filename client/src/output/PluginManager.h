@@ -30,6 +30,8 @@ namespace Lichtenstein::Client::Output {
         public:
             void terminate();
 
+            void notifySyncOutput();
+
         public:
             static void start();
             static void stop();

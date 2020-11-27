@@ -142,6 +142,9 @@ namespace Lichtenstein::Server::Proto {
         private:
             static std::shared_ptr<Syncer> sharedInstance;
 
+            // when set, all rekey callback registration and removal is logged
+            constexpr static const bool kLogObservers = false;
+
         private:
             using TimePoint = std::chrono::steady_clock::time_point;
 

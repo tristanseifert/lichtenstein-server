@@ -210,7 +210,7 @@ void Syncer::workerMain() {
 
         // if time out, rekey
         if(signalled == std::cv_status::timeout) {
-            Logging::debug("Rekeying timer expired, generating new multicast keys");
+            Logging::trace("Rekeying timer expired, generating new multicast keys");
             this->generateKey();
         }
         // otherwise, work through all items in the work queue
@@ -235,7 +235,7 @@ void Syncer::workerMain() {
     }
 
     Logging::trace("Syncer work thread is exiting");
-    Logging::debug("Issued {} keys", this->prevKeyIds.size() + 1);
+    Logging::debug("Issued {} total key(s)", this->prevKeyIds.size() + 1);
 
     // leave multicast groups
     this->leaveGroup();
@@ -361,10 +361,6 @@ void Syncer::generateKey() {
         this->cryptor->loadKey(key);
     }
 
-    // XXX: debug logging
-    Logging::debug("Generated new key {:x}: key data = {}, iv data = {}", keyId,
-            hexdump(key.begin(), key.end()), hexdump(iv.begin(), iv.end()));
-
     // invoke observers
     this->invokeObservers();
 }
@@ -404,7 +400,10 @@ generate:;
 
     // once we've got an unique token, insert it to the list of observers
     this->observers[token] = f;
-    Logging::trace("Registered rekey observer: {}", token);
+
+    if(kLogObservers) {
+        Logging::trace("Registered multicast rekey callback: {}", token);
+    }
 
     return token;
 }
@@ -422,7 +421,9 @@ void Syncer::removeObserver(ObserverToken token) {
         throw std::invalid_argument("No observer registered with that token");
     }
 
-    Logging::trace("Removed observer {}", token);
+    if(kLogObservers) {
+        Logging::trace("Removed multicast rekey callback {}", token);
+    }
 }
 
 
@@ -452,6 +453,7 @@ void Syncer::handleSyncOutput(const WorkItem &) {
     MulticastMessageHeader hdr;
     memset(&hdr, 0, sizeof(hdr));
 
+    hdr.version = kLichtensteinProtoVersion;
     hdr.tag = this->nextTag++;
     hdr.keyId = htonl(this->currentKeyId);
     hdr.endpoint = MessageEndpoint::MulticastData;

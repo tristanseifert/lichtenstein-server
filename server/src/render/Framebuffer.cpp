@@ -193,7 +193,10 @@ generate:;
     ObserverInfo info(range, f);
 
     this->observers[token] = info;
-    Logging::trace("Registered observer: {} (len {}): {}", start, length, token);
+
+    if(kLogObservers) {
+        Logging::trace("Registered observer: {} (len {}): {}", start, length, token);
+    }
 
     return token;
 }
@@ -218,7 +221,9 @@ void Framebuffer::removeObserver(ObserverToken token) {
         this->pendingObservers.erase(it);
     }
 
-    Logging::trace("Removed observer {}", token);
+    if(kLogObservers) {
+        Logging::trace("Removed framebuffer observer {}", token);
+    }
 }
 
 /**
