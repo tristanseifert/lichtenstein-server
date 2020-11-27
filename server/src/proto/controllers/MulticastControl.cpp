@@ -63,6 +63,14 @@ void MulticastControl::handle(ServerWorker *worker, const struct MessageHeader &
         case McastCtrlMessageType::MCC_GET_INFO:
             this->handleGetInfo(header, cista::deserialize<GetInfoMsg, kCistaMode>(payload));
             break;
+        // get multicast key
+        case McastCtrlMessageType::MCC_GET_KEY:
+            this->handleGetKey(header, cista::deserialize<GetKeyMsg, kCistaMode>(payload));
+            break;
+        // acknowledge re-key
+        case McastCtrlMessageType::MCC_REKEY_ACK:
+            this->handleRekeyAck(header, cista::deserialize<RekeyAckMsg, kCistaMode>(payload));
+            break;
 
         default:
             throw std::runtime_error("Invalid message type");
@@ -92,6 +100,51 @@ void MulticastControl::handleGetInfo(const Header &hdr, const GetInfoMsg *msg) {
     this->reply(hdr, McastCtrlMessageType::MCC_GET_INFO_ACK, ackData);
 }
 
+/**
+ * Sends to the node info for the given key.
+ */
+void MulticastControl::handleGetKey(const Header &hdr, const GetKeyMsg *msg) {
+    McastCtrlGetKeyAck info;
+    memset(&info, 0, sizeof(info));
+
+    // get the key info
+    if(!Syncer::shared()->isKeyIdValid(msg->keyId)) {
+        info.status = MCC_INVALID_KEY_ID;
+        goto send;
+    }
+
+    // copy it into place
+    info.keyId = msg->keyId;
+    info.keyData.type = MCC_KEY_TYPE_CHACHA20_POLY1305;
+
+    {
+        const auto key = Syncer::shared()->getKeyData(msg->keyId);
+        const auto iv = Syncer::shared()->getIVData(msg->keyId);
+
+        info.keyData.key.resize(key.size());
+        for(size_t i = 0; i < key.size(); i++) {
+            info.keyData.key[i] = key[i];
+        }
+
+        info.keyData.iv.resize(key.size());
+        for(size_t i = 0; i < iv.size(); i++) {
+            info.keyData.iv[i] = iv[i];
+        }
+    }
+
+send:;
+    // send reply
+    const auto infoData = cista::serialize<kCistaMode>(info);
+    this->reply(hdr, McastCtrlMessageType::MCC_GET_KEY_ACK, infoData);
+}
+
+/**
+ * Handles a re-key acknowledgement message./
+ */
+void MulticastControl::handleRekeyAck(const Header &hdr, const RekeyAckMsg *msg) {
+    // TODO: something?
+}
+
 
 
 /**
@@ -111,19 +164,19 @@ void MulticastControl::sendRekey() {
 
     // key type information
     msg.keyId = Syncer::shared()->getCurrentKeyId();
-    msg.type = MCC_KEY_TYPE_CHACHA20_POLY1305;
+    msg.keyData.type = MCC_KEY_TYPE_CHACHA20_POLY1305;
 
     // copy key material
     const auto keyData = Syncer::shared()->getKeyData(msg.keyId);
-    msg.key.reserve(keyData.size());
+    msg.keyData.key.resize(keyData.size());
     for(size_t i = 0; i < keyData.size(); i++) {
-        msg.key.push_back(keyData[i]);
+        msg.keyData.key[i] = keyData[i];
     }
 
     const auto ivData = Syncer::shared()->getIVData(msg.keyId);
-    msg.iv.reserve(ivData.size());
+    msg.keyData.iv.resize(ivData.size());
     for(size_t i = 0; i < ivData.size(); i++) {
-        msg.iv.push_back(ivData[i]);
+        msg.keyData.iv[i] = ivData[i];
     }
 
     // send it

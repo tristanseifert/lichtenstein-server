@@ -39,6 +39,8 @@ namespace Lichtenstein::Server::Proto::Controllers {
 
         private:
             void handleGetInfo(const Header &, const GetInfoMsg *);
+            void handleGetKey(const Header &, const GetKeyMsg *);
+            void handleRekeyAck(const Header &, const RekeyAckMsg *);
 
             void rekeyCallback(uint32_t newKeyId);
             void sendRekey();

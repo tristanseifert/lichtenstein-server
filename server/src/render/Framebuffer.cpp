@@ -3,6 +3,8 @@
 #include "RGBPixel.h"
 #include "RGBWPixel.h"
 
+#include "../proto/Syncer.h"
+
 #include <stdexcept>
 #include <algorithm>
 #include <iterator>
@@ -20,7 +22,7 @@ using namespace Lichtenstein::Server::Render;
  */
 Framebuffer::Framebuffer() {
     // seed the observer token random generator. the time is ok since these are just tokens
-    this->random.seed(time(nullptr));
+    this->random.seed(time(nullptr) + 'FBUF');
 
     // read config
     this->numPixels = ConfigManager::getUnsigned("render.fb.size", 5000);
@@ -154,6 +156,9 @@ void Framebuffer::endFrame(const FrameToken token) {
         const auto& [range, callback] = this->observers[token];
         callback(this->frameCounter);
     }
+
+    // then, invoke the syncer (sends the sync output packet)
+    Proto::Syncer::shared()->frameCompleted();
 
     // set up for next frame
     this->frameCounter += 1;

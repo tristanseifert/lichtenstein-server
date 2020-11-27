@@ -22,8 +22,15 @@
 #include <tuple>
 #include <functional>
 #include <unordered_map>
+#include <condition_variable>
+#include <queue>
 
 #include <sys/socket.h>
+
+namespace Lichtenstein::Proto {
+    class MulticastCrypto;
+    struct MulticastMessageHeader;
+}
 
 namespace Lichtenstein::Server::Proto::Controllers {
     class MulticastControl;
@@ -70,12 +77,22 @@ namespace Lichtenstein::Server::Proto {
                 this->generateKey();
             }
 
+            // frame rendering is complete
+            void frameCompleted();
+
             ObserverToken registerObserver(ObserverFunction const& f);
             void removeObserver(ObserverToken token);
 
         private:
             using KeyDataType = std::array<std::byte, (256 / 8)>;
             using IVDataType = std::array<std::byte, (128 / 8)>;
+
+            using Header = Lichtenstein::Proto::MulticastMessageHeader;
+
+            // is the given key ID valid? e.g. do we have data for it
+            const bool isKeyIdValid(const uint32_t id) const {
+                return this->keyStore.contains(id);
+            }
 
             // Get key data for the given key id.
             KeyDataType getKeyData(uint32_t keyId) {
@@ -86,6 +103,21 @@ namespace Lichtenstein::Server::Proto {
                 return std::get<1>(this->keyStore[keyId]);
             }
 
+        private:
+            // work items sent to the work thread
+            struct WorkItem {
+                enum WorkItemType {
+                    // send a "sync output" message
+                    SYNC_OUTPUT,
+                } type;
+
+                // type-specific data
+                union {
+                    struct {
+                        // nothing
+                    } syncOut;
+                };
+            };
 
         private:
             void terminate();
@@ -101,6 +133,11 @@ namespace Lichtenstein::Server::Proto {
 
             void generateKey();
             void invokeObservers();
+
+            void pushWorkItem(const WorkItem &);
+            void handleSyncOutput(const WorkItem &);
+
+            void send(const Header &, const std::vector<std::byte> &payload);
 
         private:
             static std::shared_ptr<Syncer> sharedInstance;
@@ -121,6 +158,12 @@ namespace Lichtenstein::Server::Proto {
             // work thread
             std::atomic_bool shouldTerminate;
             std::unique_ptr<std::thread> worker = nullptr;
+
+            // work queue; signal the condition variable
+            std::mutex workQueueLock;
+            std::condition_variable workQueueCv;
+
+            std::queue<WorkItem> workQueue;
 
             // random engine for generating observer tokens
             std::default_random_engine observerTokenRandom;
@@ -145,6 +188,12 @@ namespace Lichtenstein::Server::Proto {
             using KeyInfo = std::tuple<KeyDataType, IVDataType, TimePoint>;
             // key store; maps key id -> key info
             std::unordered_map<uint32_t, KeyInfo> keyStore;
+
+            // instance to handle the packet crypto
+            std::shared_ptr<Lichtenstein::Proto::MulticastCrypto> cryptor = nullptr;
+
+            // tag of the next multicast message
+            uint8_t nextTag = 0;
     };
 }
 

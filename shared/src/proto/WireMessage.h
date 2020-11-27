@@ -29,6 +29,8 @@ enum MessageEndpoint: uint8_t {
     PixelData = 2,
     /// Multicast sync messages (control via DTLS)
     MulticastControl = 3,
+    /// Multicast data messages (encrypted multicast packets)
+    MulticastData = 4,
 };
 
 /**
@@ -50,8 +52,31 @@ struct MessageHeader {
     // actual payload data
     char payload[];
 };
-
 static_assert(sizeof(MessageHeader) == 6, "Incorrect message header size");
+
+
+/**
+ * Message wrapper used for encrypted multicast messages.
+ */
+struct MulticastMessageHeader {
+    // protocol version; currently, this is 0x01
+    uint8_t version;
+    // message type, roughly corresponds to individual "endpoints"
+    MessageEndpoint endpoint;
+    // message type. this is specific to the endpoint
+    uint8_t messageType;
+    // tag (responses carry the tag of the originating request)
+    uint8_t tag;
+    // payload length (bytes)
+    uint16_t length;
+    // key ID used to encrypt this packet (TODO: is this leaking too much info?)
+    uint32_t keyId;
+
+    // actual payload data
+    char payload[];
+};
+static_assert(sizeof(MulticastMessageHeader) == 10, "Incorrect multicast message header size");
+
 
 #pragma pack(pop)
 }

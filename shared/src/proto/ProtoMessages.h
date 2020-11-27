@@ -172,6 +172,16 @@ enum McastCtrlKeyType: uint32_t {
     MCC_KEY_TYPE_CHACHA20_POLY1305      = 1,
 };
 
+// generic key info wrapper struct
+struct McastCtrlKeyWrapper {
+    // key type
+    McastCtrlKeyType type;
+    // key data
+    data::vector<std::byte> key;
+    // initialization vector
+    data::vector<std::byte> iv;
+};
+
 // client -> server; requests info for the multicast control channel
 struct McastCtrlGetInfo {
     
@@ -194,12 +204,8 @@ struct McastCtrlGetInfoAck {
 struct McastCtrlRekey {
     // key id
     uint32_t keyId;
-    // key type
-    McastCtrlKeyType type;
     // key data
-    data::vector<std::byte> key;
-    // initialization vector
-    data::vector<std::byte> iv;
+    McastCtrlKeyWrapper keyData;
 };
 
 // client -> server; acknowledges receipt of a new key
@@ -222,13 +228,22 @@ struct McastCtrlGetKeyAck {
 
     // key id
     uint32_t keyId;
-    // key type
-    McastCtrlKeyType type;
     // key data
-    data::vector<std::byte> key;
-    // initialization vector
-    data::vector<std::byte> iv;
+    McastCtrlKeyWrapper keyData;
 };
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+/// Multicast data endpoint message types
+enum McastDataMessageType: uint8_t {
+    MCD_SYNC_OUTPUT             = 1,
+};
+
+// server -> client; synchronized output
+struct McastDataSyncOutput {
+    // channel bitmask (currently unused. set to 0)
+    uint64_t channels;
+};
+
 
 };
 

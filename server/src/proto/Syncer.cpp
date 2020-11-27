@@ -6,6 +6,7 @@
 
 #include <proto/WireMessage.h>
 #include <proto/ProtoMessages.h>
+#include <proto/MulticastCrypto.h>
 
 #include <stdexcept>
 #include <cstring>
@@ -57,8 +58,10 @@ void Syncer::stop() {
  * listening thread.
  */
 Syncer::Syncer() {
+    this->cryptor = std::make_shared<MulticastCrypto>();
+
     // seed the observer token random generator. the time is ok since these are just tokens
-    this->observerTokenRandom.seed(time(nullptr));
+    this->observerTokenRandom.seed(time(nullptr) + 'SYNC');
 
     // read configuration
     const auto interval = ConfigManager::getUnsigned("server.sync.rekey_interval", 1800);
@@ -98,6 +101,9 @@ Syncer::~Syncer() {
 
     // wait on the worker thread to exit
     this->worker->join();
+
+    // release crypto
+    this->cryptor = nullptr;
 }
 
 /**
@@ -112,6 +118,9 @@ void Syncer::terminate() {
     // set the termination flag
     Logging::debug("Requesting sync handler termination");
     this->shouldTerminate = true;
+
+    // signal worker
+    this->workQueueCv.notify_one();
 }
 
 
@@ -183,15 +192,45 @@ void Syncer::workerMain() {
 
     // main loop
     while(!this->shouldTerminate) {
-        // send sync message?
-        if(0) {
+        // calculate time until next rekey, and do so immediately if past due
+        const auto now = std::chrono::steady_clock::now();
+        const auto rekeyAt = this->currentKeyBirthday + this->rekeyInterval;
 
+        const auto diff = rekeyAt - now;
+
+        if(diff.count() < 0) {
+            Logging::warn("Rekeying past due, generating new multicast keys");
+            this->generateKey();
+            continue;
         }
 
-        // rekeying?
-        if(0) {
+        // wait for work messages until timeout
+        std::unique_lock<std::mutex> lock(this->workQueueLock);
+        auto signalled = this->workQueueCv.wait_until(lock, rekeyAt);
+
+        // if time out, rekey
+        if(signalled == std::cv_status::timeout) {
             Logging::debug("Rekeying timer expired, generating new multicast keys");
             this->generateKey();
+        }
+        // otherwise, work through all items in the work queue
+        else if(signalled == std::cv_status::no_timeout) {
+            while(!this->workQueue.empty()) {
+                // get the head of the queue and pop it off
+                const auto workItem = this->workQueue.front();
+                this->workQueue.pop();
+
+                // process it
+                switch(workItem.type) {
+                    case WorkItem::SYNC_OUTPUT:
+                        this->handleSyncOutput(workItem);
+                        break;
+
+                    default:
+                        Logging::error("Unhandled work item type {}", workItem.type);
+                        break;
+                }
+            }
         }
     }
 
@@ -229,7 +268,6 @@ const std::string Syncer::getGroupAddress() const {
 
         inet_ntop(AF_INET6, &addr6->sin6_addr, buf, sizeof(buf));
         return std::string(buf);
-
     }
 
     // unknown address family
@@ -267,20 +305,8 @@ void Syncer::readGroupAddress() {
         throw std::system_error(errno, std::generic_category(), "inet_pton(AF_INET) failed");
     }
 
-/*    // if not, try to parse as an IPv6 address
-    err = inet_pton(AF_INET6, address.c_str(), &addr6->sin6_addr);
-
-    if(err == 1) {
-        addr6->sin6_family = AF_INET6;
-        addr6->sin6_port = htons(this->groupPort);
-
-        return;
-    } else if(err == -1) {
-        throw std::system_error(errno, std::generic_category(), "inet_pton(AF_INET6) failed");
-    } else {*/
-        auto what = f("Failed to parse listen address '{}'", address);
-        throw std::runtime_error(what);
-    //}
+    auto what = f("Failed to parse group address '{}'", address);
+    throw std::runtime_error(what);
 }
 
 
@@ -330,6 +356,9 @@ void Syncer::generateKey() {
         this->prevKeyIds.push_back(keyId);
         this->keyStore[keyId] = KeyInfo(key, iv, birthday);
         this->currentKeyId = keyId;
+
+        // load the key into the cryptor
+        this->cryptor->loadKey(key);
     }
 
     // XXX: debug logging
@@ -339,6 +368,7 @@ void Syncer::generateKey() {
     // invoke observers
     this->invokeObservers();
 }
+
 /**
  * Invokes all rekey observers.
  *
@@ -353,7 +383,6 @@ void Syncer::invokeObservers() {
         callback(this->currentKeyId);
     }
 }
-
 /**
  * Registers a new observer that's invoked when the currently active key changes.
  *
@@ -379,7 +408,6 @@ generate:;
 
     return token;
 }
-
 /**
  * Removes an existing observer.
  *
@@ -395,4 +423,107 @@ void Syncer::removeObserver(ObserverToken token) {
     }
 
     Logging::trace("Removed observer {}", token);
+}
+
+
+
+/**
+ * Signals the worker thread that new work items are available.
+ */
+void Syncer::pushWorkItem(const WorkItem &item) {
+    std::unique_lock<std::mutex> lock(this->workQueueLock);
+    this->workQueue.push(item);
+
+    this->workQueueCv.notify_one();
+}
+
+/**
+ * Sends a sync output message.
+ */
+void Syncer::handleSyncOutput(const WorkItem &) {
+    using namespace Lichtenstein::Proto::MessageTypes;
+
+    std::lock_guard<std::mutex> lg(this->keyLock);
+
+    std::vector<std::byte> payload;
+    std::vector<std::byte> plaintext;
+
+    // build the packet header
+    MulticastMessageHeader hdr;
+    memset(&hdr, 0, sizeof(hdr));
+
+    hdr.tag = this->nextTag++;
+    hdr.keyId = htonl(this->currentKeyId);
+    hdr.endpoint = MessageEndpoint::MulticastData;
+    hdr.messageType = McastDataMessageType::MCD_SYNC_OUTPUT;
+
+    // build the packet and encode it
+    McastDataSyncOutput msg;
+    memset(&msg, 0, sizeof(msg));
+
+    const auto msgData = cista::serialize<kCistaMode>(msg);
+
+    // encrypt the payload
+    const auto iv = std::get<1>(this->keyStore[this->currentKeyId]);
+
+    plaintext.resize(msgData.size());
+    std::transform(msgData.begin(), msgData.end(), plaintext.begin(), [](auto value) {
+        return std::byte(value);
+    });
+
+    this->cryptor->encrypt(plaintext, iv, payload);
+    XASSERT(payload.size() <= std::numeric_limits<uint16_t>::max(), "Payload too big");
+
+    hdr.length = htons(payload.size());
+
+    // send it
+    this->send(hdr, payload);
+}
+
+
+
+/**
+ * Sends the given message as a multicast frame.
+ */
+void Syncer::send(const MulticastMessageHeader &hdr, const std::vector<std::byte> &payload) {
+    int err;
+
+    std::vector<std::byte> buffer;
+    buffer.reserve(sizeof(MulticastMessageHeader) + payload.size());
+
+    // combine into one buffer
+    buffer.resize(sizeof(MulticastMessageHeader));
+
+    auto hdrBytes = reinterpret_cast<const std::byte *>(&hdr);
+    std::copy(hdrBytes, hdrBytes+sizeof(MulticastMessageHeader), buffer.begin());
+
+    buffer.insert(buffer.end(), payload.begin(), payload.end());
+
+    // send the UDP frame
+    size_t socklen = 0;
+    if(this->groupAddr.ss_family == AF_INET) {
+        socklen = sizeof(sockaddr_in);
+    } else if(this->groupAddr.ss_family == AF_INET6) {
+        socklen = sizeof(sockaddr_in6);
+    }
+    XASSERT(socklen != 0, "Invalid multicast group family {}", this->groupAddr.ss_family);
+
+    err = sendto(this->socket, buffer.data(), buffer.size(), 0,
+                 reinterpret_cast<sockaddr *>(&this->groupAddr), socklen);
+    if(err == -1) {
+        throw std::system_error(errno, std::generic_category(), "failed to send mcast packet");
+    }
+}
+
+
+/**
+ * Queue a sync output packet to be sent.
+ */
+void Syncer::frameCompleted() {
+    WorkItem w;
+    memset(&w, 0, sizeof(w));
+
+    w.type = WorkItem::SYNC_OUTPUT;
+
+    this->pushWorkItem(w);
 }

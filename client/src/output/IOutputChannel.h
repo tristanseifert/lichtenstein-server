@@ -27,6 +27,9 @@ namespace Lichtenstein::Client::Output {
 
             /// Pixel data in the desired format has been received
             virtual int updatePixelData(const size_t offset, const void *data, const size_t dataLen) = 0;
+
+            /// A sync output request has been received
+            virtual int outputPixelData() = 0;
     };
 }
 

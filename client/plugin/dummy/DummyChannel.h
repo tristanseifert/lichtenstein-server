@@ -27,6 +27,10 @@ class DummyChannel: public Lichtenstein::Client::Output::IOutputChannel {
 
         virtual int updatePixelData(const size_t offset, const void *data, const size_t dataLen);
 
+        virtual int outputPixelData() {
+            return 0;
+        }
+
     private:
         uint32_t index = 0;
         size_t numPixels = 0;

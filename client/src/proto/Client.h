@@ -28,7 +28,11 @@ namespace Lichtenstein::Client::Output {
 }
 
 namespace Lichtenstein::Client::Proto {
+    class MulticastReceiver;
+
     class Client {
+        friend class MulticastReceiver;
+
         using Header = struct Lichtenstein::Proto::MessageHeader;
         using PayloadType = std::vector<unsigned char>;
         using MessageEndpoint = Lichtenstein::Proto::MessageEndpoint;
@@ -66,6 +70,8 @@ namespace Lichtenstein::Client::Proto {
             void subscribeChannels();
             void subscribe(const Output::IOutputChannel &);
             void removeSubscriptions();
+
+            void getMulticastInfo();
 
             void handlePixelData(const Header &, const PayloadType &);
 
@@ -124,6 +130,9 @@ namespace Lichtenstein::Client::Proto {
 
             // whether we should try to cleanly shut down SSL connection
             bool sslShutdown = true;
+
+            // multicast handling
+            std::shared_ptr<MulticastReceiver> mcastReceiver = nullptr;
 
         private:
             static std::shared_ptr<Client> shared;

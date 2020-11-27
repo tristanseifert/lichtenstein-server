@@ -1,4 +1,6 @@
 #include "Client.h"
+#include "MulticastReceiver.h"
+
 #include "../output/PluginManager.h"
 #include "../output/IOutputChannel.h"
 
@@ -105,6 +107,9 @@ Client::Client() {
 
     this->resolve();
 
+    // create the multicast receiver
+    this->mcastReceiver = std::make_shared<MulticastReceiver>(this);
+
     // create the worker thread
     this->run = true;
     this->worker = std::make_unique<std::thread>(&Client::workerMain, this);
@@ -123,6 +128,9 @@ Client::~Client() {
 
     // wait for worker to finish execution
     this->worker->join();
+
+    // we should have terminated it already by this point
+    this->mcastReceiver = nullptr;
 }
 
 /**
@@ -204,8 +212,9 @@ connect:;
     this->establishConnection();
     Logging::info("Server connection established");
 
-    // register subscriptions for all channels
+    // register subscriptions for all channels and set up multicast receiver
     this->subscribeChannels();
+    this->getMulticastInfo();
 
     // process messages as long as we're supposed to run
     while(this->run) {
@@ -218,15 +227,20 @@ connect:;
                 goto beach;
             }
 
-#if 0
-            Logging::trace("Received message: type={:x}:{:x} len={}", header.endpoint,
-                    header.messageType, header.length);
-#endif
-
-            // handle message
+            // pixel data
             if(header.endpoint == PixelData && 
                     header.messageType == MessageTypes::PixelMessageType::PIX_DATA) {
                 this->handlePixelData(header, payload);
+            }
+            // multicast group keying
+            else if(header.endpoint == MulticastControl) {
+                this->mcastReceiver->handleMessage(header, payload);
+            }
+            // unhandled
+            else {
+                Logging::warn("Unhandled message: type={:x}:{:x} len={}", header.endpoint,
+                    header.messageType, header.length);
+
             }
         } catch(std::exception &e) {
             Logging::error("Exception while processing message type {:x}:{:x}: {}",
@@ -242,8 +256,9 @@ beach: ;
     }
 
 closed:;
-    // remove subscriptions
+    // remove subscriptions and multicast
     this->removeSubscriptions();
+    this->mcastReceiver->stop();
 
     // perform clean-up
 cleanup: ;
@@ -585,3 +600,52 @@ void Client::handlePixelData(const Header &hdr, const PayloadType &payload) {
     this->reply(hdr, PixelMessageType::PIX_DATA_ACK, bytes);
 }
 
+
+
+/**
+ * Queries the server for the current multicast information.
+ */
+void Client::getMulticastInfo() {
+    using namespace Lichtenstein::Proto::MessageTypes;
+
+    // send the "multicast get info" message
+    McastCtrlGetInfo msg;
+    memset(&msg, 0, sizeof(msg));
+
+    auto bytes = cista::serialize<kCistaMode>(msg);
+
+    uint8_t tag = this->nextTag++;
+    this->send(MessageEndpoint::MulticastControl, McastCtrlMessageType::MCC_GET_INFO, tag, bytes);
+
+    // wait to receive the multicast info
+    while(true) {
+        struct MessageHeader header;
+        std::vector<unsigned char> payload;
+
+        if(!this->readMessage(header, payload)) {
+            continue;
+        }
+
+        if(header.endpoint != MessageEndpoint::MulticastControl ||
+                header.messageType != McastCtrlMessageType::MCC_GET_INFO_ACK) {
+            Logging::error("Unexpected message {:x}:{:x}", header.endpoint, header.messageType);
+            continue;
+        }
+
+        // parse the response
+        auto info = cista::deserialize<McastCtrlGetInfoAck, kCistaMode>(payload);
+        if(info->status != MCC_SUCCESS) {
+            Logging::error("Failed to get mcast info: {}", info->status);
+            throw std::runtime_error("Failed to get multicast info");
+        }
+
+        Logging::debug("Multicast info: group address {} port {} (key id {:x})", info->address,
+                info->port, info->keyId);
+
+        // set the address/port number and fire up the multicast receiving
+        this->mcastReceiver->setGroupInfo(info->address.str(), info->port, info->keyId);
+
+        // done!
+        break;
+    }
+}
