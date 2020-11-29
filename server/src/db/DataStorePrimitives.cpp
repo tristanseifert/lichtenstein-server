@@ -10,10 +10,10 @@
 
 #include <uuid.h>
 
-// Cap'n Proto stuff 
-#include <capnp/message.h>
-#include <capnp/serialize-packed.h>
-#include <db/packed_v1.capnp.h>
+// serializing params
+#include <cista.h>
+
+#include "SerializedStructs.h"
 
 using namespace Lichtenstein::Server::DB::Types;
 using namespace Lichtenstein::Server::DB::Types::IceChest;
@@ -22,48 +22,40 @@ using namespace Lichtenstein::Server::DB::Types::IceChest;
  * Deserializes a byte array back to an unordered map.
  */
 static void deserialize(const std::vector<char> &bytes, ParamMapType &map) {
-    using ValueType = RoutineParams::Entry::Value::Which;
-
     // create a message reader from the blob
-    auto data = reinterpret_cast<const capnp::word*>(bytes.data());
-    auto ptr = kj::arrayPtr(data, bytes.size());
-    capnp::FlatArrayMessageReader reader(ptr);
+    auto msg = cista::deserialize<RoutineParams, kCistaMode>(bytes);
 
-    // iterate over every param in the packed message
-    RoutineParams::Reader params = reader.getRoot<RoutineParams>();
-
-    for(auto entry : params.getEntries()) {
+    for(const auto& entry : msg->params) {
         // get the value into the variant type in the map
-        auto entryValue = entry.getValue();
-        std::string key = entry.getKey();
+        const std::string key = entry.first.str();
+        const auto &value = entry.second;
 
-        switch(entryValue.which()) {
+        switch(value.type) {
             // Boolean
-            case ValueType::BOOL:
-                map.emplace(key, entryValue.getBool());
+            case TYPE_BOOL:
+                map.emplace(key, value.v.boolean);
                 break;
             // Floating point 
-            case ValueType::FLOAT:
-                map.emplace(key, entryValue.getFloat());
+            case TYPE_FLOAT:
+                map.emplace(key, value.v.numFloat);
                 break;
             // Unsigned integer
-            case ValueType::UINT:
-                map.emplace(key, entryValue.getUint());
+            case TYPE_UNSIGNED:
+                map.emplace(key, value.v.numUnsigned);
                 break;
             // Signed integer
-            case ValueType::INT:
-                map.emplace(key, entryValue.getInt());
+            case TYPE_SIGNED:
+                map.emplace(key, value.v.numSigned);
                 break;
             // Character string
-            case ValueType::STRING:
-                map.emplace(key, entryValue.getString());
+            case TYPE_STRING:
+                map.emplace(key, value.v.str.str());
                 break;
 
             // unknown type
             default: {
                 std::stringstream what;
-                what << "Invalid type '" << (int)entryValue.which() 
-                    << "' for key '" << key << "'";
+                what << "Invalid type '" << (int) value.type << "' for key '" << key << "'";
 
                 throw std::invalid_argument(what.str());
                 break;
@@ -75,32 +67,35 @@ static void deserialize(const std::vector<char> &bytes, ParamMapType &map) {
  * Serializes an unordered map into a byte array.
  */
 static void serialize(const ParamMapType &map, std::vector<char> &bytes) {
-    // create a memory buffer to serialize the message into
-    capnp::MallocMessageBuilder writer;
-    RoutineParams::Builder params = writer.initRoot<RoutineParams>();
-    auto entries = params.initEntries(map.size());
+    // build the struct
+    RoutineParams data;
 
     // iterate over each entry in the map
     int i = 0;
-    for (auto [key, value] : map) {
-        // copy over the key and value
-        entries[i].setKey(key);
-        auto entryValue = entries[i].initValue();
+    for (const auto& [key, value] : map) {
+        RoutineParamTypeContainer container;
+        container.type = TYPE_NULL;
 
+        // copy over the key and value
         if(std::holds_alternative<bool>(value)) {
-            entryValue.setBool(std::get<bool>(value));
+            container.type = TYPE_BOOL;
+            container.v.boolean = std::get<bool>(value);
         }
         else if(std::holds_alternative<double>(value)) {
-            entryValue.setFloat(std::get<double>(value));
+            container.type = TYPE_FLOAT;
+            container.v.numFloat = std::get<double>(value);
         }
         else if(std::holds_alternative<uint64_t>(value)) {
-            entryValue.setUint(std::get<uint64_t>(value));
+            container.type = TYPE_UNSIGNED;
+            container.v.numUnsigned = (std::get<uint64_t>(value));
         }
         else if(std::holds_alternative<int64_t>(value)) {
-            entryValue.setInt(std::get<int64_t>(value));
+            container.type = TYPE_SIGNED;
+            container.v.numSigned = (std::get<int64_t>(value));
         }
         else if(std::holds_alternative<std::string>(value)) {
-            entryValue.setString(std::get<std::string>(value));
+            container.type = TYPE_STRING;
+            container.v.str = (std::get<std::string>(value));
         }
         else {
             std::stringstream what;
@@ -109,17 +104,19 @@ static void serialize(const ParamMapType &map, std::vector<char> &bytes) {
 
             throw std::invalid_argument(what.str());
         }
+
+        // stick it in
+        data.params[key] = container;
+
         // go to the next entry
         i++;
     }
 
     // update the blob
-    auto data = capnp::messageToFlatArray(writer);
-    auto dataBytes = data.asBytes();
+    const auto infoData = cista::serialize<kCistaMode>(data);
+    bytes.assign(infoData.begin(), infoData.end());
 
-    bytes.assign(dataBytes.begin(), dataBytes.end());
-
-    Logging::debug("Serialized params into {} bytes", dataBytes.size());
+    Logging::debug("Serialized params into {} bytes", infoData.size());
 }
 
 

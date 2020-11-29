@@ -74,18 +74,6 @@ add_executable(lichtenstein_server
     ${version_file} src/version.h)
 
 
-# compile cap'n proto files (for database use)
-find_package(CapnProto REQUIRED)
-target_include_directories(lichtenstein_server PRIVATE ${CAPNP_INCLUDE_DIRS})
-add_definitions(${CAPNP_DEFINITIONS})
-
-capnp_generate_cpp(CAPNP_SOURCES CAPNP_HEADERS
-    src/db/packed_v1.capnp)
-target_sources(lichtenstein_server PRIVATE ${CAPNP_SOURCES} ${CAPNP_HEADERS})
-
-target_link_libraries(lichtenstein_server PRIVATE CapnProto::capnp)
-target_include_directories(lichtenstein_server PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/src)
-
 # link against SQLite
 find_package(SQLite3 REQUIRED)
 target_link_libraries(lichtenstein_server PRIVATE SQLite::SQLite3)
