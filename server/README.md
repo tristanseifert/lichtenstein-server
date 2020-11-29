@@ -20,5 +20,7 @@ make
 Install libressl via Homebrew; then invoke CMake. Everything should compile without problems.
 
 ### FreeBSD
-FreeBSD support is experimental, and may break unexpectedly.
+This code should work on FreeBSD, with a extra steps:
+
+- A symlink needs to be made for `/usr/include/sys/endian.h` to be found in the base include paths. Something line `cd /usr/local/include && ln -s /usr/local/sys/endian.h` will do the trick.
 
