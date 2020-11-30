@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+using namespace Lichtenstein::Plugin::Dummy;
+
 /**
  * Received pixel data for the channel. We do nothing here.
  */

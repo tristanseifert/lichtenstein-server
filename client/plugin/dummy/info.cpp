@@ -6,10 +6,11 @@
 
 #include <iostream>
 
+using namespace Lichtenstein::Client::Output;
+using namespace Lichtenstein::Plugin::Dummy;
+
 // dummy channels
 std::vector<std::shared_ptr<DummyChannel>> channels;
-
-using namespace Lichtenstein::Client::Output;
 
 /**
  * Initializer function

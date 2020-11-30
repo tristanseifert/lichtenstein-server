@@ -1,37 +1,38 @@
 #include "IOutputChannel.h"
 
-/**
- * Implements a dummy channel; this simply absorbs channel data with no further
- * action. Really only useful for testing.
- */
-class DummyChannel: public Lichtenstein::Client::Output::IOutputChannel {
-    public:
-        DummyChannel(uint32_t i, size_t _numPixels, size_t _format) : index(i), 
-            numPixels(_numPixels), format(_format) {}
+namespace Lichtenstein::Plugin::Dummy {
+    /**
+     * Implements a dummy channel; this simply absorbs channel data with no further
+     * action. Really only useful for testing.
+     */
+    class DummyChannel: public Lichtenstein::Client::Output::IOutputChannel {
+        public:
+            DummyChannel(uint32_t i, size_t _numPixels, size_t _format) : index(i), 
+                numPixels(_numPixels), format(_format) {}
 
-    public:
-        /// Returns the number of pixels the channel is configured for.
-        virtual size_t getNumPixels() {
-            return this->numPixels;
-        }
+        public:
+            /// Returns the number of pixels the channel is configured for.
+            virtual size_t getNumPixels() {
+                return this->numPixels;
+            }
 
-        /// Pixel format of the channel (0 = RGB, 1 = RGBW)
-        virtual size_t getPixelFormat() {
-            return this->format;
-        }
+            /// Pixel format of the channel (0 = RGB, 1 = RGBW)
+            virtual size_t getPixelFormat() {
+                return this->format;
+            }
 
-        /// Channel index
-        virtual uint32_t getChannelIndex() {
-            return this->index;
-        }
+            /// Channel index
+            virtual uint32_t getChannelIndex() {
+                return this->index;
+            }
 
-        virtual int updatePixelData(const size_t offset, const void *data, const size_t dataLen);
+            virtual int updatePixelData(const size_t offset, const void *data, const size_t dataLen);
 
-        virtual int outputPixelData();
+            virtual int outputPixelData();
 
-    private:
-        uint32_t index = 0;
-        size_t numPixels = 0;
-        size_t format = 0;
-
-};
+        private:
+            uint32_t index = 0;
+            size_t numPixels = 0;
+            size_t format = 0;
+    };
+}

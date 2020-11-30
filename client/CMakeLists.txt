@@ -99,3 +99,10 @@ add_library(plugin_dummy SHARED
     plugin/dummy/info.cpp
     plugin/dummy/DummyChannel.cpp
     ${version_file} src/version.h)
+
+###############################################################################
+add_library(plugin_ledchain SHARED
+    plugin/ledchain/LedchainPlugin.cpp
+    plugin/ledchain/LedchainChannel.cpp
+    ${version_file} src/version.h)
+
