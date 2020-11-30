@@ -106,3 +106,23 @@ add_library(plugin_ledchain SHARED
     plugin/ledchain/LedchainChannel.cpp
     ${version_file} src/version.h)
 
+###############################################################################
+# RPi output plugin is compiled only on linux
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    add_library(plugin_rpi SHARED
+        plugin/rpi/info.cpp
+        plugin/rpi/Plugin.cpp
+        plugin/rpi/OutputChannel.cpp
+
+        # sources for the rpi_ws281x lib
+        plugin/rpi/rpi_ws281x/mailbox.c
+        plugin/rpi/rpi_ws281x/ws2811.c
+        plugin/rpi/rpi_ws281x/pwm.c
+        plugin/rpi/rpi_ws281x/pcm.c
+        plugin/rpi/rpi_ws281x/dma.c
+        plugin/rpi/rpi_ws281x/rpihw.c
+
+        ${version_file} src/version.h)
+    target_include_directories(plugin_rpi PRIVATE plugin/rpi/rpi_ws281x)
+endif()

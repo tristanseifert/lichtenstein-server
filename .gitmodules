@@ -34,3 +34,6 @@
 [submodule "libs/stduuid"]
 	path = libs/stduuid
 	url = https://github.com/mariusbancila/stduuid.git
+[submodule "client/plugin/rpi/rpi_ws281x"]
+	path = client/plugin/rpi/rpi_ws281x
+	url = git@github.com:jgarff/rpi_ws281x.git
