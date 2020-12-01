@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <string>
 #include <mutex>
+#include <atomic>
 
 #include <sys/socket.h>
 

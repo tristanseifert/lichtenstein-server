@@ -93,6 +93,14 @@ target_sources(lichtenstein_client PRIVATE
     ../libs/cpp-base64/base64.cpp
 )
 
+# libraries required when building on linux
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    target_link_libraries(lichtenstein_client PRIVATE pthread)
+    target_link_libraries(lichtenstein_client PRIVATE dl)
+
+    # required for std::filesystem
+    target_link_libraries(lichtenstein_client PRIVATE stdc++fs)
+endif()
 
 ###############################################################################
 add_library(plugin_dummy SHARED
