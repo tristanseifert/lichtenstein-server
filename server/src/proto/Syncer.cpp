@@ -23,10 +23,15 @@
 #include <openssl/rand.h>
 #include <openssl/opensslv.h>
 
-#include <cista.h>
+#include <bitsery/bitsery.h>
+#include <bitsery/adapter/buffer.h>
 
 using namespace Lichtenstein::Proto;
 using namespace Lichtenstein::Server::Proto;
+
+using Buffer = std::vector<uint8_t>;
+using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
+using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
 
 std::shared_ptr<Syncer> Syncer::sharedInstance = nullptr;
 
@@ -463,7 +468,9 @@ void Syncer::handleSyncOutput(const WorkItem &) {
     McastDataSyncOutput msg;
     memset(&msg, 0, sizeof(msg));
 
-    const auto msgData = cista::serialize<kCistaMode>(msg);
+    Buffer msgData;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{msgData}, msg);
+    msgData.resize(writtenSize);
 
     // encrypt the payload
     const auto iv = std::get<1>(this->keyStore[this->currentKeyId]);

@@ -15,11 +15,16 @@
 
 #include <stdexcept>
 
-#include <cista.h>
+#include <bitsery/bitsery.h>
+#include <bitsery/adapter/buffer.h>
 
 using namespace Lichtenstein::Proto;
 using namespace Lichtenstein::Proto::MessageTypes;
 using namespace Lichtenstein::Server::Proto::Controllers;
+
+using Buffer = std::vector<uint8_t>;
+using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
+using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
 
 using IMessageHandler = Lichtenstein::Server::Proto::IMessageHandler;
 
@@ -72,17 +77,38 @@ void ChannelData::handle(ServerWorker *worker, const struct MessageHeader &heade
     // handle the message
     switch(header.messageType) {
         // register observer
-        case PixelMessageType::PIX_SUBSCRIBE:
-            this->handleSubscribe(header, cista::deserialize<SubscribeMsg, kCistaMode>(payload));
+        case PixelMessageType::PIX_SUBSCRIBE: {
+            PixelSubscribe req;
+            auto state = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, req);
+            if(state.first != bitsery::ReaderError::NoError || !state.second) {
+                throw std::runtime_error("failed to deserialize PixelSubscribe");
+            }
+
+            this->handleSubscribe(header, req);
             break;
+        }
         // remove observer
-        case PixelMessageType::PIX_UNSUBSCRIBE:
-            this->handleUnsubscribe(header, cista::deserialize<UnsubscribeMsg, kCistaMode>(payload));
+        case PixelMessageType::PIX_UNSUBSCRIBE: {
+            PixelUnsubscribe req;
+            auto state = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, req);
+            if(state.first != bitsery::ReaderError::NoError || !state.second) {
+                throw std::runtime_error("failed to deserialize PixelUnsubscribe");
+            }
+
+            this->handleUnsubscribe(header, req);
             break;
+        }
         // acknowledge pixel data
-        case PixelMessageType::PIX_DATA_ACK:
-            this->handleAck(header, cista::deserialize<AckMsg, kCistaMode>(payload));
+        case PixelMessageType::PIX_DATA_ACK: {
+            PixelDataMessageAck ack;
+            auto state = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, ack);
+            if(state.first != bitsery::ReaderError::NoError || !state.second) {
+                throw std::runtime_error("failed to deserialize PixelDataMessageAck");
+            }
+
+            this->handleAck(header, ack);
             break;
+        }
 
         default:
             throw std::runtime_error("Invalid message type");
@@ -96,7 +122,7 @@ void ChannelData::handle(ServerWorker *worker, const struct MessageHeader &heade
  *
  * If a subscription already exists for the channel, the request fails.
  */
-void ChannelData::handleSubscribe(const Header &hdr, const SubscribeMsg *msg) {
+void ChannelData::handleSubscribe(const Header &hdr, const SubscribeMsg &msg) {
     using namespace DB;
     using namespace Render;
 
@@ -111,27 +137,27 @@ void ChannelData::handleSubscribe(const Header &hdr, const SubscribeMsg *msg) {
     const auto channels = DataStore::db()->channelsForNode(this->getNodeId());
 
     // validate the channel index and length
-    if(msg->channel >= channels.size()) {
+    if(msg.channel >= channels.size()) {
         ack.status = PixelStatus::PIX_INVALID_CHANNEL;
         goto nack;
     }
-    channel = channels[msg->channel];
+    channel = channels[msg.channel];
 
-    if(msg->start >= channel.numPixels) {
+    if(msg.start >= channel.numPixels) {
         ack.status = PixelStatus::PIX_INVALID_OFFSET;
         goto nack;
-    } else if((msg->start + msg->length) > channel.numPixels) {
+    } else if((msg.start + msg.length) > channel.numPixels) {
         ack.status = PixelStatus::PIX_INVALID_LENGTH;
         goto nack;
-    } else if(msg->format != PIX_FORMAT_RGB && msg->format != PIX_FORMAT_RGBW) {
+    } else if(msg.format != PIX_FORMAT_RGB && msg.format != PIX_FORMAT_RGBW) {
         ack.status = PixelStatus::PIX_INVALID_FORMAT;
         goto nack;
     }
 
     // is there a subscription for this channel already?
-    if(this->subscriptions.find(msg->channel) != this->subscriptions.end()) {
+    if(this->subscriptions.find(msg.channel) != this->subscriptions.end()) {
         Logging::warn("Attempting duplicate registration for channel {}: range ({}, {})",
-                msg->channel, msg->start, msg->length);
+                msg.channel, msg.start, msg.length);
 
         ack.status = PixelStatus::PIX_ALREADY_SUBSCRIBED;
         goto nack;
@@ -139,37 +165,40 @@ void ChannelData::handleSubscribe(const Header &hdr, const SubscribeMsg *msg) {
 
     // add the observer
     {
-        size_t start = msg->start + channel.fbOffset;
-        size_t channel = msg->channel;
+        size_t start = msg.start + channel.fbOffset;
+        size_t channel = msg.channel;
 
-        auto token = fb->registerObserver(start, msg->length,
+        auto token = fb->registerObserver(start, msg.length,
                 [this, channel](Framebuffer::FrameToken frame) {
             this->observerFired(channel);
         });
 
         // save the info for the observer 
-        this->subscriptions[msg->channel] = SubscriptionInfo(start, msg->length, msg->start, msg->format, token);
+        this->subscriptions[msg.channel] = SubscriptionInfo(start, msg.length, msg.start, msg.format, token);
 
-        this->lastAckTime[msg->channel] = std::chrono::steady_clock::now();
-        this->throttleMap[msg->channel] = false;
+        this->lastAckTime[msg.channel] = std::chrono::steady_clock::now();
+        this->throttleMap[msg.channel] = false;
 
-        Logging::trace("Subscription {}: format {:x}", token, msg->format);
+        Logging::trace("Subscription {}: format {:x}", token, msg.format);
     }
 
     // done!
     ack.status = PIX_SUCCESS;
-    ack.subscriptionId = 420 + msg->channel; // not currently used
+    ack.subscriptionId = 420 + msg.channel; // not currently used
 
 nack:;
     // send the acknowledgement
-    const auto ackData = cista::serialize<kCistaMode>(ack);
-    this->reply(hdr, PixelMessageType::PIX_SUBSCRIBE_ACK, ackData);
+    Buffer payload;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{payload}, ack);
+    payload.resize(writtenSize);
+
+    this->reply(hdr, PixelMessageType::PIX_SUBSCRIBE_ACK, payload);
 }
 
 /**
  * Removes a single (or all) subscriptions for a channel.
  */
-void ChannelData::handleUnsubscribe(const Header &hdr, const UnsubscribeMsg *msg) {
+void ChannelData::handleUnsubscribe(const Header &hdr, const UnsubscribeMsg &msg) {
     using namespace DB;
     using namespace Render;
 
@@ -178,21 +207,24 @@ void ChannelData::handleUnsubscribe(const Header &hdr, const UnsubscribeMsg *msg
 
     auto fb = Pipeline::pipeline()->fb;
 
-    if(this->subscriptions.find(msg->channel) != this->subscriptions.end()) {
-        const auto token = std::get<4>(this->subscriptions[msg->channel]);
+    if(this->subscriptions.find(msg.channel) != this->subscriptions.end()) {
+        const auto token = std::get<4>(this->subscriptions[msg.channel]);
         fb->removeObserver(token);
 
         // now, remove it
-        ack.subscriptionsRemoved += this->subscriptions.erase(msg->channel);
+        ack.subscriptionsRemoved += this->subscriptions.erase(msg.channel);
 
-        this->lastAckTime.erase(msg->channel);
-        this->throttleMap.erase(msg->channel);
+        this->lastAckTime.erase(msg.channel);
+        this->throttleMap.erase(msg.channel);
     }
 
 nack:;
     // send the acknowledgement
-    const auto ackData = cista::serialize<kCistaMode>(ack);
-    this->reply(hdr, PixelMessageType::PIX_UNSUBSCRIBE_ACK, ackData);
+    Buffer payload;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{payload}, ack);
+    payload.resize(writtenSize);
+
+    this->reply(hdr, PixelMessageType::PIX_UNSUBSCRIBE_ACK, payload);
 }
 
 
@@ -221,7 +253,7 @@ void ChannelData::observerFired(int channel) {
         size_t bytes = length * sizeof(RGBPixel);
         msg.pixels.resize(bytes);
 
-        std::byte *ptr = reinterpret_cast<std::byte *>(buf.data());
+        auto *ptr = reinterpret_cast<const std::byte *>(buf.data());
         std::copy(ptr, ptr + bytes, msg.pixels.begin());
     } else if(pixelFormat == PIX_FORMAT_RGBW) {
         std::vector<RGBWPixel> buf;
@@ -232,7 +264,7 @@ void ChannelData::observerFired(int channel) {
         size_t bytes = length * sizeof(RGBWPixel);
         msg.pixels.resize(bytes);
 
-        std::byte *ptr = reinterpret_cast<std::byte *>(buf.data());
+        auto *ptr = reinterpret_cast<const std::byte *>(buf.data());
         std::copy(ptr, ptr + bytes, msg.pixels.begin());
     }
 
@@ -241,8 +273,11 @@ void ChannelData::observerFired(int channel) {
     msg.offset = channelOffset;
 
     // send it
-    const auto data = cista::serialize<kCistaMode>(msg);
-    this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_DATA, 0, data);
+    Buffer payload;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{payload}, msg);
+    payload.resize(writtenSize);
+
+    this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_DATA, 0, payload);
 }
 
 
@@ -254,9 +289,9 @@ void ChannelData::observerFired(int channel) {
  * acknowledged. If more than a certain amount of time passes between acknowledgements, we will
  * throttle the rate at which data is sent until an acknowledgement is received again.
  */
-void ChannelData::handleAck(const Header &hdr, const AckMsg *msg) {
+void ChannelData::handleAck(const Header &hdr, const AckMsg &msg) {
     // ensure the channel has a subscription
-    const size_t channel = msg->channel;
+    const size_t channel = msg.channel;
     if(this->subscriptions.find(channel) == this->subscriptions.end()) {
         throw std::runtime_error("invalid channel");
     }

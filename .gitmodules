@@ -37,3 +37,6 @@
 [submodule "client/plugin/rpi/rpi_ws281x"]
 	path = client/plugin/rpi/rpi_ws281x
 	url = git@github.com:jgarff/rpi_ws281x.git
+[submodule "libs/bitsery"]
+	path = libs/bitsery
+	url = git@github.com:fraillt/bitsery.git

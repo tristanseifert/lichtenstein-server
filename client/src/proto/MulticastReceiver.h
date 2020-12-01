@@ -16,6 +16,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <string>
+#include <mutex>
 
 #include <sys/socket.h>
 
@@ -73,10 +74,10 @@ namespace Lichtenstein::Client::Proto {
             void workerMain();
 
         private:
-            void handleSyncOutput(const McastHeader *, const SyncOutMsg *);
+            void handleSyncOutput(const McastHeader *, const SyncOutMsg &);
 
-            void handleGetKey(const Header &, const GetKeyAckMsg *);
-            void handleRekey(const Header &, const RekeyMsg *);
+            void handleGetKey(const Header &, const GetKeyAckMsg &);
+            void handleRekey(const Header &, const RekeyMsg &);
 
             void loadKey(const uint32_t, const KeyWrap &, bool = false);
             void sendMcastKeyReq(const uint32_t, uint8_t &);

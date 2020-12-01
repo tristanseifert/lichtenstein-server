@@ -17,10 +17,16 @@
 #include <algorithm>
 
 #include <base64.h>
-#include <cista.h>
+
+#include <bitsery/bitsery.h>
+#include <bitsery/adapter/buffer.h>
 
 using namespace Lichtenstein::Proto;
 using namespace Lichtenstein::Client::Proto;
+
+using Buffer = std::vector<uint8_t>;
+using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
+using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
 
 /// singleton client instance
 std::shared_ptr<Client> Client::shared = nullptr;
@@ -331,14 +337,18 @@ bool Client::authenticate() {
                 }
 
                 // decode the acknowledgement
-                auto ack = cista::deserialize<AuthRequestAck, kCistaMode>(payload);
-                if(ack->status != AUTH_SUCCESS) {
-                    Logging::error("Authentication failure: {}", ack->status);
+                AuthRequestAck ack;
+                auto ds = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, ack);
+                if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+                    throw std::runtime_error("failed to deserialize AuthRequestAck");
+                }
+                if(ack.status != AUTH_SUCCESS) {
+                    Logging::error("Authentication failure: {}", ack.status);
                     return false;
                 }
 
                 // if success, get the desired method and send response
-                method = ack->method;
+                method = ack.method;
 
                 Logging::trace("Negotiated auth method: {}", method);
                 state = SEND_RESPONSE;
@@ -367,9 +377,14 @@ bool Client::authenticate() {
                 }
 
                 // decode the acknowledgement
-                auto ack = cista::deserialize<AuthResponseAck, kCistaMode>(payload);
-                if(ack->status != AUTH_SUCCESS) {
-                    Logging::error("Authentication failure: {}", ack->status);
+                AuthResponseAck ack;
+                auto ds = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, ack);
+                if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+                    throw std::runtime_error("failed to deserialize AuthResponseAck");
+                }
+
+                if(ack.status != AUTH_SUCCESS) {
+                    Logging::error("Authentication failure: {}", ack.status);
                     return false;
                 }
 
@@ -406,10 +421,12 @@ void Client::authSendRequest(uint8_t &sentTag) {
     msg.methods.push_back("me.tseifert.lichtenstein.auth.null");
 
     // serialize and send
-    auto bytes = cista::serialize<kCistaMode>(msg);
+    Buffer payload;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{payload}, msg);
+    payload.resize(writtenSize);
 
     uint8_t tag = this->nextTag++;
-    this->send(MessageEndpoint::Authentication, AuthMessageType::AUTH_REQUEST, tag, bytes);
+    this->send(MessageEndpoint::Authentication, AuthMessageType::AUTH_REQUEST, tag, payload);
     sentTag = tag;
 }
 
@@ -431,10 +448,12 @@ void Client::authSendResponse(uint8_t &sentTag) {
     memset(&msg, 0, sizeof(msg));
 
     // serialize and send
-    auto bytes = cista::serialize<kCistaMode>(msg);
+    Buffer payload;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{payload}, msg);
+    payload.resize(writtenSize);
 
     uint8_t tag = this->nextTag++;
-    this->send(MessageEndpoint::Authentication, AuthMessageType::AUTH_RESPONSE, tag, bytes);
+    this->send(MessageEndpoint::Authentication, AuthMessageType::AUTH_RESPONSE, tag, payload);
     sentTag = tag;
 }
 
@@ -478,10 +497,12 @@ void Client::subscribeChannels() {
         }
 
         // send subscription request
-        auto bytes = cista::serialize<kCistaMode>(msg);
+        Buffer reqData;
+        auto writtenSize = bitsery::quickSerialization(OutputAdapter{reqData}, msg);
+        reqData.resize(writtenSize);
 
         tag = this->nextTag++;
-        this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_SUBSCRIBE, tag, bytes);
+        this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_SUBSCRIBE, tag, reqData);
 
         // try to receive a response
         if(!this->readMessage(head, payload)) {
@@ -496,18 +517,23 @@ void Client::subscribeChannels() {
         }
 
         // decode the acknowledgement
-        auto ack = cista::deserialize<PixelSubscribeAck, kCistaMode>(payload);
-        if(ack->status != PIX_SUCCESS) {
+        PixelSubscribeAck ack;
+        auto ds = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, ack);
+        if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+            throw std::runtime_error("failed to deserialize PixelSubscribeAck");
+        }
+
+        if(ack.status != PIX_SUCCESS) {
             Logging::error("Subscription failure: {} (for channel {}, length {}, offset {}, format {:x})",
-                    ack->status, msg.channel, msg.length, msg.start, msg.format);
+                    ack.status, msg.channel, msg.length, msg.start, msg.format);
             throw std::runtime_error("Failed to subscribe for pixel data");
         }
 
         // store the identifier if succes
         Logging::trace("Subscription for channel {}: {}", channel->getChannelIndex(),
-                ack->subscriptionId);
+                ack.subscriptionId);
         this->activeSubscriptions.push_back(std::make_pair(channel->getChannelIndex(),
-                    ack->subscriptionId));
+                    ack.subscriptionId));
     }
 }
 
@@ -536,10 +562,12 @@ void Client::removeSubscriptions() {
         msg.subscriptionId = token;
 
         // send unsubscribe request
-        auto bytes = cista::serialize<kCistaMode>(msg);
+        Buffer reqData;
+        auto writtenSize = bitsery::quickSerialization(OutputAdapter{reqData}, msg);
+        reqData.resize(writtenSize);
 
         tag = this->nextTag++;
-        this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_UNSUBSCRIBE, tag, bytes);
+        this->send(MessageEndpoint::PixelData, PixelMessageType::PIX_UNSUBSCRIBE, tag, reqData);
 
         // try to receive a response
         if(!this->readMessage(head, payload)) {
@@ -554,14 +582,19 @@ void Client::removeSubscriptions() {
         }
 
         // decode the acknowledgement
-        auto ack = cista::deserialize<PixelUnsubscribeAck, kCistaMode>(payload);
-        if(ack->status != PIX_SUCCESS) {
-            Logging::error("Failed to unsubscribe: {} (for channel {}, id {:x})", ack->status,
+        PixelUnsubscribeAck ack;
+        auto ds = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, ack);
+        if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+            throw std::runtime_error("failed to deserialize PixelUnsubscribeAck");
+        }
+
+        if(ack.status != PIX_SUCCESS) {
+            Logging::error("Failed to unsubscribe: {} (for channel {}, id {:x})", ack.status,
                     msg.channel, msg.subscriptionId);
             continue;
         }
 
-        Logging::trace("Removed {} subscriptions for channel {}", ack->subscriptionsRemoved,
+        Logging::trace("Removed {} subscriptions for channel {}", ack.subscriptionsRemoved,
                 msg.channel);
     }
 
@@ -582,22 +615,29 @@ void Client::handlePixelData(const Header &hdr, const PayloadType &payload) {
     memset(&msg, 0, sizeof(msg));
 
     // decode message
-    auto data = cista::deserialize<PixelDataMessage, kCistaMode>(payload);
+    PixelDataMessage data;
+    auto ds = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, data);
+    if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+        throw std::runtime_error("failed to deserialize PixelDataMessage");
+    }
 
     // send to output channel
     auto plugin = Output::PluginManager::shared;
-    if(data->channel >= plugin->channels.size()) {
+    if(data.channel >= plugin->channels.size()) {
         throw std::runtime_error("invalid channel number");
     }
 
-    auto outChannel = plugin->channels[data->channel];
-    outChannel->updatePixelData(data->offset, data->pixels.data(), data->pixels.size());
+    auto outChannel = plugin->channels[data.channel];
+    outChannel->updatePixelData(data.offset, data.pixels.data(), data.pixels.size());
 
     // acknowledge
-    msg.channel = data->channel;
+    msg.channel = data.channel;
 
-    auto bytes = cista::serialize<kCistaMode>(msg);
-    this->reply(hdr, PixelMessageType::PIX_DATA_ACK, bytes);
+    Buffer ackData;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{ackData}, msg);
+    ackData.resize(writtenSize);
+
+    this->reply(hdr, PixelMessageType::PIX_DATA_ACK, ackData);
 }
 
 
@@ -612,10 +652,12 @@ void Client::getMulticastInfo() {
     McastCtrlGetInfo msg;
     memset(&msg, 0, sizeof(msg));
 
-    auto bytes = cista::serialize<kCistaMode>(msg);
+    Buffer reqData;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{reqData}, msg);
+    reqData.resize(writtenSize);
 
     uint8_t tag = this->nextTag++;
-    this->send(MessageEndpoint::MulticastControl, McastCtrlMessageType::MCC_GET_INFO, tag, bytes);
+    this->send(MessageEndpoint::MulticastControl, McastCtrlMessageType::MCC_GET_INFO, tag, reqData);
 
     // wait to receive the multicast info
     while(true) {
@@ -633,17 +675,22 @@ void Client::getMulticastInfo() {
         }
 
         // parse the response
-        auto info = cista::deserialize<McastCtrlGetInfoAck, kCistaMode>(payload);
-        if(info->status != MCC_SUCCESS) {
-            Logging::error("Failed to get mcast info: {}", info->status);
+        McastCtrlGetInfoAck info;
+        auto ds = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, info);
+        if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+            throw std::runtime_error("failed to deserialize McastCtrlGetInfoAck");
+        }
+
+        if(info.status != MCC_SUCCESS) {
+            Logging::error("Failed to get mcast info: {}", info.status);
             throw std::runtime_error("Failed to get multicast info");
         }
 
-        Logging::debug("Multicast info: group address {} port {} (key id {:x})", info->address,
-                info->port, info->keyId);
+        Logging::debug("Multicast info: group address {} port {} (key id {:x})", info.address,
+                info.port, info.keyId);
 
         // set the address/port number and fire up the multicast receiving
-        this->mcastReceiver->setGroupInfo(info->address.str(), info->port, info->keyId);
+        this->mcastReceiver->setGroupInfo(info.address, info.port, info.keyId);
 
         // done!
         break;

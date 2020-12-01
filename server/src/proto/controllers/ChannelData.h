@@ -40,9 +40,9 @@ namespace Lichtenstein::Server::Proto::Controllers {
             virtual void handle(ServerWorker*, const Header &, PayloadType &);
 
         private:
-            void handleSubscribe(const Header &, const SubscribeMsg *);
-            void handleUnsubscribe(const Header &, const UnsubscribeMsg *);
-            void handleAck(const Header &, const AckMsg *);
+            void handleSubscribe(const Header &, const SubscribeMsg &);
+            void handleUnsubscribe(const Header &, const UnsubscribeMsg &);
+            void handleAck(const Header &, const AckMsg &);
 
             void observerFired(int subscriptionId);
 

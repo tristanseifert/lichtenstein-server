@@ -1,8 +1,8 @@
 /**
  * Definitions of structs that are sent over the wire as part of the Lichtenstein protocol.
  *
- * These are encoded using Cista++. To ensure data is deserialized correctly, a hash of the
- * structures is included at the cost of 16 extra bytes in each message.
+ * Messages are encoded using bitsery. We're using it in a rather basic mode, but that's enough
+ * for cross-platform communication, even across architectures and endiannesses.
  *
  * Most response messages contain a status code field. The exact values of the status fields are
  * specific to the endpoint itself, but values are assigned such that a) all endpoints use 0 to
@@ -15,19 +15,19 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <string>
+#include <vector>
+#include <array>
+
 #include <uuid.h>
-#include <cista.h>
+
+#include <bitsery/bitsery.h>
+#include <bitsery/adapter/buffer.h>
+#include <bitsery/traits/string.h>
+#include <bitsery/traits/array.h>
+#include <bitsery/traits/vector.h>
 
 namespace Lichtenstein::Proto::MessageTypes {
-namespace data = cista::offset;
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-/**
- * Encoding/decoding modes used for these messages
- */
-constexpr auto const kCistaMode = (cista::mode::WITH_VERSION | cista::mode::WITH_INTEGRITY |
-                                   cista::mode::DEEP_CHECK);
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Authentication endpoint messages
 enum AuthMessageType: uint8_t {
@@ -47,28 +47,51 @@ enum AuthStatus: uint32_t {
 // client -> server, starting authentication
 struct AuthRequest {
     /// UUID of the node
-    data::string nodeId;
+    std::string nodeId;
     /// supported authentication methods
-    data::vector<data::string> methods;
+    std::vector<std::string> methods;
 };
+template <typename S>
+void serialize(S& s, AuthRequest& o) {
+    s.text1b(o.nodeId, 48);
+    s.container(o.methods, 48, [](S& s2, std::string& txt) {
+        s2.text1b(txt, 64);
+    });
+};
+
 // server -> client, negotiated method and aux data
 struct AuthRequestAck {
     /// if non-zero, there was an error establishing auth
     AuthStatus status;
     /// selected authentication mechanism
-    data::string method;
+    std::string method;
 
     // server-provided data for completing the authentication goes here
 };
+template <typename S>
+void serialize(S& s, AuthRequestAck& o) {
+    s.value4b(o.status);
+    s.text1b(o.method, 64);
+};
+
 // client -> server, authentication method response (may occur more than once)
 struct AuthResponse {
     /// indicate client status; non-zero aborts authentication
     AuthStatus status;
 };
+template <typename S>
+void serialize(S& s, AuthResponse& o) {
+    s.value4b(o.status);
+};
+
 // server -> client, acknowledge successful authentication
 struct AuthResponseAck {
     /// success/failure indication
     AuthStatus status;
+};
+template <typename S>
+void serialize(S& s, AuthResponseAck& o) {
+    s.value4b(o.status);
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -110,12 +133,24 @@ struct PixelSubscribe {
     /// length of the pixel data region we're interested in
     uint32_t length;
 };
+template <typename S>
+void serialize(S& s, PixelSubscribe& o) {
+    s.value4b(o.channel);
+    s.value4b(o.format);
+    s.value4b(o.start);
+    s.value4b(o.length);
+}
 // server -> client; acknowledges a subscription
 struct PixelSubscribeAck {
     PixelStatus status;
     /// an opaque identifier for this subscription
     uint32_t subscriptionId;
 };
+template <typename S>
+void serialize(S& s, PixelSubscribeAck& o) {
+    s.value4b(o.status);
+    s.value4b(o.subscriptionId);
+}
 
 // client -> server; remove subscription for channel
 struct PixelUnsubscribe {
@@ -124,6 +159,11 @@ struct PixelUnsubscribe {
     /// previously returned subscription id, or 0 to remove all subscriptions for the channel
     uint32_t subscriptionId;
 };
+template <typename S>
+void serialize(S& s, PixelUnsubscribe& o) {
+    s.value4b(o.channel);
+    s.value4b(o.subscriptionId);
+}
 // server -> client; acknowledges unsubscription
 struct PixelUnsubscribeAck {
     PixelStatus status;
@@ -131,6 +171,11 @@ struct PixelUnsubscribeAck {
     /// number of pixel observers that were removed as a result of this call
     uint32_t subscriptionsRemoved;
 };
+template <typename S>
+void serialize(S& s, PixelUnsubscribeAck& o) {
+    s.value4b(o.status);
+    s.value4b(o.subscriptionsRemoved);
+}
 
 // server -> client; sends new pixel data
 struct PixelDataMessage {
@@ -142,13 +187,25 @@ struct PixelDataMessage {
     // format of pixel data
     PixelFormat format;
     // pixel data
-    data::vector<std::byte> pixels;
+    std::vector<std::byte> pixels;
 };
+template <typename S>
+void serialize(S& s, PixelDataMessage& o) {
+    s.value4b(o.channel);
+    s.value4b(o.offset);
+    s.value4b(o.format);
+
+    s.container1b(o.pixels, 1500);
+}
 // client -> server; acknowledges a pixel data frame
 struct PixelDataMessageAck {
     // channel for which we're acknowledging
     uint32_t channel;
 };
+template <typename S>
+void serialize(S& s, PixelDataMessageAck& o) {
+    s.value4b(o.channel);
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// Multicast control endpoint message types
@@ -177,28 +234,46 @@ struct McastCtrlKeyWrapper {
     // key type
     McastCtrlKeyType type;
     // key data
-    data::vector<std::byte> key;
+    std::vector<std::byte> key;
     // initialization vector
-    data::vector<std::byte> iv;
+    std::vector<std::byte> iv;
 };
-
+template <typename S>
+void serialize(S& s, McastCtrlKeyWrapper& o) {
+    s.value4b(o.type);
+    s.container1b(o.key, 128);
+    s.container1b(o.iv, 128);
+}
 // client -> server; requests info for the multicast control channel
 struct McastCtrlGetInfo {
-    
+    uint32_t reserved;
 };
+template <typename S>
+void serialize(S& s, McastCtrlGetInfo& o) {
+    s.value4b(o.reserved);
+}
 // server -> client; info on the multicast channel
 struct McastCtrlGetInfoAck {
     // status
     McastCtrlStatus status;
 
     // address of the multicast group
-    data::string address;
+    std::string address;
     // port number
     uint16_t port;
 
     // key id currently in use
     uint32_t keyId;
 };
+template <typename S>
+void serialize(S& s, McastCtrlGetInfoAck& o) {
+    s.value4b(o.status);
+
+    s.text1b(o.address, 128);
+    s.value2b(o.port);
+
+    s.value4b(o.keyId);
+}
 
 // server -> client; provides a key to use for multicast
 struct McastCtrlRekey {
@@ -207,6 +282,11 @@ struct McastCtrlRekey {
     // key data
     McastCtrlKeyWrapper keyData;
 };
+template <typename S>
+void serialize(S& s, McastCtrlRekey& o) {
+    s.value4b(o.keyId);
+    s.object(o.keyData);
+}
 
 // client -> server; acknowledges receipt of a new key
 struct McastCtrlRekeyAck {
@@ -215,12 +295,21 @@ struct McastCtrlRekeyAck {
     // key id that we're acknowledging
     uint32_t keyId;
 };
+template <typename S>
+void serialize(S& s, McastCtrlRekeyAck& o) {
+    s.value4b(o.status);
+    s.value4b(o.keyId);
+}
 
 // client -> server; requests key with the given id
 struct McastCtrlGetKey {
     // desired key id
     uint32_t keyId;
 };
+template <typename S>
+void serialize(S& s, McastCtrlGetKey& o) {
+    s.value4b(o.keyId);
+}
 // server -> client; provides a requested key
 struct McastCtrlGetKeyAck {
     // status
@@ -231,6 +320,13 @@ struct McastCtrlGetKeyAck {
     // key data
     McastCtrlKeyWrapper keyData;
 };
+template <typename S>
+void serialize(S& s, McastCtrlGetKeyAck& o) {
+    s.value4b(o.status);
+    s.value4b(o.keyId);
+
+    s.object(o.keyData);
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// Multicast data endpoint message types
@@ -243,6 +339,10 @@ struct McastDataSyncOutput {
     // channel bitmask (currently unused. set to 0)
     uint64_t channels;
 };
+template <typename S>
+void serialize(S& s, McastDataSyncOutput& o) {
+    s.value8b(o.channels);
+}
 
 
 };

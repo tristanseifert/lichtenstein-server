@@ -15,7 +15,7 @@ include_directories(src)
 include_directories(../libs/cxxopts/include)
 include_directories(../libs/cpp-httplib)
 include_directories(../libs/stduuid/include)
-include_directories(../libs/cista/include)
+include_directories(../libs/bitsery/include)
 
 # compile in the git version file
 include(GetGitRevisionDescription)

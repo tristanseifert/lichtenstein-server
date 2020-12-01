@@ -19,7 +19,10 @@ include_directories(../libs/cxxopts/include)
 include_directories(../libs/sqlite_orm/include/sqlite_orm)
 include_directories(../libs/cpp-httplib)
 include_directories(../libs/stduuid/include)
+
+# serialization
 include_directories(../libs/cista/include)
+include_directories(../libs/bitsery/include)
 
 # compile in the git version file
 include(GetGitRevisionDescription)

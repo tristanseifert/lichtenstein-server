@@ -55,10 +55,10 @@ namespace Lichtenstein::Server::Proto::Controllers {
             virtual void handle(ServerWorker*, const Header &, PayloadType &);
 
         private:
-            void handleAuthReq(ServerWorker*, const Header &, const AuthReq *);
+            void handleAuthReq(ServerWorker*, const Header &, const AuthReq &);
             bool updateNodeId(ServerWorker*, const uuids::uuid &);
 
-            void handleAuthResp(ServerWorker *, const Header &, const AuthResp *);
+            void handleAuthResp(ServerWorker *, const Header &, const AuthResp &);
 
         private:
             // current state machine state

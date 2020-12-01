@@ -10,11 +10,16 @@
 
 #include <stdexcept>
 
-#include <cista.h>
+#include <bitsery/bitsery.h>
+#include <bitsery/adapter/buffer.h>
 
 using namespace Lichtenstein::Proto;
 using namespace Lichtenstein::Proto::MessageTypes;
 using namespace Lichtenstein::Server::Proto::Controllers;
+
+using Buffer = std::vector<uint8_t>;
+using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
+using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
 
 using IMessageHandler = Lichtenstein::Server::Proto::IMessageHandler;
 
@@ -80,8 +85,13 @@ void Authentication::handle(ServerWorker *worker, const struct MessageHeader &he
                 throw std::runtime_error("Client must not be authenticated");
             }
 
-            auto request = cista::deserialize<AuthRequest, kCistaMode>(payload);
-            this->handleAuthReq(worker, header, request);
+            AuthRequest req;
+            auto state = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, req);
+            if(state.first != bitsery::ReaderError::NoError || !state.second) {
+                throw std::runtime_error("failed to deserialize AuthRequest");
+            }
+
+            this->handleAuthReq(worker, header, req);
             break;
         }
 
@@ -93,8 +103,13 @@ void Authentication::handle(ServerWorker *worker, const struct MessageHeader &he
                 throw std::runtime_error("Client must not be authenticated");
             }
 
-            auto response = cista::deserialize<AuthResponse, kCistaMode>(payload);
-            this->handleAuthResp(worker, header, response);
+            AuthResponse res;
+            auto state = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, res);
+            if(state.first != bitsery::ReaderError::NoError || !state.second) {
+                throw std::runtime_error("failed to deserialize AuthResponse");
+            }
+
+            this->handleAuthResp(worker, header, res);
             break;
         }
 
@@ -119,14 +134,14 @@ void Authentication::handle(ServerWorker *worker, const struct MessageHeader &he
  * have in common with the client, initialize the handler, and respond to the
  * client with the required information.
  */
-void Authentication::handleAuthReq(ServerWorker *worker, const Header &hdr, const AuthReq *msg) {
+void Authentication::handleAuthReq(ServerWorker *worker, const Header &hdr, const AuthReq &msg) {
     int bestMethod = -1;
 
     AuthRequestAck ack;
     memset(&ack, 0, sizeof(ack));
 
     // get node UUID
-    auto maybeUuid = uuids::uuid::from_string(msg->nodeId.str());
+    auto maybeUuid = uuids::uuid::from_string(msg.nodeId);
     if(!maybeUuid.has_value()) {
         throw std::runtime_error("Invalid node id");
     }
@@ -141,9 +156,7 @@ void Authentication::handleAuthReq(ServerWorker *worker, const Header &hdr, cons
     }
 
     // find the best supported auth method
-    for(const auto method : msg->methods) {
-        const std::string str = method.str();
-
+    for(const auto str : msg.methods) {
         auto it = std::find(kSupportedMethods.begin(), kSupportedMethods.end(), str);
         if(it != kSupportedMethods.end()) {
             size_t idx = it - kSupportedMethods.begin();
@@ -166,15 +179,20 @@ void Authentication::handleAuthReq(ServerWorker *worker, const Header &hdr, cons
     ack.method = kSupportedMethods[bestMethod];
 
     {
-        const auto ackData = cista::serialize<kCistaMode>(ack);
-        this->reply(hdr, AuthMessageType::AUTH_REQUEST_ACK, ackData);
+        Buffer payload;
+        auto writtenSize = bitsery::quickSerialization(OutputAdapter{payload}, ack);
+        payload.resize(writtenSize);
+
+        this->reply(hdr, AuthMessageType::AUTH_REQUEST_ACK, payload);
     }
     this->state = HandleResponse;
     return;
 
     // negative acknowledge
 nack:;
-    const auto nackData = cista::serialize<kCistaMode>(ack);
+    Buffer nackData;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{nackData}, ack);
+    nackData.resize(writtenSize);
     this->reply(hdr, AuthMessageType::AUTH_REQUEST_ACK, nackData);
 
     throw std::runtime_error("No common auth methods");
@@ -210,13 +228,13 @@ bool Authentication::updateNodeId(ServerWorker *worker, const uuids::uuid &uuid)
 /**
  * Validates a client's authentication response.
  */
-void Authentication::handleAuthResp(ServerWorker *worker, const Header &hdr, const AuthResp *msg) {
+void Authentication::handleAuthResp(ServerWorker *worker, const Header &hdr, const AuthResp &msg) {
     AuthResponseAck ack;
     memset(&ack, 0, sizeof(ack));
 
     // validate status
-    if(msg->status != AUTH_SUCCESS) {
-        Logging::warn("Authentication aborted with status {}", msg->status);
+    if(msg.status != AUTH_SUCCESS) {
+        Logging::warn("Authentication aborted with status {}", msg.status);
 
         this->state = Idle;
         throw std::runtime_error("Authentication aborted");
@@ -229,8 +247,13 @@ void Authentication::handleAuthResp(ServerWorker *worker, const Header &hdr, con
     Logging::info("Authentication state for {}: {}", (void *) worker, worker->isAuthenticated());
 
     // also, let the client know it's now authenticated
-    const auto ackData = cista::serialize<kCistaMode>(ack);
-    this->reply(hdr, AuthMessageType::AUTH_RESPONSE_ACK, ackData);
+    ack.status = AUTH_SUCCESS;
+
+    Buffer payload;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{payload}, ack);
+    payload.resize(writtenSize);
+
+    this->reply(hdr, AuthMessageType::AUTH_RESPONSE_ACK, payload);
     this->state = Authenticated;
 }
 

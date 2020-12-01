@@ -20,11 +20,18 @@
 #include <stdexcept>
 #include <algorithm>
 
-#include <cista.h>
+#include <bitsery/bitsery.h>
+#include <bitsery/adapter/buffer.h>
 
 using namespace Lichtenstein::Proto;
 using namespace Lichtenstein::Proto::MessageTypes;
 using namespace Lichtenstein::Client::Proto;
+
+using Buffer = std::vector<uint8_t>;
+using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
+// crypto routines use std::byte
+using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
+using InputByteAdapter = bitsery::InputBufferAdapter<std::vector<std::byte>>;
 
 /**
  * Sets up the multicast receiver.
@@ -105,10 +112,6 @@ void MulticastReceiver::initSocket() {
 }
 /**
  * Join our multicast group.
- *
- * We don't care about any received packets, and to send multicast, we technically don't have to
- * be a member of the group. However, doing this will cause the kernel to send the IGMP messages
- * that some really stupid network equipment needs to pass multicast.
  *
  * Plus, at least we'll be prepared when/if we ever need to receive multicast.
  */
@@ -267,9 +270,16 @@ void MulticastReceiver::workerMain() {
         // decrypt success; handle the packet
         switch(header->messageType) {
             // handle a sync output
-            case McastDataMessageType::MCD_SYNC_OUTPUT:
-                this->handleSyncOutput(header, cista::deserialize<SyncOutMsg, kCistaMode>(plaintext));
+            case McastDataMessageType::MCD_SYNC_OUTPUT: {
+                McastDataSyncOutput msg;
+                auto ds = bitsery::quickDeserialization(InputByteAdapter{plaintext.begin(), plaintext.size()}, msg);
+                if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+                    throw std::runtime_error("failed to deserialize McastDataSyncOutput");
+                }
+
+                this->handleSyncOutput(header, msg);
                 break;
+            }
 
             default:
                 Logging::warn("Unsupported multicast message type {:x}", header->messageType);
@@ -289,7 +299,7 @@ void MulticastReceiver::workerMain() {
 /**
  * Handles a received "sync output" frame.
  */
-void MulticastReceiver::handleSyncOutput(const McastHeader *, const SyncOutMsg *msg) {
+void MulticastReceiver::handleSyncOutput(const McastHeader *, const SyncOutMsg &msg) {
     Output::PluginManager::get()->notifySyncOutput();
 }
 
@@ -346,14 +356,28 @@ void MulticastReceiver::handleMessage(const Header &header, const PayloadType &p
 
     switch(header.messageType) {
         // key received
-        case McastCtrlMessageType::MCC_GET_KEY_ACK:
-            this->handleGetKey(header, cista::deserialize<GetKeyAckMsg, kCistaMode>(payload));
+        case McastCtrlMessageType::MCC_GET_KEY_ACK: {
+            McastCtrlGetKeyAck ack;
+            auto ds = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, ack);
+            if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+                throw std::runtime_error("failed to deserialize McastCtrlGetKeyAck");
+            }
+
+            this->handleGetKey(header, ack);
             break;
+        }
 
         // rekeying
-        case McastCtrlMessageType::MCC_REKEY:
-            this->handleRekey(header, cista::deserialize<RekeyMsg, kCistaMode>(payload));
+        case McastCtrlMessageType::MCC_REKEY: {
+            McastCtrlRekey msg;
+            auto ds = bitsery::quickDeserialization(InputAdapter{payload.begin(), payload.size()}, msg);
+            if(ds.first != bitsery::ReaderError::NoError || !ds.second) {
+                throw std::runtime_error("failed to deserialize McastCtrlRekey");
+            }
+
+            this->handleRekey(header, msg);
             break;
+        }
 
         default:
             Logging::error("Unexpected multicast control message type {:x}", header.messageType);
@@ -364,39 +388,42 @@ void MulticastReceiver::handleMessage(const Header &header, const PayloadType &p
 /**
  * Processes responses to "get key" requests.
  */
-void MulticastReceiver::handleGetKey(const Header &, const GetKeyAckMsg *msg) {
+void MulticastReceiver::handleGetKey(const Header &, const GetKeyAckMsg &msg) {
     // ensure success
-    if(msg->status != MCC_SUCCESS) {
-        Logging::error("Failed to get key: {}", msg->status);
+    if(msg.status != MCC_SUCCESS) {
+        Logging::error("Failed to get key: {}", msg.status);
         throw std::runtime_error("get key request failed");
     }
 
     // then load the key (and activate it if it's the current key id)
-    bool activate = (msg->keyId == this->currentKeyId);
+    bool activate = (msg.keyId == this->currentKeyId);
 
-    this->loadKey(msg->keyId, msg->keyData, activate);
+    this->loadKey(msg.keyId, msg.keyData, activate);
 }
 
 /**
  * Handles a rekey. This is pretty much the same logic as loading a key, except that we will also
  * change the current key id to the value specified in the rekey message.
  */
-void MulticastReceiver::handleRekey(const Header &hdr, const RekeyMsg *msg) {
+void MulticastReceiver::handleRekey(const Header &hdr, const RekeyMsg &msg) {
     // load key and update the key id
-    this->loadKey(msg->keyId, msg->keyData, true);
-    this->currentKeyId = msg->keyId;
+    this->loadKey(msg.keyId, msg.keyData, true);
+    this->currentKeyId = msg.keyId;
 
-    Logging::trace("Rekeying multicast channel: new key id {:x}", msg->keyId);
+    Logging::trace("Rekeying multicast channel: new key id {:x}", msg.keyId);
 
     // acknowledge the re-key
     McastCtrlRekeyAck ack;
     memset(&ack, 0, sizeof(ack));
 
     ack.status = MCC_SUCCESS;
-    ack.keyId = msg->keyId;
+    ack.keyId = msg.keyId;
 
-    auto bytes = cista::serialize<kCistaMode>(ack);
-    this->client->reply(hdr, McastCtrlMessageType::MCC_REKEY_ACK, bytes);
+    Buffer ackData;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{ackData}, ack);
+    ackData.resize(writtenSize);
+
+    this->client->reply(hdr, McastCtrlMessageType::MCC_REKEY_ACK, ackData);
 }
 
 /**
@@ -453,10 +480,12 @@ void MulticastReceiver::sendMcastKeyReq(const uint32_t keyId, uint8_t &sentTag) 
 
     msg.keyId = keyId;
 
-    auto bytes = cista::serialize<kCistaMode>(msg);
+    Buffer reqData;
+    auto writtenSize = bitsery::quickSerialization(OutputAdapter{reqData}, msg);
+    reqData.resize(writtenSize);
 
     uint8_t tag = this->client->nextTag++;
-    this->client->send(MessageEndpoint::MulticastControl, McastCtrlMessageType::MCC_GET_KEY, tag, bytes);
+    this->client->send(MessageEndpoint::MulticastControl, McastCtrlMessageType::MCC_GET_KEY, tag, reqData);
     sentTag = tag;
 }
 
