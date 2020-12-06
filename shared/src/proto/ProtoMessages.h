@@ -29,6 +29,42 @@
 
 namespace Lichtenstein::Proto::MessageTypes {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+// Default endpoint messages
+enum DefaultMessageType: uint8_t {
+    DEF_PING_REQ                = 1,
+    DEF_PING_RESP               = 2,
+};
+
+// ping request
+struct PingRequest {
+    // timestamp (sender defined, returned as-is)
+    uint64_t timestamp;
+    // opaque sequence identifier
+    uint32_t sequence;
+};
+template <typename S>
+void serialize(S& s, PingRequest& o) {
+    s.value8b(o.timestamp);
+    s.value4b(o.sequence);
+}
+
+// response to ping
+struct PingResponse {
+    // status code (should be 0)
+    uint32_t status;
+    // timestamp (sender defined, returned as-is)
+    uint64_t timestamp;
+    // opaque sequence identifier
+    uint32_t sequence;
+};
+template <typename S>
+void serialize(S& s, PingResponse& o) {
+    s.value4b(o.status);
+    s.value8b(o.timestamp);
+    s.value4b(o.sequence);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 // Authentication endpoint messages
 enum AuthMessageType: uint8_t {
     AUTH_REQUEST                = 1,

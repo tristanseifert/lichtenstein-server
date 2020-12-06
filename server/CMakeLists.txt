@@ -74,6 +74,7 @@ add_executable(lichtenstein_server
     src/proto/controllers/MulticastControl.cpp
     src/proto/Syncer.cpp
     ../shared/src/proto/MulticastCrypto.cpp
+    src/proto/controllers/DefaultEndpoint.cpp
     ${version_file} src/version.h)
 
 

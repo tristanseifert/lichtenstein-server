@@ -248,6 +248,12 @@ connect:;
                     header.messageType, header.length);
 
             }
+
+            // if we need to re-establish connection, do that
+            if(this->needsReconnect) {
+                this->needsReconnect = false;
+                goto connect;
+            }
         } catch(std::exception &e) {
             Logging::error("Exception while processing message type {:x}:{:x}: {}",
                     header.endpoint, header.messageType, e.what());

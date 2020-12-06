@@ -21,7 +21,7 @@ static const uint8_t kLichtensteinProtoVersion = 0x01;
  * Note that this defines the format of the messages.
  */
 enum MessageEndpoint: uint8_t {
-    /// default endpoint; this drops all messages
+    /// system default endpoint; only useful for ping requests
     Default = 0,
     /// authentication of nodes
     Authentication = 1,

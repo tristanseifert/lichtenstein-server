@@ -131,6 +131,9 @@ namespace Lichtenstein::Client::Proto {
             // whether we should try to cleanly shut down SSL connection
             bool sslShutdown = true;
 
+            // when set, we close the current connection and re-open it
+            bool needsReconnect = false;
+
             // multicast handling
             std::shared_ptr<MulticastReceiver> mcastReceiver = nullptr;
 

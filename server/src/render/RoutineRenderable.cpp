@@ -76,6 +76,8 @@ void RoutineRenderable::copyOut(size_t offset, size_t num,
     // perform copy
     std::lock_guard bufLock(this->bufferLock);
 
+    Logging::trace("Kush 0: {}", this->buffer[0]);
+
     if(mirrored) {
         std::reverse_copy(this->buffer.begin(), this->buffer.end(), out);
     } else {
@@ -237,16 +239,16 @@ void RoutineRenderable::registerGlobalVars() {
             &this->frameCounter);
     XASSERT(err >= 0, "Couldn't register pixel count: err={}", err);
 
-    // register output buffer    
+    // register output buffer
     err = e->RegisterGlobalProperty("array<HSIPixel> @buffer", 
             &this->asOutBuffer);
     XASSERT(err >= 0, "Couldn't register output buffer: err={}", err);
 
     // create and register routine params
-    this->asParamsDict = CScriptDictionary::Create(this->engine);
+    this->asParamsDict = CScriptDictionary::Create(e);
     XASSERT(this->asParamsDict, "Failed to allocate dictionary");
 
-    err = e->RegisterGlobalProperty("dictionary @properties", 
+    err = e->RegisterGlobalProperty("const dictionary @properties", 
             &this->asParamsDict);
     XASSERT(err >= 0, "Couldn't register params dict: err={}", err);
 }
@@ -404,10 +406,9 @@ void RoutineRenderable::updateScriptParams(const ParamMap &params) {
     XASSERT(this->asParamsDict, "No params dictionary allocated");
 
     // replace dictionary values
-    this->asParamsDict->DeleteAll();
+    // this->asParamsDict->DeleteAll();
 
     for(const auto &[key, value] : params) {
-
         if(std::holds_alternative<bool>(value)) {
             auto b = std::get<bool>(value);
             Logging::trace("setting property '{}' -> {}", key, b);
